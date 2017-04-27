@@ -70,8 +70,8 @@ crsctl stat res -v -w "TYPE = ora.database.type" >> $TMP
 		# Fill 2 tables with the OH and the version from "crsctl stat res -p -w "TYPE = ora.database.type""
 		if ($1 ~ /^NAME/)
                {
-			sub("ora.", "", $2)     								;
-			sub(".db", "", $2)      								;
+			sub("^ora.", "", $2)     								;
+			sub(".db$", "", $2)      								;
 			DB=$2                   								;
 							
 			getline; getline									;
