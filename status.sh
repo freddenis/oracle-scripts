@@ -1,6 +1,8 @@
 #!/bin/bash
 # Fred Denis - denis@pythian.com - January 12th 2016
-# Quickly show a status of all running instances accross a 12c cluster
+# Quickly shows a status of all running instances accross a 12c cluster
+#
+# The current script version is 20170427
 #
 
       TMP=/tmp/status$$.tmp						# A tempfile
