@@ -1,22 +1,25 @@
 #!/bin/bash
-# Fred Denis -- March 2017 -- Automatically generates an Exadata patching action plan
+# Fred Denis -- denis@pythian.com -- March 2017
+# Automatically generates an Exadata patching action plan
+# For more details about the Exadata patching procedure, you can have a look at https://www.pythian.com/blog/patch-exadata-part-1-introduction-prerequisites/
 #
+# The current version of the script is 20170427
 #
 
 #
 # If we want some "debug" information, comment the line you don't want
 #
-DEBUG="Yes"
-#DEBUG="No"
+#DEBUG="Yes"
+DEBUG="No"
 
 #
 # Some default values
 #
-	DEFAULT_CLUSTER_NAME="mycluster"
-	     DEFAULT_GI_HOME="/u01/app/12.1.0.2/grid"
-	          DEFAULT_OH="/u01/app/oracle/product/12.1.0.2/dbhome_1"
+	DEFAULT_CLUSTER_NAME="mycluster"				# If a clustername is not specified and if we don't find it
+	     DEFAULT_GI_HOME="/u01/app/12.1.0.2/grid"			# If not specified and if we don't find it
 		        CONF=/tmp/tmpconf$$				# Temporary config file
 	       DBSERVER_TYPE="OL"					# Other possible value is OVS
+	       STATUS_SCRIPT=/home/oracle/pythian/status.sh		# Where the status script is located (this one : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/status.sh)
 
 #
 # A usage function
@@ -29,9 +32,8 @@ usage()
 		-d <DIRECTORY_OF_THE_BUNDLE_PATCH>	(mandatory)
 		-n <NAME_OF_THE_CLUSTER>		(optional)
 		-g <GI_HOME>				(optional)
-		-o <ORACLE_HOME>			(optional)
-		-u					(Unzip steps have been done, shows a green DONE for the unzip parts, default is unzip has not been done)
-		-h					(generate HTML action plan, mandatory, default is no HTML)
+		-u					(Unzip and prereqs steps have been done, shows a green DONE for the unzip parts, default is unzip has not been done)
+		-h					(generate a HTML action plan, mandatory, default is no HTML)
 !
 	exit 123
 }
@@ -39,15 +41,14 @@ usage()
 #
 # Parameters management
 #
-while getopts ":d:n:hug:o:" OPT; do
+while getopts ":d:n:hug:" OPT; do
 	case ${OPT} in
-	d)	PATCH_DIR=`echo ${OPTARG} | sed s'/\/ *$//'`		;;	# Remove any trailing /
-	n)   CLUSTER_NAME=${OPTARG}					;;
-	g)        GI_HOME=`echo ${OPTARG} | sed s'/\/ *$//'`		;;	# Remove any trailing /
-	o)	       OH=`echo ${OPTARG} | sed s'/\/ *$//'`		;;	# Remove any trailing /
-	u)     UNZIP_DONE="Yes"						;;
-	h)	     HTML="Yes"						;;
-	\?) echo "Invalid option: -$OPTARG" >&2				;;
+	d)	PATCH_DIR=`echo ${OPTARG} | sed s'/\/ *$//'`	;;	# Remove any trailing /
+	n)   CLUSTER_NAME=${OPTARG}				;;
+	g)        GI_HOME=`echo ${OPTARG} | sed s'/\/ *$//'`	;;	# Remove any trailing /
+	u)     UNZIP_DONE="Yes"					;;
+	h)	     HTML="Yes"					;;
+	\?) echo "Invalid option: -$OPTARG" >&2; usage		;;
 	esac
 done
 
@@ -58,7 +59,6 @@ then
 !
 	usage
 fi
-
 if [ -z ${CLUSTER_NAME} ]	# If cluster_name is not specified, we try to guess it or we put a default value
 then
 	HOST=`hostname -s`
@@ -69,7 +69,6 @@ then
 		CLUSTER_NAME=${DEFAULT_CLUSTER_NAME}
 	fi
 fi
-
 if [ -z ${GI_HOME} ]		# If Grid Home is not set, we try to find out, if not we put a default
 then
 	GI_HOME=`grep ASM /etc/oratab | awk 'BEGIN {FS=":"} {print $2}' | grep "^/"`
@@ -79,29 +78,9 @@ then
 	fi
 fi
 
-if [ -z ${OH} ]			# If database OH is not provided, try to find one, if not we put a default
-then
-	OH=`grep -v ASM /etc/oratab | awk 'BEGIN {FS=":"} {print $2}' | grep "^/" | grep -v agent | head -1`
-	if [ -z ${OH} ]
-	then
-		   OH=${DEFAULT_OH}
-	fi
-fi
-if [[ ${OH} == *"_1"* ]]
-then
-	OH2=`echo ${OH} | sed s'/_1$/_2/'`
-else
-	if [[ ${OH} == *"_2"* ]]
-	then
-		OH2=`echo ${OH} | sed s'/_2$/_1/'`
-	else
-		OH2=${OH}_2
-	fi
-fi
-OH_VERSION=`echo ${OH}  |  sed 's/.*\(1[1-9]\.[0-9]\.[0-9]\.[0-9]\).*$/\1/'`	# Grep the OH version from the path, to adapt of you use another norm
-
 #
 # Grep and format the information we need from the bundle.xml file
+# I choose to put everything in a temporary config file in case of we would need to only keep config files instead of bundle.xml file later on
 #
 	    BUNDLE_XML="${PATCH_DIR}/bundle.xml"
 
@@ -112,11 +91,7 @@ OH_VERSION=`echo ${OH}  |  sed 's/.*\(1[1-9]\.[0-9]\.[0-9]\.[0-9]\).*$/\1/'`	# G
 !
 	usage
 	fi
-
-	#  PATCH_NUMBER=`basename ${PATCH_DIR}`
-	#TARGET_VERSION=`grep version_after_patching ${BUNDLE_XML} | head -1 | sed s'/.*version_after_patching="//' | sed s'/">//'`
-	#       VERSION=`echo ${TARGET_VERSION} | sed s'/\.[[:digit:]]*$//'`
-	       VERSION=`grep patch_abstract ${BUNDLE_XML} | sed 's/.*- //; s/)"//'`
+	       VERSION=`grep patch_abstract ${BUNDLE_XML} | sed 's/.*- //; s/)"//'`		# Better way I found to get the target version
 
 		awk -v VERSION="$VERSION" '
 		BEGIN\
@@ -125,63 +100,57 @@ OH_VERSION=`echo ${OH}  |  sed 's/.*\(1[1-9]\.[0-9]\.[0-9]\.[0-9]\).*$/\1/'`	# G
 			PATCHMGR="CANNOT_FIND_PATCHMGR_PLEASE_DOWNLOAD_IT_FROM_PATCH_21634633"	;
 		}
 		{
-			# Look for the Database and OJVM patches
-			# We will use the latest 12c version as well as the 11.2.0.4
-			#if (($0 ~ "Database/"VERSION) || ($0 ~ "Database/11.2.0.4"))
+			# Look for the GI patch
 			if ($0 ~ "Database/")
 			{
-				sub(/.*location=\"/, "", $0)			;
-				sub(/".*$/, "", $0)				;
-				PATH = $0					;
-				TYPE="UNKNOWN"					;
+				sub(/.*location=\"/, "", $0)					;
+				sub(/".*$/, "", $0)						;
+				PATH = $0							;
+				TYPE="UNKNOWN"							;
 				while (getline)
 				{
 					if ($0 ~ / patch_id/)
 					{
-						sub (/.*patch_id="/, "", $0)	;
-						sub (/".*$/, "", $0)            ;
-						PATCH_ID = $0			;
+						sub (/.*patch_id="/, "", $0)			;
+						sub (/".*$/, "", $0)            		;
+						PATCH_ID = $0					;
 					}
 					if (PATH ~ /OPatch/)
-					{	print "OPATCH", PATH, PATCH_ID      ;
-						break				;
+					{	print "OPATCH", PATH, PATCH_ID      		;
+						break						;
 					} 
 					if (PATH ~ /OPlan/)
 					{
-						print "OPLAN", PATH, PATCH_ID      ;
-						break				;
+						print "OPLAN", PATH, PATCH_ID      		;
+						break						;
 					}
 					if ($0 ~ /type="cluster"/ )
 					{	
-						print "GI", PATH, PATCH_ID	;
-					}
-					if ($0 ~ /type="rac_database"/ )
-					{	
-						print "DB", PATH, PATCH_ID	;
+						print "GI", PATH, PATCH_ID			;
 					}
 					if ($0 ~ /<\/subpatch>/)
 					{
-						break				;
+						break						;
 					}
 				}
-			}	# End of if ($0 ~ "Database/"VERSION)
+			}	# End of if ($0 ~ "Database/")
 
 			# Look for the cell and IB patchs and versions
 			if ($0 ~ /ExadataStorageServer_InfiniBandSwitch/)
 			{ 
-				sub(/.*location="/, "", $0)			;
-				sub(/".*$/, "", $0)				;
-				CELL_DIR=$0					;
-				sub(/.*Infrastructure\//, "", $0)		;
-				sub(/\/.*$/, "", $0)				;
+				sub(/.*location="/, "", $0)					;
+				sub(/".*$/, "", $0)						;
+				CELL_DIR=$0							;
+				sub(/.*Infrastructure\//, "", $0)				;
+				sub(/\/.*$/, "", $0)						;
 				if ( $0 > CELL_VERSION)
 				{
-					CELL_VERSION=$0				;
+					CELL_VERSION=$0						;
 					while (getline)
 					{	if ($0 ~  / patch_id/)
-						{	sub (/.*patch_id="/, "", $0)	;
-							sub(/".*$/, "", $0)		;
-							CELL_PATCH_ID=$0		;
+						{	sub (/.*patch_id="/, "", $0)		;
+							sub(/".*$/, "", $0)			;
+							CELL_PATCH_ID=$0			;
 						}
 						if ($0 ~ /target_type type="oracle_exadata/) 
 						{
@@ -197,7 +166,7 @@ OH_VERSION=`echo ${OH}  |  sed 's/.*\(1[1-9]\.[0-9]\.[0-9]\.[0-9]\).*$/\1/'`	# G
 						}
 						if ($0 ~ /<\/target_types>/)
 						{
-							next	;
+							next					;
 						}
 					}
 				}
@@ -206,20 +175,20 @@ OH_VERSION=`echo ${OH}  |  sed 's/.*\(1[1-9]\.[0-9]\.[0-9]\.[0-9]\).*$/\1/'`	# G
 			# Look for patchmgr
 			if ($0 ~  /DBServerPatch/)
 			{
-				sub(/.*location="/, "", $0)                     ;
-                                sub(/".*$/, "", $0)                             ;
-				PATCHMGR=$0					;
+				sub(/.*location="/, "", $0)                     		;
+                                sub(/".*$/, "", $0)                             		;
+				PATCHMGR=$0							;
 				while (getline)		# I could do only 1 getline but in case Oracle changes something one day, we ll be ready
 				{       if ($0 ~  / patch_id/)
-					{       sub (/.*patch_id="/, "", $0)    ;
-						sub(/".*$/, "", $0)             ;
-						PATCHMGR_PATCH_ID=$0            ;
-						break				;
+					{       sub (/.*patch_id="/, "", $0)    		;
+						sub(/".*$/, "", $0)             		;
+						PATCHMGR_PATCH_ID=$0            		;
+						break						;
 					}
 					 if ($0 ~ /<\/subpatch>/)
 					{
-						PATCHMGR_PATCH_ID="NOT_FOUND"	;
-						next            		;
+						PATCHMGR_PATCH_ID="NOT_FOUND"			;
+						next            				;
 					}
 				}
 				
@@ -228,31 +197,31 @@ OH_VERSION=`echo ${OH}  |  sed 's/.*\(1[1-9]\.[0-9]\.[0-9]\.[0-9]\).*$/\1/'`	# G
 			# Look for DB server patches
                         if ($0 ~ /ExadataDatabaseServer/)
                         {
-                                sub(/.*location="/, "", $0)                     ;
-                                sub(/".*$/, "", $0)                             ;
-                                DB_DIR=$0					;
-				sub(/.*Infrastructure\//, "", $0)               ;
-                                sub(/\/.*$/, "", $0)                            ;
-				DB_SERVER_VERSION=$0				;
-				NON_DOTTED_VERSION=DB_SERVER_VERSION		;
-                        	gsub(/\./, "", NON_DOTTED_VERSION)      	;
+                                sub(/.*location="/, "", $0)                     		;
+                                sub(/".*$/, "", $0)                             		;
+                                DB_DIR=$0							;
+				sub(/.*Infrastructure\//, "", $0)               		;
+                                sub(/\/.*$/, "", $0)                            		;
+				DB_SERVER_VERSION=$0						;
+				NON_DOTTED_VERSION=DB_SERVER_VERSION				;
+                        	gsub(/\./, "", NON_DOTTED_VERSION)      			;
 
 				while (getline)
 				{       if ($0 ~  / patch_id/)
-					{       sub (/.*patch_id="/, "", $0)    ;
-						sub(/".*$/, "", $0)             ;
-						DB_SERVER_PATCH_ID=$0           ;
+					{       sub (/.*patch_id="/, "", $0)    		;
+						sub(/".*$/, "", $0)             		;
+						DB_SERVER_PATCH_ID=$0           		;
 					}
 					if ($0 ~ /target_type type="host"/)
 					{
 						sub (/.*version_after_patching="/, "", $0)	;
-						sub (/".*$/, "", $0)            ;
+						sub (/".*$/, "", $0)            		;
 						DB_SERVER_VERSION_AFTER_PATCHING=$0		;
 					}
 					if ($0 ~ /<\/target_types>/)
 					{
 						print "DB_SERVER", DB_DIR, DB_SERVER_VERSION, DB_SERVER_VERSION_AFTER_PATCHING, "p"DB_SERVER_PATCH_ID"_"NON_DOTTED_VERSION"_Linux-x86-64.zip"	;
-						break            ;
+						break            				;
 					}
 				}
 			}	# End of if ($0 ~ /ExadataDatabaseServer/)
@@ -261,14 +230,14 @@ OH_VERSION=`echo ${OH}  |  sed 's/.*\(1[1-9]\.[0-9]\.[0-9]\.[0-9]\).*$/\1/'`	# G
 		END\
 		{
 			# A non dotted version to generate the names of the zip files
-			NON_DOTTED_VERSION=CELL_VERSION		;
-			gsub(/\./, "", NON_DOTTED_VERSION)	;
+			NON_DOTTED_VERSION=CELL_VERSION						;
+			gsub(/\./, "", NON_DOTTED_VERSION)					;
 
 			# Cells and IB infos
 			print "CELLS", CELL_DIR, CELL_VERSION, CELL_VERSION_AFTER_PATCHING, "p"CELL_PATCH_ID"_"NON_DOTTED_VERSION"_Linux-x86-64.zip"		;
 
 			# Patchmgr infos
-			print "PATCHMGR", PATCHMGR, "p"PATCHMGR_PATCH_ID"_*_Linux-x86-64.zip"            	;	# I put a star as for Jan 2017 the bundle do not show the correct version
+			print "PATCHMGR", PATCHMGR, "p"PATCHMGR_PATCH_ID"_*_Linux-x86-64.zip" 	;	# I put a star in the name as for Jan 2017 the bundle do not show the correct version
 		}' ${BUNDLE_XML} > ${CONF}
 
 
@@ -287,89 +256,55 @@ OH_VERSION=`echo ${OH}  |  sed 's/.*\(1[1-9]\.[0-9]\.[0-9]\.[0-9]\).*$/\1/'`	# G
 	        GI_DIR=`grep "^GI"	  ${CONF} | grep ${VERSION}	  		| awk 'BEGIN{FS="|"} {print $2}'`		# I take the latest version for the GI
 	      GI_PATCH=`grep "^GI"        ${CONF} | grep ${VERSION}       		| awk 'BEGIN{FS="|"} {print $3}'`		# I take the latest version for the GI
 	     GI_BUNDLE=${PATCH_DIR}/${GI_DIR}/${GI_PATCH}/bundle.xml
-	        OH_DIR=`grep "^DB|"	  ${CONF} | grep ${OH_VERSION} | grep -v JVM	| awk 'BEGIN{FS="|"} {print $2}'`		
-	      OH_PATCH=`grep "^DB|"       ${CONF} | grep ${OH_VERSION} | grep -v JVM	| awk 'BEGIN{FS="|"} {print $3}'`		
-	     OH_BUNDLE=${PATCH_DIR}/${OH_DIR}/${OH_PATCH}/bundle.xml
-	      OJVM_DIR=`grep "^DB|"	  ${CONF} | grep ${OH_VERSION} | grep    JVM	| awk 'BEGIN{FS="|"} {print $2}'`		
-	    OJVM_PATCH=`grep "^DB|"       ${CONF} | grep ${OH_VERSION} | grep    JVM	| awk 'BEGIN{FS="|"} {print $3}'`		
-	
 
-# old	       OL6_DIR=`grep OL6 ${BUNDLE_XML} | sed s'/"//g' | sed s'/.*=//' | sort | tail -1`				# If more than 1 version, take the highest
-# old	           ISO=`grep zip ${BUNDLE_XML} | head -1 | sed s'/^.*Pair name="//' | sed s'/".*$//'`
-#     	      PATCHMGR=`grep DBServerPatch ${BUNDLE_XML} | sed s'/"//g' | sed s'/.*=//'`
-#	if [ -z ${PATCHMGR} ]
-#	then
-#	 PATCHMGR="???"
-#	 PATCHMGR_ZIP="<PATH_YOU_HAVE_DOWNLOADED_PATCHMGR_FROM_PATCH_21634633>"
-#	else
-#	  PATCHMGR_ZIP=`ls ${PATCH_DIR}/${PATCHMGR}/*.zip`
-#	fi
-#		OPATCH=`grep OPatch ${BUNDLE_XML} | sed s'/"//g' | sed s'/.*=//'`
 #
+# Define some prompts to put in the action plan
 #
-#	  CELL_AND_IB=`grep ExadataStorageServer_InfiniBandSwitch ${BUNDLE_XML} | sed s'/"//g' | sed s'/.*=//' | sort | tail -1`	# If more than 1 version, take the highest
-#       CELL_AND_IB_ZIP=`ls ${PATCH_DIR}/${CELL_AND_IB}/*.zip`
-#	          DBBP=`grep DBBP ${BUNDLE_XML} | sed s'/"//g' | sed s'/.*=//'`
-#	      DBBP_ZIP=`ls ${PATCH_DIR}/${DBBP}/*.zip`
-#	    DBBP_PATCH=`basename ${DBBP_ZIP} | sed 's/p// ;s/_.*$//'`
-
 	 DBROOTPROMPT="[root@${CLUSTER_NAME}db01 ~]#"
 	CELROOTPROMPT="[root@${CLUSTER_NAME}cel01 ~]#"
        DBORACLEPROMPT="[oracle@${CLUSTER_NAME}db01 ~]$"
 
-
+#
+# Show debug info (check the DEBUG variable on top of this script if you want / don't want these debug information)
+#
 	if [ "${DEBUG}" = "Yes" ]
 	then
 		cat ${CONF}
 	cat << !
 		Bundle file 	: 	${BUNDLE_XML}
-		Patch number	:	${PATCH_NUMBER}
 		Target version	:	${TARGET_VERSION}
 		Version		:	${VERSION}
 		OL6_DIR		:	${OL6_DIR}
-		OL6_DIR2	:	${OL6_DIR2}
 		ISO RPM		:	${ISO}
-		ISO RPM2	:	${ISO2}
 		Patchmgr	:	${PATCHMGR}
 		Patchmgr ZIP	:	${PATCHMGR_ZIP}
 		opatch 12c	:	${OPATCH}
 		Cluster Name	:	${CLUSTER_NAME}
 		Cells and IB	:	${CELL_AND_IB}
 		Cells and IB ZIP:	${CELL_AND_IB_ZIP}
-		DBBP		:	${DBBP}
-		DBBP_ZIP	:	${DBBP_ZIP}
-		DBBP_PATCH	:	${DBBP_PATCH}
 		GI_DIR		:	${GI_DIR}
 		GI_PATCH	:	${GI_PATCH}
 		GI_BUNDLE	:	${GI_BUNDLE}
-		OH_DIR		:	${OH_DIR}
-		OH_PATCH	:	${OH_PATCH}
-		OH_BUNDLE	:	${OH_BUNDLE}
-		OJVM_DIR	:	${OJVM_DIR}
-		OJVM_PATCH	:	${OJVM_PATCH}
 		GRID_HOME	:	${GI_HOME}
-		DB_HOME		:	${OH}
-		DB_HOME 2	:	${OH2}
-		DB_HOME Version	:	${OH_VERSION}
 		UNZIP_DONE	:	${UNZIP_DONE}
 !
 	fi
 
-#exit
-
 #
-# Generate the procedure from the info we got in the previous steps
+# Define HTML or shell tags and colors depending on the chosen option
 #
 
 if [ "${HTML}" = "Yes" ]
 then
 	 S_H2="<h2>"
 	 E_H2="</h2>"
+	 S_H3="<h3>"
+	 E_H3="</h3>"
 	S_PRE="<blockquote style='background-color:beige;font-style:normal;'><pre style=white-space:pre-wrap>"
 	E_PRE="</pre></blockquote>"
 	  S_B="<b>"
 	  E_B="</b>"
-       U_DONE="<font color='green';><b>( Done )</b></font>"
+       U_DONE="<font color='green';><b> ( Done )</b></font>"
 else
   COLOR_BEGIN="\033[1;"                                      
     COLOR_END="\033[0m"                                     
@@ -381,12 +316,13 @@ else
 
 	 S_H2=${RED}
 	 E_H2=${COLOR_END}
+	 S_H3=${BLUE}
+	 E_H3=${COLOR_END}
 	 S_B=${WHITE}
 	 E_B=${COLOR_END}
 	 TAB="\t"
-      U_DONE=${GREEN}"( Done )"${COLOR_END}
+      U_DONE=${GREEN}" ( Done )"${COLOR_END}
 fi
-
 
 if [ "${UNZIP_DONE}" != "Yes" ]
 then
@@ -394,20 +330,23 @@ then
 fi
 
 
+#
+# Generate the procedure thanks to the info we got in the previous steps
+#
 
-echo -e "${S_H2} 1/ Cell patching ${E_H2}
+echo -e "${S_H2}1/ Cell patching ${E_H2}
 
-1.1/ First of all, you need to unzip the ${CELL_AND_IB_ZIP} file : ${U_DONE}
+${S_H3}1.1/ First of all, you need to unzip the ${CELL_AND_IB_ZIP} file${U_DONE}:${E_H3}
 
 ${S_PRE}
 ${TAB} ${DBROOTPROMPT} ${S_B} cd ${PATCH_DIR}/${CELL_AND_IB}											${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} nohup unzip `basename ${CELL_AND_IB_ZIP}` &									${E_B}
 
-${TAB} -- This should create a patch_${TARGET_VERSION} directory with the cell patch
+${TAB} -- This should create a ${S_B} patch_${TARGET_VERSION} ${E_B} directory with the cell patch
 ${E_PRE}
 
 
-1.2/ You can then apply the patch (with a check of the version before and after)
+${S_H3}1.2/ You can then apply the patch (with a check of the version before and after):${E_H3}
 
 ${S_PRE}
 ${TAB} ${DBROOTPROMPT} ${S_B} dcli -g ~/cell_group -l root imageinfo -ver									${E_B}
@@ -421,16 +360,16 @@ ${TAB} ${DBROOTPROMPT} ${S_B} dcli -g ~/cell_group -l root imageinfo -ver							
 ${E_PRE}
 
 
-${S_H2} 2/ InfiniBand Switches patching ${E_H2}
+${S_H2}2/ InfiniBand Switches patching ${E_H2}
 
-2.1 / IB Switches prerequisites : ${U_DONE}
+${S_H3}2.1 / IB Switches prerequisites${U_DONE}:${E_H3}
 
 ${S_PRE}
 ${TAB} ${DBROOTPROMPT} ${S_B} cd ${PATCH_DIR}/${CELL_AND_IB}/patch_${TARGET_VERSION}								${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} ./patchmgr -ibswitches ~/ib_group -ibswitch_precheck -upgrade							${E_B}
 ${E_PRE}
 
-2.2 / Apply the patch on the IB Switches
+${S_H3}2.2 / Apply the patch on the IB Switches:${E_H3}
 
 ${S_PRE}
 ${TAB} ${DBROOTPROMPT} ${S_B} dcli -g ~/ib_group -l root version										${E_B}
@@ -441,37 +380,46 @@ ${TAB} ${DBROOTPROMPT} ${S_B} dcli -g ~/ib_group -l root version										${E_B}
 ${E_PRE}
 
 
-${S_H2} 3/ Database Servers patching ${E_H2}
+${S_H2}3/ Database Servers patching ${E_H2}
 
 - As we cannot patch a node we are connected to, we will start the patch from a cell server (${CLUSTER_NAME}cel01). To be able to do that, we need to copy patchmgr and the ISO file on this cell server. Do NOT unzip the ISO file, patchmgr will take care of it. 
+-- Use the script ${S_B}${STATUS_SCRIPT}${E_B} to monitore the instances during the patch application
 
-3.1/ Before applying the patch, we first need to umount the NFS on the database servers
+
+${S_H3}3.1/ Copy what is needed to ${CLUSTER_NAME}cel01:${E_H3}
+
+-- Create a ${S_B}/tmp/SAVE${E_B} directory in order to avoid the automatic maintenance jobs that purge /tmp every day (directories > 5 MB and older than 1 day). If not, these maintenance jobs will delete the dbnodeupdate.zip file that is mandatory to apply the patch
+ 
+${S_PRE}
+${TAB} ${DBROOTPROMPT} ${S_B} ssh root@${CLUSTER_NAME}cel01 mkdir /tmp/SAVE									${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} scp ${PATCH_DIR}/${PATCHMGR}/${PATCHMGR_ZIP} root@${CLUSTER_NAME}cel01:/tmp/SAVE/.				${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} scp ${PATCH_DIR}/${OL6_DIR}/${ISO} root@${CLUSTER_NAME}cel01:/tmp/SAVE/.						${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} ssh root@${CLUSTER_NAME}cel01											${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B} cd /tmp/SAVE 													${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B} nohup unzip ${PATCHMGR_ZIP} &											${E_B}
+
+${TAB} This should create a ${S_B} dbserver_patch_`basename ${PATCHMGR}` ${E_B} directory 
+${E_PRE}
+
+
+${S_H3}3.2/ Before applying the patch, we first need to umount the NFS on all the database servers:${E_H3}
+
+- The below command will generate the umount command; add \"${S_B}| bash${E_B}\" at the and and it will umount everything automatically
+- If something prevents a NFS to umount, you can check what it is with \"${S_B}lsof FS_NAME${E_B}\" or \"${S_B}fuser -c -u FS_NAME${E_B}\" and kill it with \"${S_B}fuser -c -k FS_NAME${E_B}\"
 
 ${S_PRE}
 ${TAB} ${DBROOTPROMPT} ${S_B} df -t nfs | awk '{if (\$NF ~ /^\//){print \"umount \" \$NF}}'							${E_B}
 ${E_PRE}
 
 
-3.2/ We can now proceed with the rolling patch on the database servers (direct connect to the ${CLUSTER_NAME}cel01 server, if you go through ${CLUSTER_NAME}db01, you will lose your connection when it will reboot)
+${S_H3}3.3/ We can now proceed with the rolling patch on the database servers:${E_H3}
 
--- Some automatic maintenance jobs purge /tmp every day (directories > 5 MB and older than 1 day) then it can happen that you won't find the dbnodeupdate.zip file any more the day you apply the patch
--- /tmp is also cleaned after a reboot and as we use to patch the cells before the database servers, we need to copy patchmgr and the ISO just before
--- You can then use another directory or unzip patchmgr again before applying the patch
--- Use the script ${S_B}/home/oracle/pythian/status.sh${E_B} to monitore the instances during the patch application
+-- ${S_B}Direct connect to the ${CLUSTER_NAME}cel01 server${E_B}, if you go through ${CLUSTER_NAME}db01 or another database server, you will lose your connection when it will be rebooted
+-- Apply the patch
 
 ${S_PRE}
-${TAB} ${DBROOTPROMPT} ${S_B} scp ${PATCH_DIR}/${PATCHMGR}/${PATCHMGR_ZIP} root@${CLUSTER_NAME}cel01:/tmp/.					${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} scp ${PATCH_DIR}/${OL6_DIR}/${ISO} root@${CLUSTER_NAME}cel01:/tmp/.						${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} ssh root@${CLUSTER_NAME}cel01											${E_B}
-${TAB} ${CELROOTPROMPT} ${S_B} cd /tmp 														${E_B}
-${TAB} ${CELROOTPROMPT} ${S_B} nohup unzip ${PATCHMGR_ZIP} &											${E_B}
-
-${TAB} This should create a ${S_B} dbserver_patch_`basename ${PATCHMGR}` ${E_B} directory 
-
--- And then apply the patch
-
 ${TAB} ${CELROOTPROMPT} ${S_B} dcli -g ~/dbs_group -l root imageinfo -ver									${E_B}
-${TAB} ${CELROOTPROMPT} ${S_B} cd /tmp/dbserver_patch_`basename ${PATCHMGR}`									${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B} cd /tmp/SAVE/dbserver_patch_`basename ${PATCHMGR}`								${E_B}
 ${TAB} ${CELROOTPROMPT} ${S_B} ./patchmgr -dbnodes ~/dbs_group -precheck -iso_repo /tmp/${ISO} -target_version ${TARGET_VERSION}		${E_B}
 ${TAB} ${CELROOTPROMPT} ${S_B} nohup ./patchmgr -dbnodes ~/dbs_group -upgrade -iso_repo /tmp/${ISO} -target_version ${TARGET_VERSION} -rolling & ${E_B}
 
@@ -481,30 +429,47 @@ ${TAB} ${CELROOTPROMPT} ${S_B} dcli -g ~/dbs_group -l root imageinfo -ver							
 ${E_PRE}
 
 
-${S_H2} 4/ Grid Infrastructure patching ${E_H2}
+${S_H2}4/ Grid Infrastructure patching ${E_H2}
 
-4.1/ To start with, be sure that the patch has been unzipped : ${U_DONE}
-
+${S_H3}4.1/ To start with, be sure that the patch has been unzipped (as oracle user to avoid any further permission issue)${U_DONE}:${E_H3}
 ${S_PRE}
-${TAB} ${DBROOTPROMPT} ${S_B} cd ${PATCH_DIR}/${GI_DIR}												${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} nohup unzip  p${GI_PATCH}*_Linux-x86-64.zip &									${E_B}
-${TAB} -- This should create a ${GI_PATCH} directory.
+${TAB} ${DBORACLEPROMPT} ${S_B} cd ${PATCH_DIR}/${GI_DIR}											${E_B}
+${TAB} ${DBORACLEPROMPT} ${S_B} nohup unzip  p${GI_PATCH}*_Linux-x86-64.zip &									${E_B}
+${TAB} -- This should create a ${S_B} ${GI_PATCH} ${E_B} directory.
+${E_PRE}
+
+It is also recommended to execute the prerequisites: ${U_DONE}
+${S_PRE}
+${TAB} ${DBROOTPROMPT} ${S_B} . oraenv <<< \`grep \"^+ASM\" /etc/oratab | awk -F \":\" '{print \$1}'\`						${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} cd ${PATCH_DIR}/${GI_DIR}/${GI_PATCH}										${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} ${GI_HOME}/OPatch/opatchauto apply -oh ${GI_HOME} -analyze 							${E_B}
+${E_PRE}
+
+Upgrade opatch if opatch is not already at the latest version: ${U_DONE}
+${S_PRE}
+${TAB} ${DBORACLEPROMPT} ${S_B}dcli -g ~/dbs_group -l oracle -f ${PATCH_DIR}/${OPATCH}/p6880880_12*_Linux-x86-64.zip -d /tmp			${E_B}
+${TAB} ${DBORACLEPROMPT} ${S_B}dcli -g ~/dbs_group -l oracle \"unzip -o /tmp/p6880880_12*_Linux-x86-64.zip -d ${GI_HOME}; ${GI_HOME}/OPatch/opatch version; rm /tmp/p6880880_12*_Linux-x86-64.zip\" | grep Version${E_B}
 ${E_PRE}
 
 
-4.2/ Apply the patch on each node one after the other (${CLUSTER_NAME}db01 then (${CLUSTER_NAME}db02, etc...)
+${S_H3}4.2/ Apply the patch ${S_B}on each node one after the other (${CLUSTER_NAME}db01 then (${CLUSTER_NAME}db02, etc...)${E_B}:${E_H3}
 
--- Use the script ${S_B}/home/oracle/pythian/status.sh${E_B} to monitore the instances during the patch application
+-- Use the script ${S_B}${STATUS_SCRIPT}${E_B} to monitore the instances during the patch application
 
 ${S_PRE}
-${TAB} ${DBORACLEPROMPT} ${S_B} . oraenv <<< +ASM1												${E_B}
+${TAB} -- Check the inventory before the patch
+${TAB} ${DBORACLEPROMPT} ${S_B} . oraenv <<< \`grep \"^+ASM\" /etc/oratab | awk -F \":\" '{print \$1}'\`					${E_B}
 ${TAB} ${DBORACLEPROMPT} ${S_B} ${GI_HOME}/OPatch/opatch lsinventory -all_nodes									${E_B}
 
+${TAB} -- Apply the patch on the node
 ${TAB} ${DBROOTPROMPT} ${S_B} cd ${PATCH_DIR}/${GI_DIR}/${GI_PATCH}										${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} nohup ${GI_HOME}/OPatch/opatchauto apply -oh ${GI_HOME} &								${E_B}
 
-${TAB} ${DBORACLEPROMPT} ${S_B} . oraenv <<< +ASM1												${E_B}
+${TAB} -- Check the inventory after the patch
+${TAB} ${DBORACLEPROMPT} ${S_B} . oraenv <<< \`grep \"^+ASM\" /etc/oratab | awk -F \":\" '{print \$1}'\`					${E_B}
 ${TAB} ${DBORACLEPROMPT} ${S_B} ${GI_HOME}/OPatch/opatch lsinventory -all_nodes									${E_B}
+
+${TAB} -- jump to the next node an re apply 4.2
 ${E_PRE}
 
 
@@ -524,131 +489,10 @@ ${TAB}	 Patch : 23006522 Bug Superset of 20831113
 ${TAB} If you check this patch number, you will find that this is an old patch : Patch 20831113: OCW PATCH SET UPDATE 12.1.0.2.4
 
 ${TAB} Then this is safely ignorable as opatch rollback old patches after having applied the new ones.
-${E_PRE}
-
-
-${S_H2} 5/ ORACLE_HOME patching ${E_H2}
-
-5.1/ To start with, be sure that the patch has been unzipped : ${U_DONE}
-${S_PRE}
-${TAB} ${DBROOTPROMPT} ${S_B} cd ${PATCH_DIR}/${GI_DIR}                                                                                         ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} nohup unzip  p${GI_PATCH}*_Linux-x86-64.zip &                                                                     ${E_B}
-${TAB} -- This should create a ${GI_PATCH} directory.
-
-${TAB} ${DBROOTPROMPT} ${S_B} cd ${PATCH_DIR}/${OJVM_DIR}                                                                                       ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} nohup unzip p${OJVM_PATCH}*_Linux-x86-64.zip &                                                                    ${E_B}
-${TAB} -- This should create a ${OJVM_PATCH} directory.
-${E_PRE}
-
-5.2/ Here, I recommend to clone the ORACLE_HOME you want to patch to a new one, patch the new one and then move the databases from the old non-patched OH to the new patched OH, you can then dranmatically reduce the database downtime that is needed to apply the post-installation steps :
-
-First, the OH clone has to be done on each node :
-
-${S_PRE}
-${TAB} ${DBORACLEPROMPT} ${S_B} cp -r ${OH} ${OH2} ${E_B}
-${TAB} ${DBORACLEPROMPT} ${S_B} cd ${OH2}/oui/bin												${E_B}
-${TAB} ${DBORACLEPROMPT} ${S_B} ./runInstaller -clone -waitForCompletion ORACLE_HOME=\"${OH2}\" ORACLE_HOME_NAME=\"DBHome_`dirname ${OH2}`\" \"ORACLE_BASE=/u01/app/oracle\" \"CLUSTER_NODES={${CLUSTER_NAME}db02,${CLUSTER_NAME}db03,${CLUSTER_NAME}db04}\" LOCAL_NODE=\"${CLUSTER_NAME}db01\" -silent -noConfig -nowait								     ${E_B}
-${TAB} ${DBORACLEPROMPT} ${S_B} su -														${E_B}
-${TAB} ${DBROOTPROMPT}   ${S_B} ${OH2}/root.sh													${E_B}
-${TAB} ${DBROOTPROMPT}   ${S_B} su - oracle													${E_B}
-${E_PRE}
-
-Once the new ORACLE_HOME has been cloned on all nodes, verify it with opatch lsinventory :
-${S_PRE}
-${TAB} ${DBORACLEPROMPT} ${S_B} ${OH2}/OPatch/opatch lsinventory -all_nodes									${E_B}
-${E_PRE}
-
-
-5.3/ Do the prechecks
-
-	-- Do the Bundle prechecks
-"	# End echo -e
-
-for P in `awk '{	if ($0 ~ / patch_id=/) 
-			{	sub (/.* patch_id="/, "", $0)	;
-				sub (/".*$/, "", $0)		;
-				PATCH_ID=$0			;
-				while (getline)
-				{
-					if ($0 ~  /type="rac_database"/)
-					{	print PATCH_ID	;
-						break		;
-					}
-					if ($0 ~ /<\/subpatch>/)
-					{
-						break		;
-					}
-				}
-			}
-		}' ${OH_BUNDLE}`
-do
-P_LIST=${P_LIST}" "${PATCH_DIR}"/"${OH_DIR}"/"${OH_PATCH}"/"${P}
-done
-
-echo -e "${S_PRE}"
-
-for P in `echo ${P_LIST}`
-do
-echo -en  " ${TAB} ${DBORACLEPROMPT} ${S_B}${OH2}/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -phBaseDir ${P}${E_B}"
-done
-
-echo -en " ${TAB} ${DBORACLEPROMPT} ${S_B}${OH2}/OPatch/opatch prereq CheckSystemSpace -phBaseFile /tmp/patch_list_dbhome.txt${E_B}"
-
-echo -e "
-${E_PRE}
-with the /tmp/patch_list_dbhome.txt file containing :
-${S_PRE}"
-
-for P in `echo ${P_LIST}`
-do
-echo -e "${TAB} ${S_B}${P}															${E_B}"
-done
-
-echo -e "
-${E_PRE}
-
-	-- Do the OJVM prechecks
-
-${E_PRE}
-${TAB}${DBORACLEPROMPT}   ${S_B}cd ${PATCH_DIR}/${OJVM_DIR}/${OJVM_PATCH}									${E_B}
-${TAB}${DBORACLEPROMPT}   ${S_B}${OH2}/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph ./						${E_B}
-${S_PRE}
-
-5.4/ Apply the Bundle :
-
-This has to be launched on each server
-	- Connect as root
-	- Do NOT stop anything here
-${S_PRE}
-"
-
-echo -e "${TAB}${DBROOTPROMPT}   ${S_B}cd ${OH2}/OPatch												${E_B}"
-
-for P in `echo ${P_LIST}`
-do
-echo -e "${TAB}${DBROOTPROMPT}   ${S_B}nohup ./opatchauto apply ${P} -oh ${OH2}  &								${E_B}"
-done
-
-echo -e " ${E_PRE}
-
-	-- Apply the OJVM patch
-	- Launch on one node, it will patch ALL the nodes
-
-	- Stop all that is running on all the nodes
-${S_PRE}
-${TAB}${DBORACLEPROMPT}   ${S_B}. oraenv <<< <ONE_DATABASE_WITH_THE_CORRECT_ENV>								${E_B}
-${TAB}${DBORACLEPROMPT}   ${S_B}srvctl stop home -o ${OH2} -s /tmp/12c.statefile_n1 -n ${CLUSTER_NAME}db01					${E_B}
-${TAB}${DBORACLEPROMPT}   ${S_B}srvctl stop home -o ${OH2} -s /tmp/12c.statefile_n2 -n ${CLUSTER_NAME}db02					${E_B}
-${TAB}${DBORACLEPROMPT}   ${S_B}...														${E_B}
-${E_PRE}
-
-
-	- Apply the patch
-${S_PRE}
-${TAB}${DBORACLEPROMPT}   ${S_B}cd ${PATCH_DIR}/${OJVM_DIR}/${OJVM_PATCH}									${E_B}
-${TAB}${DBORACLEPROMPT}   ${S_B}${OH2}/OPatch/opatch apply											${E_B}
-${TAB}${DBORACLEPROMPT}   ${S_B}${OH2}/OPatch/opatch lsinventory -all_nodes									${E_B}
 ${E_PRE}"
 
 
+#************************************************************************************************#
+#*				E N D      O F      S O U R C E					*#
+#************************************************************************************************#
 
