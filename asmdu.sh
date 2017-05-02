@@ -1,8 +1,18 @@
-﻿#!/bin/bash
-# Fred Denis -- fred.denis3@gmail.com -- June 2016
+#!/bin/bash
+# Fred Denis -- denis@pythian.com -- June 2016
 #
-# - If no parameter specified, show a du of each DiskGroup
-# - If a parameter, print a du of each subdirectory
+# Shows a clear and colored status of the ASM used and free space 
+# - If no parameter specified, show a "du" of each DiskGroup
+# - If a parameter is specified, print a "du" of each subdirectory
+#
+# Note that the --nocp asmcmd option (it disables the connection pooling) has been originaly implemented 
+# as a workaround of a bug that appeared with the April 2016 PSU
+# As the "use the --nocp option" is a workaround for many asmcmd bugs, I keep using it (even if the bug introduced with April 2016 PSU is now resolved)
+#
+# Please have a look at this post https://www.pythian.com/blog/asmcmdgt-better-du-version-2/ for examples and screenshots
+#
+#
+# The current version of the script is 20170501
 #
 
 
@@ -80,7 +90,7 @@ if [ -z ${SUBDIR} ]
 then
 (for DIR in `asmcmd ls ${D}`
 do
-            echo ${DIR} `asmcmd du ${D}/${DIR} | tail -1`
+            echo ${DIR} `asmcmd --nocp du ${D}/${DIR} | tail -1`
 done) | awk -v D="$D" ' BEGIN { printf("\n\t\t%40s\n\n", D " subdirectories size")                  ;
                                     printf("%25s%16s%16s\n", "Subdir", "Used MB", "Mirror MB")          ;
                                     printf("%25s%16s%16s\n", "------", "-------", "---------")          ;}
@@ -96,6 +106,6 @@ fi
 
 
 
-#************************************************************************#
+#****************************************************************************************#
 #*                          E N D          O F          S O U R C E                     *#
-#************************************************************************#
+#****************************************************************************************#
