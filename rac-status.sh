@@ -6,7 +6,12 @@
 #
 # Please have a look at https://www.pythian.com/blog/status-script-exadata/ for some screenshots 
 #
-# The current script version is 20170501
+# The current script version is 20170518
+#
+# History :
+#
+# 20170518 - Fred Denis - Add  a readable check on the ${DBMACHINE} file - it happens that it exists but is only root readable
+# 20170501 - First release
 #
 
       TMP=/tmp/status$$.tmp						# A tempfile
@@ -28,7 +33,7 @@ NODES=`olsnodes | awk '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}'`
 #
 # Show the Exadata model if possible (if this cluster is an Exadata)
 #
-if [ -f ${DBMACHINE} ]
+if [ -f ${DBMACHINE} ] && [ -r ${DBMACHINE} ]
 then
 	cat << !
 
