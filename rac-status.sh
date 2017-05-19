@@ -11,7 +11,7 @@
 # History :
 #
 # 20170518 - Fred Denis - Add  a readable check on the ${DBMACHINE} file - it happens that it exists but is only root readable
-# 20170501 - First release
+# 20170501 - Fred Denis - First release
 #
 
       TMP=/tmp/status$$.tmp						# A tempfile
