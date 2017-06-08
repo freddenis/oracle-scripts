@@ -6,10 +6,12 @@
 #
 # Please have a look at https://www.pythian.com/blog/status-script-exadata/ for some screenshots 
 #
-# The current script version is 20170518
+# The current script version is 20170606
 #
 # History :
 #
+# 20170606 - Fred Denis - A new 12cR2 GI feature now shows the ORACLE_HOME in the STATE_DETAILS column from "crsctl -v"
+#                       - Example :     STATE_DETAILS=Open,HOME=/u01/app/oracle/product/11.2.0.3/dbdev_1 instead of STATE_DETAILS=Open in 12cR1
 # 20170518 - Fred Denis - Add  a readable check on the ${DBMACHINE} file - it happens that it exists but is only root readable
 # 20170501 - Fred Denis - First release
 #
@@ -138,6 +140,8 @@ crsctl stat res -v -w "TYPE = ora.database.type" >> $TMP
 				printf("%s", center(version[version_sorted[j]]	, 10, WHITE))			;
 				for (i = 1; i <= n; i++) {
 					dbstatus = status[version_sorted[j],nodes[i]]				;
+
+					sub(",HOME=.*$", "", dbstatus)                              		;               # 20170606.n
 
 					#
 					# Print the status here, all that are not listed in that if ladder will appear in RED
