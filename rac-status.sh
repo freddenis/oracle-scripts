@@ -4,20 +4,25 @@
 # Quickly shows a status of all running instances accross a 12c cluster
 # The script just need to have a working oraenv
 #
-# Please have a look at https://www.pythian.com/blog/status-script-exadata/ for some screenshots 
+# Please have a look at https://www.pythian.com/blog/status-script-exadata/ for some screenshots
+# The script last version can be downloaded here : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/rac-status.sh
 #
-# The current script version is 20170606
+# The current script version is 20170620
 #
 # History :
 #
+# 20170620 - Fred Denis - Parameters for the size of the columns and some formatting
+# 20170619 - Fred Denis - Add a column type (RAC / RacOneNode / Single Instance) and color it depending on the role of the database
+#                         (WHITE for a PRIMARY database and RED fior a STANDBY database)
+# 20170616 - Fred Denis - Shows an ORACLE_HOME reference in the Version column and an ORACLE_HOME list below the table
 # 20170606 - Fred Denis - A new 12cR2 GI feature now shows the ORACLE_HOME in the STATE_DETAILS column from "crsctl -v"
 #                       - Example :     STATE_DETAILS=Open,HOME=/u01/app/oracle/product/11.2.0.3/dbdev_1 instead of STATE_DETAILS=Open in 12cR1
 # 20170518 - Fred Denis - Add  a readable check on the ${DBMACHINE} file - it happens that it exists but is only root readable
 # 20170501 - Fred Denis - First release
 #
 
-      TMP=/tmp/status$$.tmp						# A tempfile
-DBMACHINE=/opt/oracle.SupportTools/onecommand/databasemachine.xml	# File where we should find the Exadata model as oracle user
+      TMP=/tmp/status$$.tmp                                             # A tempfile
+DBMACHINE=/opt/oracle.SupportTools/onecommand/databasemachine.xml       # File where we should find the Exadata model as oracle user
 
 #
 # Set the ASM env to be able to use crsctl commands
@@ -37,135 +42,179 @@ NODES=`olsnodes | awk '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}'`
 #
 if [ -f ${DBMACHINE} ] && [ -r ${DBMACHINE} ]
 then
-	cat << !
+        cat << !
 
-		Cluster is a `grep -i MACHINETYPES ${DBMACHINE} | sed -e s':</*MACHINETYPES>::g' -e s'/^ *//' -e s'/ *$//'`
+                Cluster is a `grep -i MACHINETYPES ${DBMACHINE} | sed -e s':</*MACHINETYPES>::g' -e s'/^ *//' -e s'/ *$//'`
 
 !
+else
+        printf "\n"
 fi
 
 crsctl stat res -p -w "TYPE = ora.database.type" >  $TMP
 crsctl stat res -v -w "TYPE = ora.database.type" >> $TMP
-	awk  -v NODES="$NODES" 'BEGIN\
-        {	      FS = "="				;
-		      split(NODES, nodes, ",")		;	# Make a table with the nodes of the cluster
-		# some colors
-	     COLOR_BEGIN =       "\033[1;"              ;
-	       COLOR_END =       "\033[m"      		;
-		     RED =       "31m"         		;
-		   GREEN =       "32m"         		;
-		  YELLOW =       "33m"         		;
-		    BLUE =       "34m"       		;
-		   WHITE =       "37m"         		;
+        awk  -v NODES="$NODES" 'BEGIN\
+        {             FS = "="                          ;
+                      split(NODES, nodes, ",")          ;       # Make a table with the nodes of the cluster
+                # some colors
+             COLOR_BEGIN =       "\033[1;"              ;
+               COLOR_END =       "\033[m"               ;
+                     RED =       "31m"                  ;
+                   GREEN =       "32m"                  ;
+                  YELLOW =       "33m"                  ;
+                    BLUE =       "34m"                  ;
+                    TEAL =       "36m"                  ;
+                   WHITE =       "37m"                  ;
 
-	 	 UNKNOWN = "-"				;	# Something to print when the status is unknown
-   	}	
+                 UNKNOWN = "-"                          ;       # Something to print when the status is unknown
 
-	#
-	# A function to center the outputs with colors
-	#
-        function center( str, n, color)
-        {       right = int((n - length(str)) / 2)
-                left  = n - length(str) - right
-                return sprintf(COLOR_BEGIN color "%" left "s%s%" right "s" COLOR_END "|", "", str, "" )
+                # Default columns size
+                COL_NODE = 18                           ;
+                  COL_DB = 12                           ;
+                 COL_VER = 14                           ;
+                COL_TYPE = 12                           ;
         }
 
-	#
-	# A function that just print a "---" white line
-	#
-	function print_a_line()
-	{
-		printf("%s", COLOR_BEGIN WHITE)									;
-		for (k=1; k<=12+(20*i); k++) {printf("%s", "-");}						;
-		printf("%s", COLOR_END"\n")									;
-	}
-	     {
-		# Fill 2 tables with the OH and the version from "crsctl stat res -p -w "TYPE = ora.database.type""
-		if ($1 ~ /^NAME/)
+        #
+        # A function to center the outputs with colors
+        #
+        function center( str, n, color)
+        {       right = int((n - length(str)) / 2)                                                              ;
+                left  = n - length(str) - right                                                                 ;
+                return sprintf(COLOR_BEGIN color "%" left "s%s%" right "s" COLOR_END "|", "", str, "" )         ;
+        }
+
+        #
+        # A function that just print a "---" white line
+        #
+        function print_a_line()
+        {
+                printf("%s", COLOR_BEGIN WHITE)                                                                 ;
+                for (k=1; k<=COL_DB+COL_VER+(COL_NODE*n)+COL_TYPE+n+3; k++) {printf("%s", "-");}                ;       # n = number of nodes
+                printf("%s", COLOR_END"\n")                                                                     ;
+        }
+        {
+               # Fill 2 tables with the OH and the version from "crsctl stat res -p -w "TYPE = ora.database.type""
+               if ($1 ~ /^NAME/)
                {
-			sub("^ora.", "", $2)     								;
-			sub(".db$", "", $2)      								;
-			DB=$2                   								;
-							
-			getline; getline									;
-			if ($1 == "ACL")		# crsctl stat res -p output
-			{
-				if (DB in version == 0)
-				{
-					while (getline)
-					{
-						if ($1 == "ORACLE_HOME")
-						{	OH=$2							;
-							match($2, /1[0-9]\.[0-9]\.[0-9]\.[0-9]/)		;
-							VERSION=substr($2,RSTART,RLENGTH)			;
-						}
-						if ($0 ~ /^$/)
-						{	version[DB]	= VERSION				;
-							oh[DB]		= OH					;
-							break							;
-						}
-					}
-				}
-			}
-			if ($1 == "LAST_SERVER")	# crsctl stat res -v output
-			{	    NB = 0	;	# Number of instance as CARDINALITY_ID is sometimes irrelevant
-				SERVER = $2	;
-				while (getline)
-				{
-					if ($1 == "LAST_SERVER")	{	SERVER = $2     		;}
-					if ($1 == "STATE_DETAILS")	{	NB++				;	# Number of instances we came through
-										sub("STATE_DETAILS=", "", $0)	;
-										status[DB,SERVER] = $0		; }
-					if ($1 == "INSTANCE_COUNT")     {	if (NB == $2) { break 		;}}
-				}
-			}
-		}	# End of if ($1 ~ /^NAME/)
-	     }
-	    END {	# Print a header
-			printf("%s", center("DB"	, 12, WHITE))						;
-			printf("%s", center("Version"	, 10, WHITE))						;
-			n=asort(nodes)										;        # sort array nodes
-			for (i = 1; i <= n; i++) {
-					printf("%s", center(nodes[i], 20, WHITE))				;
-			}
-			printf("\n")										;
-			
-			# a "---" line under the header
-			print_a_line()										;
+                        sub("^ora.", "", $2)                                                                    ;
+                        sub(".db$", "", $2)                                                                     ;
+                        DB=$2                                                                                   ;
 
-			m=asorti(version, version_sorted)							;
-			for (j = 1; j <= m; j++)
-			{
-				printf("%s", center(version_sorted[j]		, 12, WHITE))			;
-				printf("%s", center(version[version_sorted[j]]	, 10, WHITE))			;
-				for (i = 1; i <= n; i++) {
-					dbstatus = status[version_sorted[j],nodes[i]]				;
+                        getline; getline                                                                        ;
+                        if ($1 == "ACL")                # crsctl stat res -p output
+                        {
+                                if (DB in version == 0)
+                                {
+                                        while (getline)
+                                        {
+                                                if ($1 == "ORACLE_HOME")
+                                                {                    OH = $2                                    ;
+                                                        match($2, /1[0-9]\.[0-9]\.[0-9]\.[0-9]/)                ;       # If your OH is not in the 11.2.0.4 form, you can adapt it here
+                                                                VERSION = substr($2,RSTART,RLENGTH)             ;
+                                                }
+                                                if ($1 == "DATABASE_TYPE")                                              # RAC / RACOneNode / Single Instance are expected here
+                                                {
+                                                             dbtype[DB] = $2                                    ;
+                                                }
+                                                if ($1 == "ROLE")                                                       # Primary / Standby expected here
+                                                {              role[DB] = $2                                    ;
+                                                }
+                                                if ($0 ~ /^$/)
+                                                {           version[DB] = VERSION                               ;
+                                                                 oh[DB] = OH                                    ;
 
-					sub(",HOME=.*$", "", dbstatus)                              		;               # 20170606.n
+                                                        if (!(OH in oh_list))
+                                                        {
+                                                                oh_ref++                                        ;
+                                                            oh_list[OH] = oh_ref                                ;
+                                                        }
+                                                        break                                                   ;
+                                                }
+                                        }
+                                }
+                        }
+                        if ($1 == "LAST_SERVER")        # crsctl stat res -v output
+                        {           NB = 0      ;       # Number of instance as CARDINALITY_ID is sometimes irrelevant
+                                SERVER = $2     ;
+                                while (getline)
+                                {
+                                        if ($1 == "LAST_SERVER")        {       SERVER = $2                     ;}
+                                        if ($1 == "STATE_DETAILS")      {       NB++                            ;       # Number of instances we came through
+                                                                                sub("STATE_DETAILS=", "", $0)   ;
+                                                                                status[DB,SERVER] = $0          ; }
+                                        if ($1 == "INSTANCE_COUNT")     {       if (NB == $2) { break           ;}}
+                                }
+                        }
+                }       # End of if ($1 ~ /^NAME/)
+            }
+            END {       # Print a header
+                        printf("%s", center("DB"        , COL_DB, WHITE))                                       ;
+                        printf("%s", center("Version"   , COL_VER, WHITE))                                      ;
+                        n=asort(nodes)                                                                          ;       # sort array nodes
+                        for (i = 1; i <= n; i++) {
+                                printf("%s", center(nodes[i], COL_NODE, WHITE))                                 ;
+                        }
+                        printf("%s", center("DB Type"    , COL_TYPE, WHITE))                                    ;
+                        printf("\n")                                                                            ;
 
-					#
-					# Print the status here, all that are not listed in that if ladder will appear in RED
-					#
-					if (dbstatus == "") 			{printf("%s", center(UNKNOWN , 20, BLUE		))	;}	else
-					if (dbstatus == "Open") 		{printf("%s", center(dbstatus, 20, GREEN	))	;}	else
-					if (dbstatus == "Open,Readonly")	{printf("%s", center(dbstatus, 20, WHITE	))	;}	else
-					if (dbstatus == "Readonly")		{printf("%s", center(dbstatus, 20, YELLOW	))	;}	else
-					if (dbstatus == "Instance Shutdown")	{printf("%s", center(dbstatus, 20, YELLOW	))	;}	else
-										{printf("%s", center(dbstatus, 20, RED		))	;}
-				}
-				printf("\n")									;
-			}
 
-			# a "---" line as a footer
-			print_a_line()										;
-		}' $TMP	
+
+                        # a "---" line under the header
+                        print_a_line()                                                                          ;
+
+                        m=asorti(version, version_sorted)                                                       ;
+                        for (j = 1; j <= m; j++)
+                        {
+                                printf("%s", center(version_sorted[j]   , COL_DB, WHITE))                       ;
+                                printf("%s", center(version[version_sorted[j]] " ("oh_list[oh[version_sorted[j]]] ") ", COL_VER, WHITE))       ;
+                                for (i = 1; i <= n; i++) {
+                                        dbstatus = status[version_sorted[j],nodes[i]]                           ;
+
+                                        sub(",HOME=.*$", "", dbstatus)                                          ;       # Manage the 12cR2 new feature, check 20170606 for more details
+
+                                        #
+                                        # Print the status here, all that are not listed in that if ladder will appear in RED
+                                        #
+                                        if (dbstatus == "")                     {printf("%s", center(UNKNOWN , COL_NODE, BLUE         ))      ;}      else
+                                        if (dbstatus == "Open")                 {printf("%s", center(dbstatus, COL_NODE, GREEN        ))      ;}      else
+                                        if (dbstatus == "Open,Readonly")        {printf("%s", center(dbstatus, COL_NODE, WHITE        ))      ;}      else
+                                        if (dbstatus == "Readonly")             {printf("%s", center(dbstatus, COL_NODE, YELLOW       ))      ;}      else
+                                        if (dbstatus == "Instance Shutdown")    {printf("%s", center(dbstatus, COL_NODE, YELLOW       ))      ;}      else
+                                                                                {printf("%s", center(dbstatus, COL_NODE, RED          ))      ;}
+                                }
+                                #
+                                # Color the DB Type column depending on the ROLE of the database (20170619)
+                                #
+                                if (role[version_sorted[j]] == "PRIMARY") { ROLE_COLOR=WHITE ; } else { ROLE_COLOR=RED ; }
+                                printf("%s", center(dbtype[version_sorted[j]], COL_TYPE, ROLE_COLOR))           ;
+
+                                printf("\n")                                                                    ;
+                        }
+
+                        # a "---" line as a footer
+                        print_a_line()                                                                          ;
+
+                        #
+                        # Print the OH list and a legend for the DB Type colors underneath the table
+                        #
+                        printf ("\n\t%s", "ORACLE_HOME references listed in the Version column :")              ;
+                        printf ("\t\t%s\n", "Colors in the DB Type column :")                                   ;
+                        printf ("\t\t\t\t\t\t\t\t\t\t%s\n", "White for PRIMARY and Red for STANDBY")            ;
+                        for (x in oh_list)
+                        {
+                                printf("\t\t%s\n", oh_list[x] " : " x) | "sort"                                 ;
+                        }
+        }' $TMP
+
+        printf "\n"
 
 if [ -f ${TMP} ]
 then
-	rm -f ${TMP}
+        rm -f ${TMP}
 fi
 
 #*********************************************************************************************************
-#				E N D     O F      S O U R C E
+#                               E N D     O F      S O U R C E
 #*********************************************************************************************************
 
