@@ -3,7 +3,7 @@
 # Automatically generates an Exadata patching action plan
 # For more details about the Exadata patching procedure, you can have a look at https://www.pythian.com/blog/patch-exadata-part-1-introduction-prerequisites/
 #
-# The current version of the script is 20170427
+# The current version of the script is 20171110
 #
 
 #
@@ -20,6 +20,8 @@ DEBUG="No"
                         CONF=/tmp/tmpconf$$                             # Temporary config file
                DBSERVER_TYPE="OL"                                       # Other possible value is OVS
                STATUS_SCRIPT=/home/oracle/pythian/rac-status.sh         # Where the status script is located (this one : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/status.sh)
+              VER_TO_INSTALL="."                                        # If no version to install specified, we want to install the highest
+
 
 #
 # A usage function
@@ -29,11 +31,12 @@ usage()
         cat << !
 
         $0
-                -d <DIRECTORY_OF_THE_BUNDLE_PATCH>      (mandatory)
-                -n <NAME_OF_THE_CLUSTER>                (optional)
-                -g <GI_HOME>                            (optional)
-                -u                                      (Unzip and prereqs steps have been done, shows a green DONE for the unzip parts, default is unzip has not been done)
-                -h                                      (generate a HTML action plan, mandatory, default is no HTML)
+                -d <DIRECTORY_OF_THE_BUNDLE_PATCH>                      (mandatory)
+                -n <NAME_OF_THE_CLUSTER>                                (optional)
+                -g <GI_HOME>                                            (optional)
+                -u                                                      (Unzip and prereqs steps have been done, shows a green DONE for the unzip parts, default is unzip has not been done)
+                -v <Cells, IB and DB Server version to install>         (optional -- default is the highest)
+                -h                                                      (generate a HTML action plan, mandatory, default is no HTML)
 !
         exit 123
 }
@@ -41,13 +44,14 @@ usage()
 #
 # Parameters management
 #
-while getopts ":d:n:hug:" OPT; do
+while getopts ":d:n:hug:v:" OPT; do
         case ${OPT} in
         d)      PATCH_DIR=`echo ${OPTARG} | sed s'/\/ *$//'`    ;;      # Remove any trailing /
         n)   CLUSTER_NAME=${OPTARG}                             ;;
         g)        GI_HOME=`echo ${OPTARG} | sed s'/\/ *$//'`    ;;      # Remove any trailing /
         u)     UNZIP_DONE="Yes"                                 ;;
         h)           HTML="Yes"                                 ;;
+        v) VER_TO_INSTALL=${OPTARG}                             ;;      # Cells, IB and DB Server version to install
         \?) echo "Invalid option: -$OPTARG" >&2; usage          ;;
         esac
 done
@@ -143,8 +147,8 @@ fi
                                 CELL_DIR=$0                                                     ;
                                 sub(/.*Infrastructure\//, "", $0)                               ;
                                 sub(/\/.*$/, "", $0)                                            ;
-                                if ( $0 > CELL_VERSION)
-                                {
+                                # fredif ( $0 > CELL_VERSION)
+                                # fred{
                                         CELL_VERSION=$0                                         ;
                                         while (getline)
                                         {       if ($0 ~  / patch_id/)
@@ -166,10 +170,17 @@ fi
                                                 }
                                                 if ($0 ~ /<\/target_types>/)
                                                 {
+                                                        # A non dotted version to generate the names of the zip files
+                                                        NON_DOTTED_VERSION=CELL_VERSION          ;
+                                                        gsub(/\./, "", NON_DOTTED_VERSION)       ;
+
+                                                        # Cells and IB infos
+                                                        print "CELLS", CELL_DIR, CELL_VERSION, CELL_VERSION_AFTER_PATCHING, "p"CELL_PATCH_ID"_"NON_DOTTED_VERSION"_Linux-x86-64.zip"              ;
+
                                                         next                                    ;
                                                 }
                                         }
-                                }
+                                #fred}
                         }       # End of if ($0 ~ /ExadataStorageServer_InfiniBandSwitch/)
 
                         # Look for patchmgr
@@ -230,11 +241,11 @@ fi
                 END\
                 {
                         # A non dotted version to generate the names of the zip files
-                        NON_DOTTED_VERSION=CELL_VERSION                                         ;
-                        gsub(/\./, "", NON_DOTTED_VERSION)                                      ;
+                        #fred NON_DOTTED_VERSION=CELL_VERSION                                         ;
+                        #fred gsub(/\./, "", NON_DOTTED_VERSION)                                      ;
 
                         # Cells and IB infos
-                        print "CELLS", CELL_DIR, CELL_VERSION, CELL_VERSION_AFTER_PATCHING, "p"CELL_PATCH_ID"_"NON_DOTTED_VERSION"_Linux-x86-64.zip"            ;
+                        #fred print "CELLS", CELL_DIR, CELL_VERSION, CELL_VERSION_AFTER_PATCHING, "p"CELL_PATCH_ID"_"NON_DOTTED_VERSION"_Linux-x86-64.zip"            ;
 
                         # Patchmgr infos
                         print "PATCHMGR", PATCHMGR, "p"PATCHMGR_PATCH_ID"_*_Linux-x86-64.zip"   ;       # I put a star in the name as for Jan 2017 the bundle do not show the correct version
@@ -245,16 +256,16 @@ fi
 # Grep what is needed from the config file
 #
 
-           CELL_AND_IB=`grep "^CELLS"     ${CONF}                                       | awk 'BEGIN{FS="|"} {print $2}'`
-       CELL_AND_IB_ZIP=`grep "^CELLS"     ${CONF}                                       | awk 'BEGIN{FS="|"} {print $5}'`
-               OL6_DIR=`grep "^DB_SERVER" ${CONF} | grep ${DBSERVER_TYPE}               | awk 'BEGIN{FS="|"} {print $2}'`
-                   ISO=`grep "^DB_SERVER" ${CONF} | grep ${DBSERVER_TYPE}               | awk 'BEGIN{FS="|"} {print $5}'`
-              PATCHMGR=`grep "^PATCHMGR"  ${CONF}                                       | awk 'BEGIN{FS="|"} {print $2}'`
-          PATCHMGR_ZIP=`grep "^PATCHMGR"  ${CONF}                                       | awk 'BEGIN{FS="|"} {print $3}'`
-                OPATCH=`grep "^OPATCH"    ${CONF}                                       | awk 'BEGIN{FS="|"} {print $2}'`
-        TARGET_VERSION=`grep "^CELLS"     ${CONF}                                       | awk 'BEGIN{FS="|"} {print $4}'`
-                GI_DIR=`grep "^GI"        ${CONF} | grep ${VERSION}                     | awk 'BEGIN{FS="|"} {print $2}'`               # I take the latest version for the GI
-              GI_PATCH=`grep "^GI"        ${CONF} | grep ${VERSION}                     | awk 'BEGIN{FS="|"} {print $3}'`               # I take the latest version for the GI
+           CELL_AND_IB=`grep "^CELLS"     ${CONF}                         | grep ${VER_TO_INSTALL} | sort | tail -1     | awk 'BEGIN{FS="|"} {print $2}'`
+       CELL_AND_IB_ZIP=`grep "^CELLS"     ${CONF}                         | grep ${VER_TO_INSTALL} | sort | tail -1     | awk 'BEGIN{FS="|"} {print $5}' | sed s'/[0-9]_L/0_L/'`  # Seems that the last digit is always a 0 ? (see CR 1187741)
+        TARGET_VERSION=`grep "^CELLS"     ${CONF}                         | grep ${VER_TO_INSTALL} | sort | tail -1     | awk 'BEGIN{FS="|"} {print $4}'`
+               OL6_DIR=`grep "^DB_SERVER" ${CONF} | grep ${DBSERVER_TYPE} | grep ${VER_TO_INSTALL} | sort | tail -1     | awk 'BEGIN{FS="|"} {print $2}'`
+                   ISO=`grep "^DB_SERVER" ${CONF} | grep ${DBSERVER_TYPE} | grep ${VER_TO_INSTALL} | sort | tail -1     | awk 'BEGIN{FS="|"} {print $5}' | sed s'/[0-9]_L/0_L/'` # Seems that the last digit is always a 0 ? (see CR 1187741)
+              PATCHMGR=`grep "^PATCHMGR"  ${CONF}                                                                       | awk 'BEGIN{FS="|"} {print $2}'`
+          PATCHMGR_ZIP=`grep "^PATCHMGR"  ${CONF}                                                                       | awk 'BEGIN{FS="|"} {print $3}'`
+                OPATCH=`grep "^OPATCH"    ${CONF}                                                                       | awk 'BEGIN{FS="|"} {print $2}'`
+                GI_DIR=`grep "^GI"        ${CONF} | grep ${VERSION}                                                     | awk 'BEGIN{FS="|"} {print $2}'`               # I take the latest version for the GI
+              GI_PATCH=`grep "^GI"        ${CONF} | grep ${VERSION}                                                     | awk 'BEGIN{FS="|"} {print $3}'`               # I take the latest version for the GI
              GI_BUNDLE=${PATCH_DIR}/${GI_DIR}/${GI_PATCH}/bundle.xml
 
 #
@@ -271,6 +282,7 @@ fi
         then
                 cat ${CONF}
         cat << !
+                Ver to Install  :       ${VER_TO_INSTALL}
                 Bundle file     :       ${BUNDLE_XML}
                 Target version  :       ${TARGET_VERSION}
                 Version         :       ${VERSION}
@@ -420,8 +432,8 @@ ${S_H3}3.3/ We can now proceed with the rolling patch on the database servers:${
 ${S_PRE}
 ${TAB} ${CELROOTPROMPT} ${S_B} dcli -g ~/dbs_group -l root imageinfo -ver                                                                       ${E_B}
 ${TAB} ${CELROOTPROMPT} ${S_B} cd /tmp/SAVE/dbserver_patch_`basename ${PATCHMGR}`                                                               ${E_B}
-${TAB} ${CELROOTPROMPT} ${S_B} ./patchmgr -dbnodes ~/dbs_group -precheck -iso_repo /tmp/${ISO} -target_version ${TARGET_VERSION}                ${E_B}
-${TAB} ${CELROOTPROMPT} ${S_B} nohup ./patchmgr -dbnodes ~/dbs_group -upgrade -iso_repo /tmp/${ISO} -target_version ${TARGET_VERSION} -rolling & ${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B} ./patchmgr -dbnodes ~/dbs_group -precheck -iso_repo /tmp/SAVE/${ISO} -target_version ${TARGET_VERSION}           ${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B} nohup ./patchmgr -dbnodes ~/dbs_group -upgrade -iso_repo /tmp/SAVE/${ISO} -target_version ${TARGET_VERSION} -rolling & ${E_B}
 
 ${TAB} -- You can monitore the patch looking at the nohup.out file (tail -f nohup.out) or the patchmgr.out file
 
