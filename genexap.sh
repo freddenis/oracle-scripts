@@ -3,7 +3,7 @@
 # Automatically generates an Exadata patching action plan
 # For more details about the Exadata patching procedure, you can have a look at https://www.pythian.com/blog/patch-exadata-part-1-introduction-prerequisites/
 #
-# The current version of the script is 20171110
+# The current version of the script is 20171113
 #
 
 #
@@ -21,6 +21,7 @@ DEBUG="No"
                DBSERVER_TYPE="OL"                                       # Other possible value is OVS
                STATUS_SCRIPT=/home/oracle/pythian/rac-status.sh         # Where the status script is located (this one : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/status.sh)
               VER_TO_INSTALL="."                                        # If no version to install specified, we want to install the highest
+            MODIFY_AT_PREREQ=""                                         # No "-modify_at_prereq" by default
 
 
 #
@@ -36,6 +37,8 @@ usage()
                 -g <GI_HOME>                                            (optional)
                 -u                                                      (Unzip and prereqs steps have been done, shows a green DONE for the unzip parts, default is unzip has not been done)
                 -v <Cells, IB and DB Server version to install>         (optional -- default is the highest)
+                -m                                                      (optional -- use the -modify_at_prereq option when patching the DB Servers; default is -modify_at_prereq is not used)
+                -M                                                      (optional -- same as -m; this is just if you want to use the same exact option as dbnodeupdate :))
                 -h                                                      (generate a HTML action plan, mandatory, default is no HTML)
 !
         exit 123
@@ -44,13 +47,14 @@ usage()
 #
 # Parameters management
 #
-while getopts ":d:n:hug:v:" OPT; do
+while getopts ":d:n:humMg:v:" OPT; do
         case ${OPT} in
         d)      PATCH_DIR=`echo ${OPTARG} | sed s'/\/ *$//'`    ;;      # Remove any trailing /
         n)   CLUSTER_NAME=${OPTARG}                             ;;
         g)        GI_HOME=`echo ${OPTARG} | sed s'/\/ *$//'`    ;;      # Remove any trailing /
         u)     UNZIP_DONE="Yes"                                 ;;
         h)           HTML="Yes"                                 ;;
+        m|M)    MODIFY_AT_PREREQ="-modify_at_prereq"            ;;
         v) VER_TO_INSTALL=${OPTARG}                             ;;      # Cells, IB and DB Server version to install
         \?) echo "Invalid option: -$OPTARG" >&2; usage          ;;
         esac
@@ -308,7 +312,7 @@ fi
 
 if [ "${HTML}" = "Yes" ]
 then
-         S_H2="<h2>"
+         S_H2="<hr style='border-style: dotted;'><h2 style='font-size:18px;text-decoration:underline'>"
          E_H2="</h2>"
          S_H3="<h3>"
          E_H3="</h3>"
@@ -346,7 +350,10 @@ fi
 # Generate the procedure thanks to the info we got in the previous steps
 #
 
-echo -e "${S_H2}1/ Cell patching ${E_H2}
+echo -e "
+****************************** START COPYING THE ACTION PLAN BELOW THIS LINE ******************************
+
+${S_H2}1/ Cell patching ${E_H2}
 
 ${S_H3}1.1/ First of all, you need to unzip the ${CELL_AND_IB_ZIP} file${U_DONE}:${E_H3}
 
@@ -357,8 +364,13 @@ ${TAB} ${DBROOTPROMPT} ${S_B} nohup unzip `basename ${CELL_AND_IB_ZIP}` &       
 ${TAB} -- This should create a ${S_B} patch_${TARGET_VERSION} ${E_B} directory with the cell patch
 ${E_PRE}
 
+${S_H3}1.2/ Cells pre requisites${U_DONE}:${E_H3}
+${S_PRE}
+${TAB} ${DBROOTPROMPT} ${S_B} cd ${PATCH_DIR}/${CELL_AND_IB}/patch_${TARGET_VERSION}                                                            ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} ./patchmgr -cells ~/cell_group -patch_check_prereq -rolling                                                       ${E_B}
+${E_PRE}
 
-${S_H3}1.2/ You can then apply the patch (with a check of the version before and after):${E_H3}
+${S_H3}1.3/ You can then apply the patch (with a check of the version before and after):${E_H3}
 
 ${S_PRE}
 ${TAB} ${DBROOTPROMPT} ${S_B} dcli -g ~/cell_group -l root imageinfo -ver                                                                       ${E_B}
@@ -370,7 +382,6 @@ ${TAB} ${DBROOTPROMPT} ${S_B} nohup ./patchmgr -cells ~/cell_group -patch -rolli
 ${TAB} ${DBROOTPROMPT} ${S_B} ./patchmgr -cells ~/cell_group -cleanup                                                                           ${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} dcli -g ~/cell_group -l root imageinfo -ver                                                                       ${E_B}
 ${E_PRE}
-
 
 ${S_H2}2/ InfiniBand Switches patching ${E_H2}
 
@@ -391,16 +402,13 @@ ${TAB} ${DBROOTPROMPT} ${S_B} nohup ./patchmgr -ibswitches ~/ib_group -upgrade &
 ${TAB} ${DBROOTPROMPT} ${S_B} dcli -g ~/ib_group -l root version                                                                                ${E_B}
 ${E_PRE}
 
-
 ${S_H2}3/ Database Servers patching ${E_H2}
 
 - As we cannot patch a node we are connected to, we will start the patch from a cell server (${CLUSTER_NAME}cel01). To be able to do that, we need to copy patchmgr and the ISO file on this cell server. Do NOT unzip the ISO file, patchmgr will take care of it.
 -- Use the script ${S_B}${STATUS_SCRIPT}${E_B} to monitore the instances during the patch application
 
-
 ${S_H3}3.1/ Copy what is needed to ${CLUSTER_NAME}cel01:${E_H3}
-
--- Create a ${S_B}/tmp/SAVE${E_B} directory in order to avoid the automatic maintenance jobs that purge /tmp every day (directories > 5 MB and older than 1 day). If not, these maintenance jobs will delete the dbnodeupdate.zip file that is mandatory to apply the patch
+-- Create a ${S_B}/tmp/SAVE${E_B} directory in order to avoid the automatic maintenance jobs that purge /tmp every day (directories > 5 MB and older than 1 day). If not, these maintenance jobs will delete the dbnodeupdate.zip file that is mandatory to apply the patch -- this won't survive a reboot though
 
 ${S_PRE}
 ${TAB} ${DBROOTPROMPT} ${S_B} ssh root@${CLUSTER_NAME}cel01 mkdir /tmp/SAVE                                                                     ${E_B}
@@ -413,9 +421,24 @@ ${TAB} ${CELROOTPROMPT} ${S_B} nohup unzip ${PATCHMGR_ZIP} &                    
 ${TAB} This should create a ${S_B} dbserver_patch_`basename ${PATCHMGR}` ${E_B} directory
 ${E_PRE}
 
+${S_H3}3.2/ Do the prerequisites${U_DONE}:${E_H3}
 
-${S_H3}3.2/ Before applying the patch, we first need to umount the NFS on all the database servers:${E_H3}
+-- Consider using the ${S_B}-modify_at_prereq${E_B} option if you face some dependencies issues (-m or -M option of the action plan generator script)
 
+${S_PRE}
+${TAB} ${CELROOTPROMPT} ${S_B} cd /tmp/SAVE/dbserver_patch_`basename ${PATCHMGR}`                                                               ${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B} ./patchmgr -dbnodes ~/dbs_group -precheck ${MODIFY_AT_PREREQ} -iso_repo /tmp/SAVE/${ISO} -target_version ${TARGET_VERSION} ${E_B}
+${E_PRE}
+
+-- You can safely ignore the below warning (this is a patchmgr bug for a while) if the GI version is > 11.2.0.2 -- which is most likely the case
+${S_PRE}
+(*) - Yum rolling update requires fix for 11768055 when Grid Infrastructure is below 11.2.0.2 BP12
+${E_PRE}
+
+${S_H3}3.3/ We can now proceed with the rolling patch on the database servers:${E_H3}
+
+-- ${S_B}Direct connect to the ${CLUSTER_NAME}cel01 server${E_B}, if you go through ${CLUSTER_NAME}db01 or another database server, you will lose your connection when it will be rebooted
+-- Before applying the patch, we first need to umount the NFS on all the database servers:${E_H3}
 - The below command will generate the umount command; add \"${S_B}| bash${E_B}\" at the and and it will umount everything automatically
 - If something prevents a NFS to umount, you can check what it is with \"${S_B}lsof FS_NAME${E_B}\" or \"${S_B}fuser -c -u FS_NAME${E_B}\" and kill it with \"${S_B}fuser -c -k FS_NAME${E_B}\"
 
@@ -423,16 +446,12 @@ ${S_PRE}
 ${TAB} ${DBROOTPROMPT} ${S_B} df -t nfs | awk '{if (\$NF ~ /^\//){print \"umount \" \$NF}}'                                                     ${E_B}
 ${E_PRE}
 
-
-${S_H3}3.3/ We can now proceed with the rolling patch on the database servers:${E_H3}
-
--- ${S_B}Direct connect to the ${CLUSTER_NAME}cel01 server${E_B}, if you go through ${CLUSTER_NAME}db01 or another database server, you will lose your connection when it will be rebooted
 -- Apply the patch
 
 ${S_PRE}
 ${TAB} ${CELROOTPROMPT} ${S_B} dcli -g ~/dbs_group -l root imageinfo -ver                                                                       ${E_B}
 ${TAB} ${CELROOTPROMPT} ${S_B} cd /tmp/SAVE/dbserver_patch_`basename ${PATCHMGR}`                                                               ${E_B}
-${TAB} ${CELROOTPROMPT} ${S_B} ./patchmgr -dbnodes ~/dbs_group -precheck -iso_repo /tmp/SAVE/${ISO} -target_version ${TARGET_VERSION}           ${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B} ./patchmgr -dbnodes ~/dbs_group -precheck ${MODIFY_AT_PREREQ} -iso_repo /tmp/SAVE/${ISO} -target_version ${TARGET_VERSION}           ${E_B}
 ${TAB} ${CELROOTPROMPT} ${S_B} nohup ./patchmgr -dbnodes ~/dbs_group -upgrade -iso_repo /tmp/SAVE/${ISO} -target_version ${TARGET_VERSION} -rolling & ${E_B}
 
 ${TAB} -- You can monitore the patch looking at the nohup.out file (tail -f nohup.out) or the patchmgr.out file
@@ -444,30 +463,30 @@ ${E_PRE}
 ${S_H2}4/ Grid Infrastructure patching ${E_H2}
 
 ${S_H3}4.1/ To start with, be sure that the patch has been unzipped (as oracle user to avoid any further permission issue)${U_DONE}:${E_H3}
+
 ${S_PRE}
 ${TAB} ${DBORACLEPROMPT} ${S_B} cd ${PATCH_DIR}/${GI_DIR}                                                                                       ${E_B}
 ${TAB} ${DBORACLEPROMPT} ${S_B} nohup unzip  p${GI_PATCH}*_Linux-x86-64.zip &                                                                   ${E_B}
 ${TAB} -- This should create a ${S_B} ${GI_PATCH} ${E_B} directory.
 ${E_PRE}
 
-It is also recommended to execute the prerequisites: ${U_DONE}
+-- Upgrade opatch if opatch is not already at the latest version: ${U_DONE}
+${S_PRE}
+${TAB} ${DBORACLEPROMPT} ${S_B}dcli -g ~/dbs_group -l oracle ${GI_HOME}/OPatch/opatch version | grep Version                                    ${E_B}
+${TAB} ${DBORACLEPROMPT} ${S_B}dcli -g ~/dbs_group -l oracle -f ${PATCH_DIR}/${OPATCH}/p6880880_12*_Linux-x86-64.zip -d /tmp                    ${E_B}
+${TAB} ${DBORACLEPROMPT} ${S_B}dcli -g ~/dbs_group -l oracle \"unzip -o /tmp/p6880880_12*_Linux-x86-64.zip -d ${GI_HOME}; ${GI_HOME}/OPatch/opatch version; rm /tmp/p6880880_12*_Linux-x86-64.zip\" | grep Version${E_B}
+${E_PRE}
+
+-- It is also recommended to execute the prerequisites: ${U_DONE}
 ${S_PRE}
 ${TAB} ${DBROOTPROMPT} ${S_B} . oraenv <<< \`grep \"^+ASM\" /etc/oratab | awk -F \":\" '{print \$1}'\`                                          ${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} cd ${PATCH_DIR}/${GI_DIR}/${GI_PATCH}                                                                             ${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} ${GI_HOME}/OPatch/opatchauto apply -oh ${GI_HOME} -analyze                                                        ${E_B}
 ${E_PRE}
 
-Upgrade opatch if opatch is not already at the latest version: ${U_DONE}
-${S_PRE}
-${TAB} ${DBORACLEPROMPT} ${S_B}dcli -g ~/dbs_group -l oracle -f ${PATCH_DIR}/${OPATCH}/p6880880_12*_Linux-x86-64.zip -d /tmp                    ${E_B}
-${TAB} ${DBORACLEPROMPT} ${S_B}dcli -g ~/dbs_group -l oracle \"unzip -o /tmp/p6880880_12*_Linux-x86-64.zip -d ${GI_HOME}; ${GI_HOME}/OPatch/opatch version; rm /tmp/p6880880_12*_Linux-x86-64.zip\" | grep Version${E_B}
-${E_PRE}
-
-
 ${S_H3}4.2/ Apply the patch ${S_B}on each node one after the other (${CLUSTER_NAME}db01 then (${CLUSTER_NAME}db02, etc...)${E_B}:${E_H3}
 
 -- Use the script ${S_B}${STATUS_SCRIPT}${E_B} to monitore the instances during the patch application
-
 ${S_PRE}
 ${TAB} -- Check the inventory before the patch
 ${TAB} ${DBORACLEPROMPT} ${S_B} . oraenv <<< \`grep \"^+ASM\" /etc/oratab | awk -F \":\" '{print \$1}'\`                                        ${E_B}
@@ -484,8 +503,8 @@ ${TAB} ${DBORACLEPROMPT} ${S_B} ${GI_HOME}/OPatch/opatch lsinventory -all_nodes 
 ${TAB} -- jump to the next node an re apply 4.2
 ${E_PRE}
 
+-- Opatch will most likely finish with some warnings :
 
-Opatch will most likely finish with some warnings :
 ${S_PRE}
 ${TAB} [Jun 5, 2016 5:50:47 PM]     --------------------------------------------------------------------------------
 ${TAB} [Jun 5, 2016 5:50:47 PM]     The following warnings have occurred during OPatch execution:
@@ -501,10 +520,14 @@ ${TAB}   Patch : 23006522 Bug Superset of 20831113
 ${TAB} If you check this patch number, you will find that this is an old patch : Patch 20831113: OCW PATCH SET UPDATE 12.1.0.2.4
 
 ${TAB} Then this is safely ignorable as opatch rollback old patches after having applied the new ones.
-${E_PRE}"
+${E_PRE}
+
+****************************** STOP COPYING THE ACTION PLAN ABOVE THIS LINE ******************************
+"
+
 
 
 #************************************************************************************************#
 #*                              E N D      O F      S O U R C E                                 *#
 #************************************************************************************************#
- 
+
