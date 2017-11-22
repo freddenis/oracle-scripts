@@ -1,5 +1,5 @@
 #!/bin/bash
-# Fred Denis -- denis@pythian.com -- Mov 21st 2017 -- CR 1188842
+# Fred Denis -- denis@pythian.com -- Nov 21st 2017 -- CR 1188842
 # Execute a SQL command on all databases wherever they have an instance opened
 # -- The node where this script is executed should have ssh key deployed to all the other database nodes
 # -- oraenv should be working on every server
