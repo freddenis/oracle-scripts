@@ -4,7 +4,7 @@
 # -- has to run as root
 # -- the server where this script is started should have the root ssh  keys deployed on all the other servers (DB Nodes, Cells and IB Swicthes)
 #
-# The current version of the script is 20171128
+# The current version of the script is 20171129
 #
 
 DBMACHINE=/opt/oracle.SupportTools/onecommand/databasemachine.xml       # File where we should find the Exadata model
@@ -99,6 +99,7 @@ fi
                                                 if (db_node[1] ~ /cel[0-9]/)      {printf("%s\n", center("-- Storage Servers",    40,RED))};
                                                 if (db_node[1] ~ /ib[0-9]/ )      {printf("%s\n", center("-- Infiniband Switches",40,RED))};
                                                 printf("\n")                                                    ;
+                                                version_ref = db_version[1]                                     ;
 
                                                 for (a=1; a<nb_node; a=a+NB_PER_LINE)
                                                 {
@@ -122,7 +123,8 @@ fi
                                                         {
                                                                 if (length(db_version[i]) > 0)
                                                                 {
-                                                                        printf("%s", center(db_version[i],COL_SIZE,BLUE));
+                                                                        if (db_version[i] == version_ref) { A_COLOR=BLUE;} else {A_COLOR=TEAL;}
+                                                                        printf("%s", center(db_version[i],COL_SIZE,A_COLOR));
                                                                 }
                                                         }
                                                         printf("\n")                                                    ;
