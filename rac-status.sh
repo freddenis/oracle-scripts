@@ -7,10 +7,11 @@
 # Please have a look at https://www.pythian.com/blog/status-script-exadata/ for some screenshots
 # The script last version can be downloaded here : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/rac-status.sh
 #
-# The current script version is 20170620
+# The current script version is 20171218
 #
 # History :
 #
+# 20171218 - Fred Denis - Modify the regexp to better accomodate how the version can be in the path (cannot get it from crsctl)
 # 20170620 - Fred Denis - Parameters for the size of the columns and some formatting
 # 20170619 - Fred Denis - Add a column type (RAC / RacOneNode / Single Instance) and color it depending on the role of the database
 #                         (WHITE for a PRIMARY database and RED fior a STANDBY database)
@@ -110,7 +111,7 @@ crsctl stat res -v -w "TYPE = ora.database.type" >> $TMP
                                         {
                                                 if ($1 == "ORACLE_HOME")
                                                 {                    OH = $2                                    ;
-                                                        match($2, /1[0-9]\.[0-9]\.[0-9]\.[0-9]/)                ;       # If your OH is not in the 11.2.0.4 form, you can adapt it here
+                                                        match($2, /1[0-9]\.[0-9]\.?[0-9]?\.?[0-9]?/)            ;       # Grab the version from the OH path)
                                                                 VERSION = substr($2,RSTART,RLENGTH)             ;
                                                 }
                                                 if ($1 == "DATABASE_TYPE")                                              # RAC / RACOneNode / Single Instance are expected here
@@ -159,15 +160,16 @@ crsctl stat res -v -w "TYPE = ora.database.type" >> $TMP
                         printf("\n")                                                                            ;
 
 
-
                         # a "---" line under the header
                         print_a_line()                                                                          ;
 
                         m=asorti(version, version_sorted)                                                       ;
                         for (j = 1; j <= m; j++)
                         {
-                                printf("%s", center(version_sorted[j]   , COL_DB, WHITE))                       ;
-                                printf("%s", center(version[version_sorted[j]] " ("oh_list[oh[version_sorted[j]]] ") ", COL_VER, WHITE))       ;
+                                printf("%s", center(version_sorted[j]   , COL_DB, WHITE))                       ;                       # Database name
+                                printf(COLOR_BEGIN WHITE " %-8s" COLOR_END, version[version_sorted[j]], COL_VER, WHITE)         ;       # Version
+                                printf(COLOR_BEGIN WHITE "%4s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")            ;       # OH id
+
                                 for (i = 1; i <= n; i++) {
                                         dbstatus = status[version_sorted[j],nodes[i]]                           ;
 
@@ -217,4 +219,3 @@ fi
 #*********************************************************************************************************
 #                               E N D     O F      S O U R C E
 #*********************************************************************************************************
-
