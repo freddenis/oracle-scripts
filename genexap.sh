@@ -1,9 +1,8 @@
-#!/bin/bash
 # Fred Denis -- denis@pythian.com -- March 2017
 # Automatically generates an Exadata patching action plan
 # For more details about the Exadata patching procedure, you can have a look at https://www.pythian.com/blog/patch-exadata-part-1-introduction-prerequisites/
 #
-# The current version of the script is 20171113
+# The current version of the script is 20180111
 #
 
 #
@@ -441,9 +440,10 @@ ${S_H3}3.3/ We can now proceed with the rolling patch on the database servers:${
 -- Before applying the patch, we first need to umount the NFS on all the database servers:${E_H3}
 - The below command will generate the umount command; add \"${S_B}| bash${E_B}\" at the and and it will umount everything automatically
 - If something prevents a NFS to umount, you can check what it is with \"${S_B}lsof FS_NAME${E_B}\" or \"${S_B}fuser -c -u FS_NAME${E_B}\" and kill it with \"${S_B}fuser -c -k FS_NAME${E_B}\"
+- Nothing should prevent ${S_B}umount -l${E_B} to work
 
 ${S_PRE}
-${TAB} ${DBROOTPROMPT} ${S_B} df -t nfs | awk '{if (\$NF ~ /^\//){print \"umount \" \$NF}}'                                                     ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} df -t nfs | awk '{if (\$NF ~ /^\//){print \"umount -l \" \$NF}}'                                                  ${E_B}
 ${E_PRE}
 
 -- Apply the patch
@@ -530,4 +530,3 @@ ${E_PRE}
 #************************************************************************************************#
 #*                              E N D      O F      S O U R C E                                 *#
 #************************************************************************************************#
-
