@@ -11,10 +11,12 @@
 #
 # History :
 #
+# 20180205 - Fred Denis - There was a version alignement issue with more than 10 different ORACLE_HOMEs
+#                       - Better colors for the label "White for PRIMARY, Red for STANBY"
 # 20171218 - Fred Denis - Modify the regexp to better accomodate how the version can be in the path (cannot get it from crsctl)
 # 20170620 - Fred Denis - Parameters for the size of the columns and some formatting
 # 20170619 - Fred Denis - Add a column type (RAC / RacOneNode / Single Instance) and color it depending on the role of the database
-#                         (WHITE for a PRIMARY database and RED fior a STANDBY database)
+#                         (WHITE for a PRIMARY database and RED for a STANDBY database)
 # 20170616 - Fred Denis - Shows an ORACLE_HOME reference in the Version column and an ORACLE_HOME list below the table
 # 20170606 - Fred Denis - A new 12cR2 GI feature now shows the ORACLE_HOME in the STATE_DETAILS column from "crsctl -v"
 #                       - Example :     STATE_DETAILS=Open,HOME=/u01/app/oracle/product/11.2.0.3/dbdev_1 instead of STATE_DETAILS=Open in 12cR1
@@ -72,7 +74,7 @@ crsctl stat res -v -w "TYPE = ora.database.type" >> $TMP
                 # Default columns size
                 COL_NODE = 18                           ;
                   COL_DB = 12                           ;
-                 COL_VER = 14                           ;
+                 COL_VER = 15                           ;
                 COL_TYPE = 12                           ;
         }
 
@@ -168,7 +170,7 @@ crsctl stat res -v -w "TYPE = ora.database.type" >> $TMP
                         {
                                 printf("%s", center(version_sorted[j]   , COL_DB, WHITE))                       ;                       # Database name
                                 printf(COLOR_BEGIN WHITE " %-8s" COLOR_END, version[version_sorted[j]], COL_VER, WHITE)         ;       # Version
-                                printf(COLOR_BEGIN WHITE "%4s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")            ;       # OH id
+                                printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")            ;       # OH id
 
                                 for (i = 1; i <= n; i++) {
                                         dbstatus = status[version_sorted[j],nodes[i]]                           ;
@@ -202,7 +204,8 @@ crsctl stat res -v -w "TYPE = ora.database.type" >> $TMP
                         #
                         printf ("\n\t%s", "ORACLE_HOME references listed in the Version column :")              ;
                         printf ("\t\t%s\n", "Colors in the DB Type column :")                                   ;
-                        printf ("\t\t\t\t\t\t\t\t\t\t%s\n", "White for PRIMARY and Red for STANDBY")            ;
+                        printf ("\t\t\t\t\t\t\t\t\t\t" COLOR_BEGIN WHITE "%s" COLOR_END "%s" COLOR_BEGIN RED "%s" COLOR_END "%s\n", "White", " for PRIMARY,", " Red", " for STANDBY")            ;
+
                         for (x in oh_list)
                         {
                                 printf("\t\t%s\n", oh_list[x] " : " x) | "sort"                                 ;
