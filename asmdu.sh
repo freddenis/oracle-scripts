@@ -1,12 +1,12 @@
 #!/bin/bash
-# Fred Denis -- denis@pythian.com -- June 2016
+# Fred Denis -- fred.denis3@gmail.com -- June 2016
 #
-# Shows a clear and colored status of the ASM used and free space 
-# - If no parameter specified, show a "du" of each DiskGroup
-# - If a parameter is specified, print a "du" of each subdirectory
+# This scripts shows a clear and colored status of the ASM used and free space
+# Please have a look at the usage function or $0 -h for the available options and their description
 #
-# About the --nocp option
-# Note that the --nocp asmcmd option (it disables the connection pooling) has been originaly implemented 
+#
+# A note on the --nocp option
+# Note that the --nocp asmcmd option (it disables the connection pooling) has been originaly implemented
 # as a workaround of a bug that appeared with the April 2016 PSU
 # It resolves error messages like this one :
 # sh: -c: line 0: unexpected EOF while looking for matching `''
@@ -16,13 +16,28 @@
 # Please have a look at this post https://www.pythian.com/blog/asmcmdgt-better-du-version-2/ for examples and screenshots
 #
 #
-# The current version of the script is 20170719
+# The current version of the script is 20180211
 #
+# 20180211 - Many improvements :
+#               - -d options to list the subdirectories of a directory
+#               - -v option to show the Raw Free and Reserverd size
+#               - -m -g and -t to choose the Unit you want the report to be in
+#               - Default values and verbosity can be changed using the DEFAULT_UNIT and the DEFAULT_VERBOSE variables
+#               - A nice usage function
 # 20170719 - Remove the --nocp option as default
 #
 
+#
+# Default values (when no option is specified in the command line)
+# The last uncommented value wins
+#
 
-D=$1
+DEFAULT_UNIT="MB"       # asmcmd default
+DEFAULT_UNIT="GB"
+DEFAULT_UNIT="TB"
+
+DEFAULT_VERBOSE="Yes"
+DEFAULT_VERBOSE="No"
 
 
 #
@@ -31,6 +46,78 @@ D=$1
             CRITICAL=90
              WARNING=75
 
+#
+# An usage function
+#
+
+usage()
+{
+printf "\n\033[1;37m%-8s\033[m\n" "NAME"        ;
+cat << END
+        asmdu.sh - Show a nice summary of the ASM diskgroups size
+END
+
+printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"    ;
+cat << END
+        $0 [-d] [-m -g -t] [-v]
+END
+
+printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION" ;
+cat << END
+        $0 needs to be executed as the GI owner user to be able to use asmcmd
+        With no option $0 with show what instances are running and a size summary of each DG
+END
+
+printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"             ;
+cat << END
+        -d        The directory you want the size details
+
+        -v        Verbose -- show the "Raw Free" and "Reserved" size
+                  You can change the default behavior with the DEFAULT_VERBOSE variable
+
+        -m        Show the output in MB
+        -g        Show the output in GB
+        -t        Show the output in TB
+        -m -g -t  The default Unit can be specified using the DEFAULT_UNIT variable
+                  If more than one of these options is specified, the last one wins
+
+        -h        Show this help
+
+END
+exit 123
+}
+
+#
+# Parameters management
+#
+
+    PARAM_UNIT=""
+ PARAM_VERBOSE=""
+
+while getopts "d:mgtvh" OPT; do
+        case ${OPT} in
+        d)                  D=${OPTARG}                         ;;
+        m)         PARAM_UNIT="MB"                              ;;
+        g)         PARAM_UNIT="GB"                              ;;
+        t)         PARAM_UNIT="TB"                              ;;
+        v)      PARAM_VERBOSE="Yes"                             ;;
+        h)      usage                                           ;;
+        \?) echo "Invalid option: -$OPTARG" >&2; usage          ;;
+        esac
+done
+
+if [[ -z ${PARAM_UNIT} ]]
+then    # No parameter specified, we use the default
+        UNIT=${DEFAULT_UNIT}
+else
+        UNIT=${PARAM_UNIT}
+fi
+if [[ -z ${PARAM_VERBOSE} ]]
+then    # No parameter specified, we use the default
+        VERBOSE=${DEFAULT_VERBOSE}
+else
+        VERBOSE=${PARAM_VERBOSE}
+fi
 
 #
 # Set the ASM env
@@ -42,9 +129,9 @@ export ORAENV_ASK=NO
 
 
 #
-# A quick list of what is running on the server
+# A quick list of the instances that are running on the server
 #
-ps -ef | grep pmon | grep -v grep | awk '{print $NF}' | sed s'/.*_pmon_//' | egrep "^([+]|[Aa-Zz])" | sort | awk -v H="`hostname -s`" 'BEGIN {printf("%s", "Databases on " H " : ")} { printf("%s, ", $0)} END{printf("\n")}' | sed s'/, $//'
+ps -ef | grep pmon | grep -v grep | awk '{print $NF}' | sed s'/.*_pmon_//' | egrep "^([+]|[Aa-Zz])" | sort | awk -v H="`hostname -s`" 'BEGIN {printf("\n%s", "Instances running on " H " : ")} { printf("%s, ", $0)} END{printf("\n")}' | sed s'/, $//'
 
 
 #
@@ -62,8 +149,20 @@ fi
 #
 # A header
 #
-printf "\n%25s%16s%16s%14s"          "DiskGroup" "Total_MB" "Free_MB" "% Free"
-printf "\n%25s%16s%16s%14s\n"        "---------" "--------" "-------" "------"
+
+printf "\n%25s%16s\033[1;37m%16s\033[m"   "DiskGroup" "Redundancy" "Total ${UNIT}"      # "Raw Free ${UNIT}" "Reserved ${UNIT}"  "Usable ${UNIT}" "% Free"
+if [[ ${VERBOSE} == "Yes" ]]
+then
+        printf "%16s%16s" "Raw Free ${UNIT}" "Reserved ${UNIT}"
+fi
+printf "\033[1;37m%16s\033[m\033[1;37m%14s\033[m\n" "Usable ${UNIT}" "% Free"
+
+printf "%25s%16s\033[1;37m%16s\033[m" "---------" "-----------" "--------"
+if [[ ${VERBOSE} == "Yes" ]]
+then
+        printf "%16s%16s" "-----------"     "-----------"
+fi
+printf "\033[1;37m%16s\033[m%14s\n" "---------"      "------"
 
 
 #
@@ -72,22 +171,38 @@ printf "\n%25s%16s%16s%14s\n"        "---------" "--------" "-------" "------"
 for X in ${DG}
 do
             asmcmd lsdg ${X} | tail -1 |\
-                awk -v DG="$X"  -v W="$WARNING" -v C="$CRITICAL" '\
+                awk -v DG="$X"  -v W="$WARNING" -v C="$CRITICAL" -v UNIT="$UNIT" -v VERBOSE="$VERBOSE" '\
                 BEGIN \
-                {COLOR_BEGIN =           "\033[1;"                          ;
-                   COLOR_END =           "\033[m"                           ;
-                         RED =           COLOR_BEGIN"31m"                   ;
-                       GREEN =           COLOR_BEGIN"32m"                   ;
-                      YELLOW =           COLOR_BEGIN"33m"                   ;
-                       COLOR =           GREEN                              ;
+                {COLOR_BEGIN =           "\033[1;"                                      ;
+                   COLOR_END =           "\033[m"                                       ;
+                         RED =           COLOR_BEGIN"31m"                               ;
+                       GREEN =           COLOR_BEGIN"32m"                               ;
+                      YELLOW =           COLOR_BEGIN"33m"                               ;
+                       WHITE =           COLOR_BEGIN"37m"                               ;
+                       COLOR =           GREEN                                          ;
+                     DIVIDER =          1                                               ;
+
+                        if (UNIT == "GB")       { DIVIDER="1024"}                       ;
+                        if (UNIT == "TB")       { DIVIDER="1048576"}                    ;       # 1024 * 1024
                 }
-                {   FREE = sprintf("%12d", $8/$7*100)                   ;
-                    if ((100-FREE) > W)         {COLOR=YELLOW                       ;}
-                    if ((100-FREE) > C)         {COLOR=RED                          ;}
-                    printf("%25s%16s%16s%s\n", DG, $7, $8, COLOR FREE COLOR_END) ; }'
+                {       FREE = sprintf("%12d", $10/$7*100)                              ;       # % Free calculated using the Usable size
+
+                    if ((100-FREE) > W)         {COLOR=YELLOW                           ;}
+                    if ((100-FREE) > C)         {COLOR=RED                              ;}
+
+                       TOTAL = sprintf("%16.2f", $7/DIVIDER)                            ;       # Total space of the DG in UNIT
+                      USABLE = sprintf("%16.2f", $10/DIVIDER)                           ;       # Usable space in UNIT
+
+                    printf("%25s%16s%16s", DG, $2, WHITE TOTAL COLOR_END)               ;       # DG Redundancy and Total
+
+                    if (VERBOSE == "Yes")
+                    {
+                            printf("%16.2f%16.2f", $8/DIVIDER, $9/DIVIDER)              ;       # Raw Free and reserved if Verbose
+                    }
+                    printf("%16s%14s\n", WHITE USABLE COLOR_END, COLOR FREE COLOR_END)  ;       # Usable and Free %
+                }'
 done
 printf "\n"
-
 
 #
 # Subdirs info
@@ -96,22 +211,41 @@ if [ -z ${SUBDIR} ]
 then
 (for DIR in `asmcmd ls ${D}`
 do
-#            echo ${DIR} `asmcmd --nocp du ${D}/${DIR} | tail -1`		# Please look at the "About the --nocp option" notes in the header for more information
-            echo ${DIR} `asmcmd du ${D}/${DIR} | tail -1`
-done) | awk -v D="$D" ' BEGIN { printf("\n\t\t%40s\n\n", D " subdirectories size")                  ;
-                                    printf("%25s%16s%16s\n", "Subdir", "Used MB", "Mirror MB")          ;
-                                    printf("%25s%16s%16s\n", "------", "-------", "---------")          ;}
-                            {
-                                    printf("%25s%16s%16s\n", $1, $2, $3)        ;
-                                    use += $2                                   ;
-                                    mir += $3                                   ;
-                            }
-                            END {   printf("\n\n%25s%16s%16s\n", "------", "-------", "---------")  ;
-                                    printf("%25s%16s%16s\n\n", "Total", use, mir)                       ;} '
+            echo ${DIR} `asmcmd --nocp du ${D}/${DIR} | tail -1`      # Please look at the "About the --nocp option" notes in the header for more information
+#            echo ${DIR} `asmcmd du ${D}/${DIR} | tail -1`
+done) | awk -v D="$D" -v UNIT="$UNIT"\
+         ' BEGIN {      printf("\n\t\t%40s\n\n", D " subdirectories size")                      ;
+                        printf("%25s%16s%16s\n", "Subdir", "Used " UNIT, "Mirror " UNIT)        ;
+                        printf("%25s%16s%16s\n", "------", "-------", "---------")              ;
+
+                        DIVIDER=1                                                               ;
+                        if (UNIT == "GB")       { DIVIDER="1024"        }                       ;
+                        if (UNIT == "TB")       { DIVIDER="1048576"     }                       ;   # 1024 * 1024
+                 }
+                 {
+                        use=sprintf("%16.2f", $2/DIVIDER)                                       ;
+                        mir=sprintf("%16.2f", $3/DIVIDER)                                       ;
+
+                        printf("%25s%16s%16s\n", $1, use, mir)                                  ;
+
+                        total_use += $2                                                         ;
+                        total_mir += $3                                                         ;
+                 }
+            END  {      total_use = sprintf("%16.2f", total_use/DIVIDER)                        ;
+                        total_mir = sprintf("%16.2f", total_mir/DIVIDER)                        ;
+                        printf("\n\n%25s%16s%16s\n", "------", "-------", "---------")          ;
+                        printf("%25s%16s%16s\n\n", "Total", total_use, total_mir)               ;
+                 } '
 fi
 
 
-
+#
+# For information
+#
+if [[ ${VERBOSE} == "Yes" ]]
+then
+        printf "\t\t%40s\n\n" "Note : Usable = (Raw Free - Reserved)/Redundancy"        ;
+fi
 
 #****************************************************************************************#
 #*                          E N D          O F          S O U R C E                     *#
