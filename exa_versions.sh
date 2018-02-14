@@ -1,13 +1,34 @@
 #!/bin/bash
-# Fred Denis -- denis@pythian.com -- Nov 23rd 2017
+# Fred Denis -- fred.denis3@pythian.com -- Nov 23rd 2017
+#
 # An Exadata version summary :
-# -- has to run as root
+# -- has to be run as root
 # -- the server where this script is started should have the root ssh  keys deployed on all the other servers (DB Nodes, Cells and IB Swicthes)
 #
 # The current version of the script is 20171129
 #
 
+#
+# Variables
+#
+
 DBMACHINE=/opt/oracle.SupportTools/onecommand/databasemachine.xml       # File where we should find the Exadata model
+
+  SHOW_ALL="Yes"
+  SHOW_DBS="No"
+SHOW_CELLS="No"
+  SHOW_IBS="No"
+
+while getopts "dci" OPT; do
+        case ${OPT} in
+        d)         SHOW_ALL="No"; SHOW_DBS="Yes"                ;;
+        c)         SHOW_ALL="No"; SHOW_CELLS="Yes"              ;;
+        i)         SHOW_ALL="No"; SHOW_IBS="Yes"                ;;
+        h)      usage                                           ;;
+        \?) echo "Invalid option: -$OPTARG" >&2; usage          ;;
+        esac
+done
+
 
 #
 # Few tempfiles
@@ -25,7 +46,7 @@ export ORAENV_ASK=NO
 . oraenv > /dev/null 2>&1
 
 #
-# Show the Exadata model if possible (if this cluster is an Exadata)
+# Show the Exadata model if possible
 #
 if [ -f ${DBMACHINE} ] && [ -r ${DBMACHINE} ]
 then
@@ -38,19 +59,30 @@ else
         printf "\n"
 fi
 
-
+#
 # Fill the tempfiles
+#
         ibhosts | grep db  | sed s'/"//g' | awk '{print $6}'  > ${DBS_GROUP}
         ibhosts | grep cel | sed s'/"//g' | awk '{print $6}'  > ${CELL_GROUP}
         ibswitches                        | awk '{print $10}' > ${IB_GROUP}
 
 
-(dcli -g ${DBS_GROUP}  -l root imageinfo -ver                                                   | sort
- echo ""
- dcli -g ${CELL_GROUP} -l root imageinfo -ver                                                   | sort
- echo ""
- dcli -g ${IB_GROUP}   -l root version | grep -v BIOS | grep "version:" | awk '{print $1, $NF}' | sort
- echo "")\
+( if [[ "$SHOW_DBS" == "Yes" ]] || [[ "$SHOW_ALL" == "Yes" ]]
+  then
+        dcli -g ${DBS_GROUP}  -l root imageinfo -ver                                                   | sort
+        echo ""
+  fi
+  if [[ "$SHOW_CELLS" == "Yes" ]] || [[ "$SHOW_ALL" == "Yes" ]]
+  then
+        dcli -g ${CELL_GROUP} -l root imageinfo -ver                                                   | sort
+        echo ""
+  fi
+  if [[ "$SHOW_IBS" == "Yes" ]] || [[ "$SHOW_ALL" == "Yes" ]]
+  then
+        dcli -g ${IB_GROUP}   -l root version | grep -v BIOS | grep "version:" | awk '{print $1, $NF}' | sort
+        echo ""
+  fi
+)\
         | awk ' BEGIN \
                 { FS=":"        ;
                   # some colors
@@ -95,11 +127,11 @@ fi
                                         if ($0 ~ /^$/)
                                         {
                                                 # A Header
-                                                if (db_node[1] ~ /db[0-9]/ )      {printf("%s\n", center("-- Compute nodes",      40,RED))};
-                                                if (db_node[1] ~ /cel[0-9]/)      {printf("%s\n", center("-- Storage Servers",    40,RED))};
-                                                if (db_node[1] ~ /ib[0-9]/ )      {printf("%s\n", center("-- Infiniband Switches",40,RED))};
-                                                printf("\n")                                                    ;
-                                                version_ref = db_version[1]                                     ;
+                                                if (db_node[1] ~ /db[0-9]/ )      {printf("%s\n", center("-- Database Servers",         40,RED))};
+                                                if (db_node[1] ~ /cel[0-9]/)      {printf("%s\n", center("-- Cells",                    40,RED))};
+                                                if (db_node[1] ~ /ib[0-9]/ )      {printf("%s\n", center("-- Infiniband Switches",      40,RED))};
+                                                printf("\n")                                                            ;
+                                                version_ref = db_version[1]                                             ;
 
                                                 for (a=1; a<nb_node; a=a+NB_PER_LINE)
                                                 {
