@@ -18,17 +18,18 @@ DBMACHINE=/opt/oracle.SupportTools/onecommand/databasemachine.xml       # File w
   SHOW_DBS="No"
 SHOW_CELLS="No"
   SHOW_IBS="No"
+NB_PER_LINE=$(bc <<< "`tput cols`/22")
 
-while getopts "dci" OPT; do
+while getopts "dcin:" OPT; do
         case ${OPT} in
         d)         SHOW_ALL="No"; SHOW_DBS="Yes"                ;;
         c)         SHOW_ALL="No"; SHOW_CELLS="Yes"              ;;
         i)         SHOW_ALL="No"; SHOW_IBS="Yes"                ;;
+        n)      NB_PER_LINE=${OPTARG}                           ;;
         h)      usage                                           ;;
         \?) echo "Invalid option: -$OPTARG" >&2; usage          ;;
         esac
 done
-
 
 #
 # Few tempfiles
@@ -83,7 +84,7 @@ fi
         echo ""
   fi
 )\
-        | awk ' BEGIN \
+        | awk -v NB_PER_LINE="$NB_PER_LINE" ' BEGIN \
                 { FS=":"        ;
                   # some colors
                      COLOR_BEGIN =       "\033[1;"              ;
@@ -97,7 +98,7 @@ fi
 
                   # Columns size
                         COL_SIZE = 20                           ;
-                     NB_PER_LINE = 8                            ;               # Number of items per line (db nodes, cells, IB)
+                     #NB_PER_LINE = 3                            ;               # Number of items per line (db nodes, cells, IB)
 
                   # Some variables
                         nb_node  =      0                       ;
@@ -133,12 +134,12 @@ fi
                                                 printf("\n")                                                            ;
                                                 version_ref = db_version[1]                                             ;
 
-                                                for (a=1; a<nb_node; a=a+NB_PER_LINE)
+                                                for (a=0; a<nb_node; a+=NB_PER_LINE)
                                                 {
                                                         nb_printed = 0                                                  ;
 
                                                         # Print the node names
-                                                        for (i=a; i<=a*NB_PER_LINE; i++)
+                                                        for (i=a+1; i<=a+NB_PER_LINE; i++)
                                                         {
                                                                 if (length(db_node[i]) > 0)
                                                                 {
@@ -151,7 +152,7 @@ fi
                                                         print_a_line(COL_SIZE*nb_printed+NB_TO_SHOW)                    ;
 
                                                         # Print the nodes versions
-                                                        for (i=a; i<=a*NB_PER_LINE; i++)
+                                                        for (i=a+1; i<=a+NB_PER_LINE; i++)
                                                         {
                                                                 if (length(db_version[i]) > 0)
                                                                 {
