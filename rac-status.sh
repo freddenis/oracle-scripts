@@ -177,7 +177,7 @@ crsctl stat res -v -w "TYPE = ora.database.type" >> $TMP
                                         dbstatus = status[version_sorted[j],nodes[i]]                           ;
 
                                         sub(",HOME=.*$", "", dbstatus)                                          ;       # Manage the 12cR2 new feature, check 20170606 for more details
-                                        sub(",.*$", "", dbstatus)                                               ;       # To make clear multi status like "Mounted (Closed),Readonly,Open Initiated"
+                                        sub("),.*$", ")", dbstatus)                                             ;       # To make clear multi status like "Mounted (Closed),Readonly,Open Initiated"
 
                                         #
                                         # Print the status here, all that are not listed in that if ladder will appear in RED
