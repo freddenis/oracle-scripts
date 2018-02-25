@@ -1,5 +1,5 @@
 #!/bin/bash
-# Fred Denis - denis@pythian.com - January 12th 2016
+# Fred Denis -- Jan 2016 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
 #
 # Quickly shows a status of all running instances accross a 12c cluster
 # The script just need to have a working oraenv
@@ -7,10 +7,11 @@
 # Please have a look at https://www.pythian.com/blog/status-script-exadata/ for some screenshots
 # The script last version can be downloaded here : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/rac-status.sh
 #
-# The current script version is 20171218
+# The current script version is 20180225
 #
 # History :
 #
+# 20180225 - Fred Denis - Make the multi status like "Mounted (Closed),Readonly,Open Initiated" clear in the table by showing only the first one
 # 20180205 - Fred Denis - There was a version alignement issue with more than 10 different ORACLE_HOMEs
 #                       - Better colors for the label "White for PRIMARY, Red for STANBY"
 # 20171218 - Fred Denis - Modify the regexp to better accomodate how the version can be in the path (cannot get it from crsctl)
@@ -176,6 +177,7 @@ crsctl stat res -v -w "TYPE = ora.database.type" >> $TMP
                                         dbstatus = status[version_sorted[j],nodes[i]]                           ;
 
                                         sub(",HOME=.*$", "", dbstatus)                                          ;       # Manage the 12cR2 new feature, check 20170606 for more details
+                                        sub(",.*$", "", dbstatus)                                               ;       # To make clear multi status like "Mounted (Closed),Readonly,Open Initiated"
 
                                         #
                                         # Print the status here, all that are not listed in that if ladder will appear in RED
