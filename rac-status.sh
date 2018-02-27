@@ -1,16 +1,20 @@
 #!/bin/bash
 # Fred Denis -- Jan 2016 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
 #
+#
 # Quickly shows a status of all running instances accross a 12c cluster
 # The script just need to have a working oraenv
 #
 # Please have a look at https://www.pythian.com/blog/status-script-exadata/ for some screenshots
 # The script last version can be downloaded here : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/rac-status.sh
 #
-# The current script version is 20180225
+# The current script version is 20180227
 #
 # History :
 #
+# 20180227 - Fred Denis - Make the the size of the DB column dynamic to handle very long database names (Thanks Michael)
+#                       - Added a (P) for Primary databases and a (S) for Stanby for color blind people that
+#                         could not see the difference between white and red (Thanks Michael)
 # 20180225 - Fred Denis - Make the multi status like "Mounted (Closed),Readonly,Open Initiated" clear in the table by showing only the first one
 # 20180205 - Fred Denis - There was a version alignement issue with more than 10 different ORACLE_HOMEs
 #                       - Better colors for the label "White for PRIMARY, Red for STANBY"
@@ -104,9 +108,13 @@ crsctl stat res -v -w "TYPE = ora.database.type" >> $TMP
                         sub("^ora.", "", $2)                                                                    ;
                         sub(".db$", "", $2)                                                                     ;
                         DB=$2                                                                                   ;
+                        if (length(DB)+2 > COL_DB)              # Adjust the size of the DB column in case of very long DB name
+                        {                                       # +2 is to have 1 blank character before and after the DB name
+                                COL_DB = length(DB)+2                                                           ;
+                        }
 
                         getline; getline                                                                        ;
-                        if ($1 == "ACL")                # crsctl stat res -p output
+                        if ($1 == "ACL")                        # crsctl stat res -p output
                         {
                                 if (DB in version == 0)
                                 {
@@ -192,8 +200,8 @@ crsctl stat res -v -w "TYPE = ora.database.type" >> $TMP
                                 #
                                 # Color the DB Type column depending on the ROLE of the database (20170619)
                                 #
-                                if (role[version_sorted[j]] == "PRIMARY") { ROLE_COLOR=WHITE ; } else { ROLE_COLOR=RED ; }
-                                printf("%s", center(dbtype[version_sorted[j]], COL_TYPE, ROLE_COLOR))           ;
+                                if (role[version_sorted[j]] == "PRIMARY") { ROLE_COLOR=WHITE ; ROLE_SHORT=" (P)"; } else { ROLE_COLOR=RED ; ROLE_SHORT=" (S)" }
+                                printf("%s", center(dbtype[version_sorted[j]] ROLE_SHORT, COL_TYPE, ROLE_COLOR))           ;
 
                                 printf("\n")                                                                    ;
                         }
@@ -205,8 +213,16 @@ crsctl stat res -v -w "TYPE = ora.database.type" >> $TMP
                         # Print the OH list and a legend for the DB Type colors underneath the table
                         #
                         printf ("\n\t%s", "ORACLE_HOME references listed in the Version column :")              ;
-                        printf ("\t\t%s\n", "Colors in the DB Type column :")                                   ;
-                        printf ("\t\t\t\t\t\t\t\t\t\t" COLOR_BEGIN WHITE "%s" COLOR_END "%s" COLOR_BEGIN RED "%s" COLOR_END "%s\n", "White", " for PRIMARY,", " Red", " for STANDBY")            ;
+
+                        # Print the output in many lines for code visibility
+                        #printf ("\t\t%s\t", "DB Type column =>")                                               ;       # Most likely useless
+                        printf ("\t\t\t\t\t")                                                                   ;
+                        printf("%s" COLOR_BEGIN WHITE "%-6s" COLOR_END    , "Primary : ", "White")              ;
+                        printf("%s" COLOR_BEGIN WHITE "%s"   COLOR_END"\n", "and "      , "(P)"  )              ;
+                        printf ("\t\t\t\t\t\t\t\t\t\t\t\t")                                                     ;
+                        printf("%s" COLOR_BEGIN RED "%-6s"   COLOR_END    , "Standby : ", "Red"  )              ;
+                        printf("%s" COLOR_BEGIN RED "%s"     COLOR_END"\n", "and "      , "(S)" )               ;
+
 
                         for (x in oh_list)
                         {
@@ -224,3 +240,4 @@ fi
 #*********************************************************************************************************
 #                               E N D     O F      S O U R C E
 #*********************************************************************************************************
+
