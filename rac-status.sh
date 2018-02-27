@@ -13,8 +13,8 @@
 # History :
 #
 # 20180227 - Fred Denis - Make the the size of the DB column dynamic to handle very long database names (Thanks Michael)
-#                       - Added a (P) for Primary databases and a (S) for Stanby for color blind people that
-#                         could not see the difference between white and red (Thanks Michael)
+#                       - Added a (P) for Primary databases and a (S) for Stanby for color blind people who
+#                         may not see the difference between white and red (Thanks Michael)
 # 20180225 - Fred Denis - Make the multi status like "Mounted (Closed),Readonly,Open Initiated" clear in the table by showing only the first one
 # 20180205 - Fred Denis - There was a version alignement issue with more than 10 different ORACLE_HOMEs
 #                       - Better colors for the label "White for PRIMARY, Red for STANBY"
@@ -80,7 +80,7 @@ crsctl stat res -v -w "TYPE = ora.database.type" >> $TMP
                 COL_NODE = 18                           ;
                   COL_DB = 12                           ;
                  COL_VER = 15                           ;
-                COL_TYPE = 12                           ;
+                COL_TYPE = 15                           ;
         }
 
         #
