@@ -1,5 +1,5 @@
 #!/bin/bash
-# Fred Denis -- fred.denis3@gmail.com -- June 2016
+# Fred Denis -- Jun 2016 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
 #
 # This scripts shows a clear and colored status of the ASM used and free space
 # Please have a look at the usage function or $0 -h for the available options and their description
