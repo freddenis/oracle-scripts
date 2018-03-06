@@ -2,12 +2,16 @@
 #set -x
 # Pythian -- CR 1186213
 #
+# Current version of the script is 20180305
+#
+#
+# 20180305 - Fred Denis - Added timings when only 3 steps are needed
+#
 # 20180228 - Fred Denis - Starting to work on the subject :
 #			    Remove -x when starting the script -- no more needed, we would use it again if needed, it polutes the logs
 #			    Add CR number the subject has been working on  for a while
 #			    Add some text in the logs like "Step 1 : XXX: to have more visible logs
 #			    Add a test to check if the script is already running and then do not start a second one
-#
 #
 
 PATH=$PATH:/usr/local/bin
@@ -104,8 +108,15 @@ else
 sqlplus / as sysdba << EOF
 set serveroutput on;
 select name from v\$database;
+set timing on ;
+
+prompt Step 1 : init_log_temp
 exec DBADMIN.MANAGE_ORACLE_LOGS.init_log_temp;
+
+prompt Step 2 : manage_alert_log
 exec DBADMIN.manage_oracle_logs.manage_alert_log('${filecontent[0]}','alert_${ORACLE_SID}_err.txt');
+
+prompt Step 3 : clean_alert_log
 exec DBADMIN.manage_oracle_logs.clean_alert_log(90);
 exit
 EOF
