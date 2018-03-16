@@ -16,8 +16,9 @@
 # Please have a look at this post https://www.pythian.com/blog/asmcmdgt-better-du-version-2/ for examples and screenshots
 #
 #
-# The current version of the script is 20180211
+# The current version of the script is 20180315
 #
+# 20180315 - Shows only mirrored sizes by default and the total non mirrored size only shown with the -v option
 # 20180211 - Many improvements :
 #               - -d options to list the subdirectories of a directory
 #               - -v option to show the Raw Free and Reserverd size
@@ -39,7 +40,6 @@ DEFAULT_UNIT="TB"
 DEFAULT_VERBOSE="Yes"
 DEFAULT_VERBOSE="No"
 
-
 #
 # Colored thresholds (Red, Yellow, Green)
 #
@@ -52,17 +52,17 @@ DEFAULT_VERBOSE="No"
 
 usage()
 {
-printf "\n\033[1;37m%-8s\033[m\n" "NAME"        ;
+printf "\n\033[1;37m%-8s\033[m\n" "NAME"                ;
 cat << END
         asmdu.sh - Show a nice summary of the ASM diskgroups size
 END
 
-printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"    ;
+printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
 cat << END
         $0 [-d] [-m -g -t] [-v]
 END
 
-printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION" ;
+printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
 cat << END
         $0 needs to be executed as the GI owner user to be able to use asmcmd
         With no option $0 with show what instances are running and a size summary of each DG
@@ -140,7 +140,7 @@ ps -ef | grep pmon | grep -v grep | awk '{print $NF}' | sed s'/.*_pmon_//' | egr
 if [[ -z $D ]]
 then        # No directory provided, will check all the DG
             DG=`asmcmd lsdg | grep -v State | awk '{print $NF}' | sed s'/\///'`
-            SUBDIR="No"                 # Do not show the subdirectories details if no directory is specified
+        SUBDIR="No"                 # Do not show the subdirectories details if no directory is specified
 else
             DG=`echo $D | sed s'/\/.*$//g'`
 fi
@@ -153,16 +153,16 @@ fi
 printf "\n%25s%16s\033[1;37m%16s\033[m"   "DiskGroup" "Redundancy" "Total ${UNIT}"      # "Raw Free ${UNIT}" "Reserved ${UNIT}"  "Usable ${UNIT}" "% Free"
 if [[ ${VERBOSE} == "Yes" ]]
 then
-        printf "%16s%16s" "Raw Free ${UNIT}" "Reserved ${UNIT}"
+        printf "%16s%16s%16s" "Raw Total ${UNIT}" "Raw Free ${UNIT}" "Reserved ${UNIT}"
 fi
 printf "\033[1;37m%16s\033[m\033[1;37m%14s\033[m\n" "Usable ${UNIT}" "% Free"
 
-printf "%25s%16s\033[1;37m%16s\033[m" "---------" "-----------" "--------"
+printf "%25s%16s\033[1;37m%16s\033[m"   "---------"     "-----------" "--------"
 if [[ ${VERBOSE} == "Yes" ]]
 then
-        printf "%16s%16s" "-----------"     "-----------"
+        printf "%16s%16s%16s"           "------------"  "-----------" "-----------"
 fi
-printf "\033[1;37m%16s\033[m%14s\n" "---------"      "------"
+printf "\033[1;37m%16s\033[m%14s\n"     "---------"     "------"
 
 
 #
@@ -180,24 +180,29 @@ do
                       YELLOW =           COLOR_BEGIN"33m"                               ;
                        WHITE =           COLOR_BEGIN"37m"                               ;
                        COLOR =           GREEN                                          ;
-                     DIVIDER =          1                                               ;
+                     DIVIDER =           1                                              ;       # Unit divider
+                     RED_DIV =           1                                              ;       # Redundancy divider
 
                         if (UNIT == "GB")       { DIVIDER="1024"}                       ;
                         if (UNIT == "TB")       { DIVIDER="1048576"}                    ;       # 1024 * 1024
                 }
                 {       FREE = sprintf("%12d", $10/$7*100)                              ;       # % Free calculated using the Usable size
 
-                    if ((100-FREE) > W)         {COLOR=YELLOW                           ;}
-                    if ((100-FREE) > C)         {COLOR=RED                              ;}
+                    if ((100-FREE) > W)         {COLOR=YELLOW                           ;}      # Colored %Free thresholds
+                    if ((100-FREE) > C)         {COLOR=RED                              ;}      # Colored %Free thresholds
 
-                       TOTAL = sprintf("%16.2f", $7/DIVIDER)                            ;       # Total space of the DG in UNIT
+
+                    if ($2 == "HIGH")           {RED_DIV=3                              ;}      # Redundancy divider
+                    if ($2 == "NORMAL")         {RED_DIV=2                              ;}      # Redundancy divider
+
+                       TOTAL = sprintf("%16.2f", $7/DIVIDER/RED_DIV)                    ;
                       USABLE = sprintf("%16.2f", $10/DIVIDER)                           ;       # Usable space in UNIT
 
                     printf("%25s%16s%16s", DG, $2, WHITE TOTAL COLOR_END)               ;       # DG Redundancy and Total
 
                     if (VERBOSE == "Yes")
                     {
-                            printf("%16.2f%16.2f", $8/DIVIDER, $9/DIVIDER)              ;       # Raw Free and reserved if Verbose
+                            printf("%16.2f%16.2f%16.2f", $7/DIVIDER, $8/DIVIDER, $9/DIVIDER);       # Total Raw, Raw Free and reserved if Verbose
                     }
                     printf("%16s%14s\n", WHITE USABLE COLOR_END, COLOR FREE COLOR_END)  ;       # Usable and Free %
                 }'
@@ -244,7 +249,7 @@ fi
 #
 if [[ ${VERBOSE} == "Yes" ]]
 then
-        printf "\t\t%40s\n\n" "Note : Usable = (Raw Free - Reserved)/Redundancy"        ;
+        printf "\t\t%40s\n\n" "Note : Usable = (Raw Free - Reserved)/Redundancy"                ;
 fi
 
 #****************************************************************************************#
