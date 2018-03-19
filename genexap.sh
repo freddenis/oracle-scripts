@@ -2,7 +2,10 @@
 # Automatically generates an Exadata patching action plan
 # For more details about the Exadata patching procedure, you can have a look at https://www.pythian.com/blog/patch-exadata-part-1-introduction-prerequisites/
 #
-# The current version of the script is 20180111
+# The current version of the script is 20180319
+#
+# 20180319 - Fred Denis - Add support for the -allow_active_network_mounts option
+#                         Minor alignemnt adjustments
 #
 
 #
@@ -21,7 +24,7 @@ DEBUG="No"
                STATUS_SCRIPT=/home/oracle/pythian/rac-status.sh         # Where the status script is located (this one : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/status.sh)
               VER_TO_INSTALL="."                                        # If no version to install specified, we want to install the highest
             MODIFY_AT_PREREQ=""                                         # No "-modify_at_prereq" by default
-
+            ALLOW_ACTIVE_NFS="Yes"                                      # To use the -allow_active_network_mounts option (available starting from version 12.1.2.1.1)
 
 #
 # A usage function
@@ -32,13 +35,15 @@ usage()
 
         $0
                 -d <DIRECTORY_OF_THE_BUNDLE_PATCH>                      (mandatory)
-                -n <NAME_OF_THE_CLUSTER>                                (optional)
+                -f                                                      (optional) Generate the commands to force umount the NFS before patching (for versions < 12.1.2.1.1)
                 -g <GI_HOME>                                            (optional)
-                -u                                                      (Unzip and prereqs steps have been done, shows a green DONE for the unzip parts, default is unzip has not been done)
-                -v <Cells, IB and DB Server version to install>         (optional -- default is the highest)
-                -m                                                      (optional -- use the -modify_at_prereq option when patching the DB Servers; default is -modify_at_prereq is not used)
-                -M                                                      (optional -- same as -m; this is just if you want to use the same exact option as dbnodeupdate :))
                 -h                                                      (generate a HTML action plan, mandatory, default is no HTML)
+                -n <NAME_OF_THE_CLUSTER>                                (optional)
+                -u                                                      (Unzip and prereqs steps have been done, shows a green "DONE" for the unzip parts, default is unzip has not been done)
+                -v <Cells, IB and DB Server version to install>         (optional -- default is the highest)
+
+                # Use the below -[mM] options with caution
+                -m                                                      (optional -- use the -modify_at_prereq option when patching the DB Servers; default is -modify_at_prereq is not used)
 !
         exit 123
 }
@@ -46,16 +51,17 @@ usage()
 #
 # Parameters management
 #
-while getopts ":d:n:humMg:v:" OPT; do
+while getopts ":d:n:humMg:v:f" OPT; do
         case ${OPT} in
-        d)      PATCH_DIR=`echo ${OPTARG} | sed s'/\/ *$//'`    ;;      # Remove any trailing /
-        n)   CLUSTER_NAME=${OPTARG}                             ;;
-        g)        GI_HOME=`echo ${OPTARG} | sed s'/\/ *$//'`    ;;      # Remove any trailing /
-        u)     UNZIP_DONE="Yes"                                 ;;
-        h)           HTML="Yes"                                 ;;
-        m|M)    MODIFY_AT_PREREQ="-modify_at_prereq"            ;;
-        v) VER_TO_INSTALL=${OPTARG}                             ;;      # Cells, IB and DB Server version to install
-        \?) echo "Invalid option: -$OPTARG" >&2; usage          ;;
+        d)          PATCH_DIR=`echo ${OPTARG} | sed s'/\/ *$//'`    ;;      # Remove any trailing /
+        f)   ALLOW_ACTIVE_NFS="No"                                  ;;
+        g)            GI_HOME=`echo ${OPTARG} | sed s'/\/ *$//'`    ;;      # Remove any trailing /
+        h)               HTML="Yes"                                 ;;
+        n)       CLUSTER_NAME=${OPTARG}                             ;;
+        u)         UNZIP_DONE="Yes"                                 ;;
+        v)     VER_TO_INSTALL=${OPTARG}                             ;;      # Cells, IB and DB Server version to install
+        m|M) MODIFY_AT_PREREQ="-modify_at_prereq"                   ;;
+        \?) echo "Invalid option: -$OPTARG" >&2; usage              ;;
         esac
 done
 
@@ -243,13 +249,6 @@ fi
                 }
                 END\
                 {
-                        # A non dotted version to generate the names of the zip files
-                        #fred NON_DOTTED_VERSION=CELL_VERSION                                         ;
-                        #fred gsub(/\./, "", NON_DOTTED_VERSION)                                      ;
-
-                        # Cells and IB infos
-                        #fred print "CELLS", CELL_DIR, CELL_VERSION, CELL_VERSION_AFTER_PATCHING, "p"CELL_PATCH_ID"_"NON_DOTTED_VERSION"_Linux-x86-64.zip"            ;
-
                         # Patchmgr infos
                         print "PATCHMGR", PATCHMGR, "p"PATCHMGR_PATCH_ID"_*_Linux-x86-64.zip"   ;       # I put a star in the name as for Jan 2017 the bundle do not show the correct version
                 }' ${BUNDLE_XML} > ${CONF}
@@ -407,6 +406,7 @@ ${S_H2}3/ Database Servers patching ${E_H2}
 -- Use the script ${S_B}${STATUS_SCRIPT}${E_B} to monitore the instances during the patch application
 
 ${S_H3}3.1/ Copy what is needed to ${CLUSTER_NAME}cel01:${E_H3}
+
 -- Create a ${S_B}/tmp/SAVE${E_B} directory in order to avoid the automatic maintenance jobs that purge /tmp every day (directories > 5 MB and older than 1 day). If not, these maintenance jobs will delete the dbnodeupdate.zip file that is mandatory to apply the patch -- this won't survive a reboot though
 
 ${S_PRE}
@@ -422,7 +422,7 @@ ${E_PRE}
 
 ${S_H3}3.2/ Do the prerequisites${U_DONE}:${E_H3}
 
--- Consider using the ${S_B}-modify_at_prereq${E_B} option if you face some dependencies issues (-m or -M option of the action plan generator script)
+-- Consider using the ${S_B}-modify_at_prereq${E_B} option ${S_B}with extra caution${E_B} if you face some dependencies issues (-m or -M option of the action plan generator script)
 
 ${S_PRE}
 ${TAB} ${CELROOTPROMPT} ${S_B} cd /tmp/SAVE/dbserver_patch_`basename ${PATCHMGR}`                                                               ${E_B}
@@ -437,24 +437,35 @@ ${E_PRE}
 ${S_H3}3.3/ We can now proceed with the rolling patch on the database servers:${E_H3}
 
 -- ${S_B}Direct connect to the ${CLUSTER_NAME}cel01 server${E_B}, if you go through ${CLUSTER_NAME}db01 or another database server, you will lose your connection when it will be rebooted
--- Before applying the patch, we first need to umount the NFS on all the database servers:${E_H3}
-- The below command will generate the umount command; add \"${S_B}| bash${E_B}\" at the and and it will umount everything automatically
-- If something prevents a NFS to umount, you can check what it is with \"${S_B}lsof FS_NAME${E_B}\" or \"${S_B}fuser -c -u FS_NAME${E_B}\" and kill it with \"${S_B}fuser -c -k FS_NAME${E_B}\"
-- Nothing should prevent ${S_B}umount -l${E_B} to work
+"
 
+if [ "${ALLOW_ACTIVE_NFS}" = "No" ]
+then
+        ALLOW_ACTIVE_NFS_OPTION=""
+echo -e "-- Before applying the patch, we first need to umount the NFS on all the database servers:${E_H3}
+ - The below command will generate the umount command; add \"${S_B}| bash${E_B}\" at the and and it will umount everything automatically
+ - If something prevents a NFS to umount, you can check what it is with \"${S_B}lsof FS_NAME${E_B}\" or \"${S_B}fuser -c -u FS_NAME${E_B}\" and kill it with \"${S_B}fuser -c -k FS_NAME${E_B}\"
+ - Nothing should prevent ${S_B}umount -l${E_B} to work
 ${S_PRE}
-${TAB} ${DBROOTPROMPT} ${S_B} df -t nfs | awk '{if (\$NF ~ /^\//){print \"umount -l \" \$NF}}'                                                  ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} df -t nfs | awk '{if (\$NF ~ /^\//){print \"umount -l \" \$NF}}'                                         ${E_B}
 ${E_PRE}
+${TAB} Note : You may consider using the ${S_B}-allow_active_network_mounts${E_B} option if your source version is > 12.1.2.1.1 (default)"
+else
+        ALLOW_ACTIVE_NFS_OPTION="-allow_active_network_mounts"
+fi
 
+
+echo -e "
 -- Apply the patch
-
 ${S_PRE}
 ${TAB} ${CELROOTPROMPT} ${S_B} dcli -g ~/dbs_group -l root imageinfo -ver                                                                       ${E_B}
 ${TAB} ${CELROOTPROMPT} ${S_B} cd /tmp/SAVE/dbserver_patch_`basename ${PATCHMGR}`                                                               ${E_B}
-${TAB} ${CELROOTPROMPT} ${S_B} ./patchmgr -dbnodes ~/dbs_group -precheck ${MODIFY_AT_PREREQ} -iso_repo /tmp/SAVE/${ISO} -target_version ${TARGET_VERSION}           ${E_B}
-${TAB} ${CELROOTPROMPT} ${S_B} nohup ./patchmgr -dbnodes ~/dbs_group -upgrade -iso_repo /tmp/SAVE/${ISO} -target_version ${TARGET_VERSION} -rolling & ${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B} ./patchmgr -dbnodes ~/dbs_group -precheck ${MODIFY_AT_PREREQ} -iso_repo /tmp/SAVE/${ISO} -target_version ${TARGET_VERSION} ${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B} nohup ./patchmgr -dbnodes ~/dbs_group -upgrade -iso_repo /tmp/SAVE/${ISO} -target_version ${TARGET_VERSION} ${ALLOW_ACTIVE_NFS_OPTION} -rolling & ${E_B}
 
-${TAB} -- You can monitore the patch looking at the nohup.out file (tail -f nohup.out) or the patchmgr.out file
+${TAB} Note : the ${S_B}${ALLOW_ACTIVE_NFS_OPTION}${E_B} option is available starting from 12.1.2.1.1, please regenerate the action plan using the ${S_B}-f${E_B} option if you run a version < 12.1.2.1.1
+
+-- You can monitore the patch looking at the nohup.out file (tail -f nohup.out) or the patchmgr.out file
 
 ${TAB} ${CELROOTPROMPT} ${S_B} dcli -g ~/dbs_group -l root imageinfo -ver                                                                       ${E_B}
 ${E_PRE}
@@ -530,3 +541,4 @@ ${E_PRE}
 #************************************************************************************************#
 #*                              E N D      O F      S O U R C E                                 *#
 #************************************************************************************************#
+
