@@ -16,9 +16,9 @@
 # Please have a look at this post https://www.pythian.com/blog/asmcmdgt-better-du-version-2/ for examples and screenshots
 #
 #
-# The current version of the script is 20180315
+# The current version of the script is 20180318
 #
-# 20180315 - Shows only mirrored sizes by default and the total non mirrored size only shown with the -v option
+# 20180318 - Shows only mirrored sizes by default and the total non mirrored size only shown with the -v option
 # 20180211 - Many improvements :
 #               - -d options to list the subdirectories of a directory
 #               - -v option to show the Raw Free and Reserverd size
@@ -186,17 +186,15 @@ do
                         if (UNIT == "GB")       { DIVIDER="1024"}                       ;
                         if (UNIT == "TB")       { DIVIDER="1048576"}                    ;       # 1024 * 1024
                 }
-                {       FREE = sprintf("%12d", $10/$7*100)                              ;       # % Free calculated using the Usable size
+                {       if ($2 == "HIGH")           {RED_DIV=3                          ;}      # Redundancy divider
+                        if ($2 == "NORMAL")         {RED_DIV=2                          ;}      # Redundancy divider
 
-                    if ((100-FREE) > W)         {COLOR=YELLOW                           ;}      # Colored %Free thresholds
-                    if ((100-FREE) > C)         {COLOR=RED                              ;}      # Colored %Free thresholds
+                       TOTAL = sprintf("%16.2f", $7/DIVIDER/RED_DIV)                    ;       # Total mirrored in Unit
+                      USABLE = sprintf("%16.2f", $10/DIVIDER)                           ;       # Usable space in Unit
+                        FREE = sprintf("%12d"  , USABLE/TOTAL*100)                      ;       # % Free calculated using the Usable size
 
-
-                    if ($2 == "HIGH")           {RED_DIV=3                              ;}      # Redundancy divider
-                    if ($2 == "NORMAL")         {RED_DIV=2                              ;}      # Redundancy divider
-
-                       TOTAL = sprintf("%16.2f", $7/DIVIDER/RED_DIV)                    ;
-                      USABLE = sprintf("%16.2f", $10/DIVIDER)                           ;       # Usable space in UNIT
+                        if ((100-FREE) > W)     { COLOR=YELLOW                          ;}      # Colored %Free thresholds
+                        if ((100-FREE) > C)     { COLOR=RED                             ;}      # Colored %Free thresholds
 
                     printf("%25s%16s%16s", DG, $2, WHITE TOTAL COLOR_END)               ;       # DG Redundancy and Total
 
