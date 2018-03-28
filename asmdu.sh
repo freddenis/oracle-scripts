@@ -16,7 +16,7 @@
 # Please have a look at this post https://www.pythian.com/blog/asmcmdgt-better-du-version-2/ for examples and screenshots
 #
 #
-# The current version of the script is 20180318
+# The current version of the script is 20180327
 #
 # 20180327 - "Raw Used " label for the subdirectories "Mirror_used_MB" column, adjustments in the help
 # 20180318 - Shows only mirrored sizes by default and the total non mirrored size only shown with the -v option
