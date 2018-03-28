@@ -18,6 +18,7 @@
 #
 # The current version of the script is 20180318
 #
+# 20180327 - "Raw Used " label for the subdirectories "Mirror_used_MB" column, adjustments in the help
 # 20180318 - Shows only mirrored sizes by default and the total non mirrored size only shown with the -v option
 # 20180211 - Many improvements :
 #               - -d options to list the subdirectories of a directory
@@ -49,39 +50,38 @@ DEFAULT_VERBOSE="No"
 #
 # An usage function
 #
-
 usage()
 {
 printf "\n\033[1;37m%-8s\033[m\n" "NAME"                ;
 cat << END
-        asmdu.sh - Show a nice summary of the ASM diskgroups size
+        asmdu.sh - Shows a nice summary of the ASM diskgroups sizes
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
 cat << END
-        $0 [-d] [-m -g -t] [-v]
+        $0 [-d] [-m -g -t] [-v] [-h]
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
 cat << END
         $0 needs to be executed as the GI owner user to be able to use asmcmd
-        With no option $0 with show what instances are running and a size summary of each DG
+        With no option $0 will be showing what instances are running and a size summary for each DiskGroup
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"             ;
 cat << END
         -d        The directory you want the size details
 
-        -v        Verbose -- show the "Raw Free" and "Reserved" size
+        -v        Verbose -- show the "Total Raw", "Raw Free" and "Reserved" size
                   You can change the default behavior with the DEFAULT_VERBOSE variable
 
-        -m        Show the output in MB
-        -g        Show the output in GB
-        -t        Show the output in TB
+        -m        Shows the output in MB
+        -g        Shows the output in GB
+        -t        Shows the output in TB
         -m -g -t  The default Unit can be specified using the DEFAULT_UNIT variable
                   If more than one of these options is specified, the last one wins
 
-        -h        Show this help
+        -h        Shows this help
 
 END
 exit 123
@@ -218,8 +218,8 @@ do
 #            echo ${DIR} `asmcmd du ${D}/${DIR} | tail -1`
 done) | awk -v D="$D" -v UNIT="$UNIT"\
          ' BEGIN {      printf("\n\t\t%40s\n\n", D " subdirectories size")                      ;
-                        printf("%25s%16s%16s\n", "Subdir", "Used " UNIT, "Mirror " UNIT)        ;
-                        printf("%25s%16s%16s\n", "------", "-------", "---------")              ;
+                        printf("%25s%16s%16s\n", "Subdir", "Used " UNIT, "Raw Used " UNIT)      ;
+                        printf("%25s%16s%16s\n", "------", "-------", "-----------")            ;
 
                         DIVIDER=1                                                               ;
                         if (UNIT == "GB")       { DIVIDER="1024"        }                       ;
