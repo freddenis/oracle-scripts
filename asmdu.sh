@@ -1,9 +1,9 @@
 #!/bin/bash
 # Fred Denis -- Jun 2016 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
-#
+# 
 # This scripts shows a clear and colored status of the ASM used and free space
 # Please have a look at the usage function or $0 -h for the available options and their description
-#
+# More information and screenshots : https://unknowndba.blogspot.ca/2018/03/asmdush-far-better-du-for-asmcmd.html
 #
 # A note on the --nocp option
 # Note that the --nocp asmcmd option (it disables the connection pooling) has been originaly implemented

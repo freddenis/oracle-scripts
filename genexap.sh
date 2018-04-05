@@ -4,6 +4,8 @@
 #
 # The current version of the script is 20180319
 #
+# 20180404 - Fred Denis - Remove the ib_group file from the ib switch patch command line as patchmgr will find
+#                          the ib switch list by itself using the ibswicthes command
 # 20180319 - Fred Denis - Add support for the -allow_active_network_mounts option
 #                         Minor alignemnt adjustments
 #
@@ -340,7 +342,7 @@ fi
 
 if [ "${UNZIP_DONE}" != "Yes" ]
 then
-        U_DONE=""               # if no -u optionm we just put nothing after the unzip paragraph
+        U_DONE=""               # if no -u option, we just put nothing after the unzip paragraph
 fi
 
 
@@ -387,7 +389,7 @@ ${S_H3}2.1 / IB Switches prerequisites${U_DONE}:${E_H3}
 
 ${S_PRE}
 ${TAB} ${DBROOTPROMPT} ${S_B} cd ${PATCH_DIR}/${CELL_AND_IB}/patch_${TARGET_VERSION}                                                            ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} ./patchmgr -ibswitches ~/ib_group -ibswitch_precheck -upgrade                                                     ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} ./patchmgr -ibswitches -ibswitch_precheck -upgrade                                                                ${E_B}
 ${E_PRE}
 
 ${S_H3}2.2 / Apply the patch on the IB Switches:${E_H3}
@@ -541,4 +543,3 @@ ${E_PRE}
 #************************************************************************************************#
 #*                              E N D      O F      S O U R C E                                 *#
 #************************************************************************************************#
-
