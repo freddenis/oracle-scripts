@@ -5,7 +5,7 @@
 # Quickly shows a status of all running instances accross a 12c cluster
 # The script just need to have a working oraenv
 #
-# Please have a look at https://www.pythian.com/blog/status-script-exadata/ for some screenshots
+# Please have a look at https://unknowndba.blogspot.com/2018/04/rac-statussh-overview-of-your-rac-gi.html for some details and screenshots
 # The script last version can be downloaded here : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/rac-status.sh
 #
 # The current script version is 20180227
