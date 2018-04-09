@@ -28,7 +28,7 @@ DEBUG="No"
               VER_TO_INSTALL="."                                        # If no version to install specified, we want to install the highest
             MODIFY_AT_PREREQ=""                                         # No "-modify_at_prereq" by default
             ALLOW_ACTIVE_NFS="Yes"                                      # To use the -allow_active_network_mounts option (available starting from version 12.1.2.1.1)
-                      CELL01=""                                         # Name of the Cell 01 we will be using to patch the DB Nodes
+                       CEL01=""                                         # Name of the Cell 01 we will be using to patch the DB Nodes
 
 #
 # A usage function
