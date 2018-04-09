@@ -2,8 +2,9 @@
 # Automatically generates an Exadata patching action plan
 # For more details about the Exadata patching procedure, you can have a look at https://www.pythian.com/blog/patch-exadata-part-1-introduction-prerequisites/
 #
-# The current version of the script is 20180319
+# The current version of the script is 20180408
 #
+# 20180408 - Fred Denis - Add the -c option to specify the name of the cel01 if not in the default form ${CLUSTER_NAME}cel01
 # 20180404 - Fred Denis - Remove the ib_group file from the ib switch patch command line as patchmgr will find
 #                          the ib switch list by itself using the ibswicthes command
 # 20180319 - Fred Denis - Add support for the -allow_active_network_mounts option
@@ -13,7 +14,7 @@
 #
 # If we want some "debug" information, comment the line you don't want
 #
-#DEBUG="Yes"
+DEBUG="Yes"
 DEBUG="No"
 
 #
@@ -27,6 +28,7 @@ DEBUG="No"
               VER_TO_INSTALL="."                                        # If no version to install specified, we want to install the highest
             MODIFY_AT_PREREQ=""                                         # No "-modify_at_prereq" by default
             ALLOW_ACTIVE_NFS="Yes"                                      # To use the -allow_active_network_mounts option (available starting from version 12.1.2.1.1)
+                      CELL01=""                                         # Name of the Cell 01 we will be using to patch the DB Nodes
 
 #
 # A usage function
@@ -39,6 +41,7 @@ usage()
                 -d <DIRECTORY_OF_THE_BUNDLE_PATCH>                      (mandatory)
                 -f                                                      (optional) Generate the commands to force umount the NFS before patching (for versions < 12.1.2.1.1)
                 -g <GI_HOME>                                            (optional)
+                -c <Cel01 name>                                         (optional -- if your cel01 is not named in the form ${CLUSTER_NAME}cel01)
                 -h                                                      (generate a HTML action plan, mandatory, default is no HTML)
                 -n <NAME_OF_THE_CLUSTER>                                (optional)
                 -u                                                      (Unzip and prereqs steps have been done, shows a green "DONE" for the unzip parts, default is unzip has not been done)
@@ -53,11 +56,12 @@ usage()
 #
 # Parameters management
 #
-while getopts ":d:n:humMg:v:f" OPT; do
+while getopts ":d:n:humMg:v:fc:" OPT; do
         case ${OPT} in
         d)          PATCH_DIR=`echo ${OPTARG} | sed s'/\/ *$//'`    ;;      # Remove any trailing /
         f)   ALLOW_ACTIVE_NFS="No"                                  ;;
         g)            GI_HOME=`echo ${OPTARG} | sed s'/\/ *$//'`    ;;      # Remove any trailing /
+        c)             CEL01=${OPTARG}                              ;;
         h)               HTML="Yes"                                 ;;
         n)       CLUSTER_NAME=${OPTARG}                             ;;
         u)         UNZIP_DONE="Yes"                                 ;;
@@ -83,6 +87,10 @@ then
         else
                 CLUSTER_NAME=${DEFAULT_CLUSTER_NAME}
         fi
+fi
+if [ -z ${CEL01} ]              # Build te default cel01 name if not specified from the command line
+then
+        CEL01=${CLUSTER_NAME}cel01
 fi
 if [ -z ${GI_HOME} ]            # If Grid Home is not set, we try to find out, if not we put a default
 then
@@ -276,7 +284,7 @@ fi
 # Define some prompts to put in the action plan
 #
          DBROOTPROMPT="[root@${CLUSTER_NAME}db01 ~]#"
-        CELROOTPROMPT="[root@${CLUSTER_NAME}cel01 ~]#"
+        CELROOTPROMPT="[root@${CEL01} ~]#"
        DBORACLEPROMPT="[oracle@${CLUSTER_NAME}db01 ~]$"
 
 #
@@ -404,18 +412,18 @@ ${E_PRE}
 
 ${S_H2}3/ Database Servers patching ${E_H2}
 
-- As we cannot patch a node we are connected to, we will start the patch from a cell server (${CLUSTER_NAME}cel01). To be able to do that, we need to copy patchmgr and the ISO file on this cell server. Do NOT unzip the ISO file, patchmgr will take care of it.
+- As we cannot patch a node we are connected to, we will start the patch from a cell server (${CEL01}). To be able to do that, we need to copy patchmgr and the ISO file on this cell server. Do NOT unzip the ISO file, patchmgr will take care of it.
 -- Use the script ${S_B}${STATUS_SCRIPT}${E_B} to monitore the instances during the patch application
 
-${S_H3}3.1/ Copy what is needed to ${CLUSTER_NAME}cel01:${E_H3}
+${S_H3}3.1/ Copy what is needed to ${CEL01}:${E_H3}
 
 -- Create a ${S_B}/tmp/SAVE${E_B} directory in order to avoid the automatic maintenance jobs that purge /tmp every day (directories > 5 MB and older than 1 day). If not, these maintenance jobs will delete the dbnodeupdate.zip file that is mandatory to apply the patch -- this won't survive a reboot though
 
 ${S_PRE}
-${TAB} ${DBROOTPROMPT} ${S_B} ssh root@${CLUSTER_NAME}cel01 mkdir /tmp/SAVE                                                                     ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} scp ${PATCH_DIR}/${PATCHMGR}/${PATCHMGR_ZIP} root@${CLUSTER_NAME}cel01:/tmp/SAVE/.                                ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} scp ${PATCH_DIR}/${OL6_DIR}/${ISO} root@${CLUSTER_NAME}cel01:/tmp/SAVE/.                                          ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} ssh root@${CLUSTER_NAME}cel01                                                                                     ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} ssh root@${CEL01} mkdir /tmp/SAVE                                                                                 ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} scp ${PATCH_DIR}/${PATCHMGR}/${PATCHMGR_ZIP} root@${CEL01}:/tmp/SAVE/.                                            ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} scp ${PATCH_DIR}/${OL6_DIR}/${ISO} root@${CEL01}:/tmp/SAVE/.                                                      ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} ssh root@${CEL01}                                                                                                 ${E_B}
 ${TAB} ${CELROOTPROMPT} ${S_B} cd /tmp/SAVE                                                                                                     ${E_B}
 ${TAB} ${CELROOTPROMPT} ${S_B} nohup unzip ${PATCHMGR_ZIP} &                                                                                    ${E_B}
 
@@ -438,7 +446,7 @@ ${E_PRE}
 
 ${S_H3}3.3/ We can now proceed with the rolling patch on the database servers:${E_H3}
 
--- ${S_B}Direct connect to the ${CLUSTER_NAME}cel01 server${E_B}, if you go through ${CLUSTER_NAME}db01 or another database server, you will lose your connection when it will be rebooted
+-- ${S_B}Direct connect to the ${CEL01} server${E_B}, if you go through ${CLUSTER_NAME}db01 or another database server, you will lose your connection when it will be rebooted
 "
 
 if [ "${ALLOW_ACTIVE_NFS}" = "No" ]
