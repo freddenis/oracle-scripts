@@ -1,7 +1,7 @@
 #!/bin/bash
 # Fred Denis -- Nov 2017 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
 #
-# An Exadata version summary :
+# An Exadata version summary (https://unknowndba.blogspot.com/2018/04/exa-versionssh-exadata-components.html):
 # -- has to be run as root
 # -- the server where this script is started should have the root ssh  keys deployed on all the other servers (DB Nodes, Cells and IB Swicthes)
 # -- see the usage fonction and/or use the -h option for a complete description
