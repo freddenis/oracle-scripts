@@ -7,6 +7,7 @@
 # -- oraenv should be working on every server
 # -- Look for "Query customization" to customize your query
 #
+# More information here : https://unknowndba.blogspot.com.au/2018/04/rac-onalldbsh-easily-execute-query-on.html
 #
 # Version of the script is 20180318
 #
