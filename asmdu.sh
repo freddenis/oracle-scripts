@@ -1,6 +1,6 @@
 #!/bin/bash
 # Fred Denis -- Jun 2016 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
-# 
+#
 # This scripts shows a clear and colored status of the ASM used and free space
 # Please have a look at the usage function or $0 -h for the available options and their description
 # More information and screenshots : https://unknowndba.blogspot.ca/2018/03/asmdush-far-better-du-for-asmcmd.html
@@ -16,8 +16,9 @@
 # Please have a look at this post https://www.pythian.com/blog/asmcmdgt-better-du-version-2/ for examples and screenshots
 #
 #
-# The current version of the script is 20180327
+# The current version of the script is 20180503
 #
+# 20180503 - GI 12c introduces a "Logical_Sector" column, took this into account (Thanks Leon !)
 # 20180327 - "Raw Used " label for the subdirectories "Mirror_used_MB" column, adjustments in the help
 # 20180318 - Shows only mirrored sizes by default and the total non mirrored size only shown with the -v option
 # 20180211 - Many improvements :
@@ -189,8 +190,8 @@ do
                 {       if ($2 == "HIGH")           {RED_DIV=3                          ;}      # Redundancy divider
                         if ($2 == "NORMAL")         {RED_DIV=2                          ;}      # Redundancy divider
 
-                       TOTAL = sprintf("%16.2f", $7/DIVIDER/RED_DIV)                    ;       # Total mirrored in Unit
-                      USABLE = sprintf("%16.2f", $10/DIVIDER)                           ;       # Usable space in Unit
+                       TOTAL = sprintf("%16.2f", $(NF-6)/DIVIDER/RED_DIV)               ;       # Total mirrored in Unit
+                      USABLE = sprintf("%16.2f", $(NF-3)/DIVIDER)                       ;       # Usable space in Unit
                         FREE = sprintf("%12d"  , USABLE/TOTAL*100)                      ;       # % Free calculated using the Usable size
 
                         if ((100-FREE) > W)     { COLOR=YELLOW                          ;}      # Colored %Free thresholds
@@ -200,7 +201,7 @@ do
 
                     if (VERBOSE == "Yes")
                     {
-                            printf("%16.2f%16.2f%16.2f", $7/DIVIDER, $8/DIVIDER, $9/DIVIDER);       # Total Raw, Raw Free and reserved if Verbose
+                            printf("%16.2f%16.2f%16.2f", $(NF-6)/DIVIDER, $(NF-5)/DIVIDER, $(NF-4)/DIVIDER);       # Total Raw, Raw Free and reserved if Verbose
                     }
                     printf("%16s%14s\n", WHITE USABLE COLOR_END, COLOR FREE COLOR_END)  ;       # Usable and Free %
                 }'
