@@ -2,8 +2,12 @@
 # Automatically generates an Exadata patching action plan
 # For more details about the Exadata patching procedure, you can have a look at https://www.pythian.com/blog/patch-exadata-part-1-introduction-prerequisites/
 #
-# The current version of the script is 20180408
+# The current version of the script is 20180511
 #
+# 20180511 - Fred Denis - Add back ~/ib_group in the IB Switch prereq as the doc saying that ibswitches will be used
+#                          if the file is not specified looks wrong (see 20180404) :
+#                          [root@flccssdrdbadm01 patch_12.2.1.1.7.180506]# ./patchmgr -ibswitches -ibswitch_precheck -upgrade
+#                          [ERROR] Nodes list file must be provided for -ibswitches command line option.
 # 20180408 - Fred Denis - Add the -c option to specify the name of the cel01 if not in the default form ${CLUSTER_NAME}cel01
 #                         Add a scp of the dbs_group file in case of it is not there for the DB nodes pre-reqs / patching
 # 20180404 - Fred Denis - Remove the ib_group file from the ib switch patch command line as patchmgr will find
@@ -398,7 +402,7 @@ ${S_H3}2.1 / IB Switches prerequisites${U_DONE}:${E_H3}
 
 ${S_PRE}
 ${TAB} ${DBROOTPROMPT} ${S_B} cd ${PATCH_DIR}/${CELL_AND_IB}/patch_${TARGET_VERSION}                                                            ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} ./patchmgr -ibswitches -ibswitch_precheck -upgrade                                                                ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} ./patchmgr -ibswitches ~/ib_group -ibswitch_precheck -upgrade                                                     ${E_B}
 ${E_PRE}
 
 ${S_H3}2.2 / Apply the patch on the IB Switches:${E_H3}
@@ -553,5 +557,3 @@ ${E_PRE}
 #************************************************************************************************#
 #*                              E N D      O F      S O U R C E                                 *#
 #************************************************************************************************#
-
-
