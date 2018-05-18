@@ -2,8 +2,9 @@
 # Automatically generates an Exadata patching action plan
 # For more details about the Exadata patching procedure, you can have a look at https://www.pythian.com/blog/patch-exadata-part-1-introduction-prerequisites/
 #
-# The current version of the script is 20180511
+# The current version of the script is 20180518
 #
+# 20180518 - Fred Denis - a -w option to choose the GI version when different than cells, IB and DB nodes
 # 20180511 - Fred Denis - Add back ~/ib_group in the IB Switch prereq as the doc saying that ibswitches will be used
 #                          if the file is not specified looks wrong (see 20180404) :
 #                          [root@flccssdrdbadm01 patch_12.2.1.1.7.180506]# ./patchmgr -ibswitches -ibswitch_precheck -upgrade
@@ -31,6 +32,7 @@ DEBUG="No"
                DBSERVER_TYPE="OL"                                       # Other possible value is OVS
                STATUS_SCRIPT=/home/oracle/pythian/rac-status.sh         # Where the status script is located (this one : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/status.sh)
               VER_TO_INSTALL="."                                        # If no version to install specified, we want to install the highest
+                  GI_VERSION=""                                         # GI version to install
             MODIFY_AT_PREREQ=""                                         # No "-modify_at_prereq" by default
             ALLOW_ACTIVE_NFS="Yes"                                      # To use the -allow_active_network_mounts option (available starting from version 12.1.2.1.1)
                        CEL01=""                                         # Name of the Cell 01 we will be using to patch the DB Nodes
@@ -51,6 +53,7 @@ usage()
                 -n <NAME_OF_THE_CLUSTER>                                (optional)
                 -u                                                      (Unzip and prereqs steps have been done, shows a green "DONE" for the unzip parts, default is unzip has not been done)
                 -v <Cells, IB and DB Server version to install>         (optional -- default is the highest)
+                -w <GI version to install>                              (optional -- same as cells and DB nodes if not specified)
 
                 # Use the below -[mM] options with caution
                 -m                                                      (optional -- use the -modify_at_prereq option when patching the DB Servers; default is -modify_at_prereq is not used)
@@ -61,7 +64,7 @@ usage()
 #
 # Parameters management
 #
-while getopts ":d:n:humMg:v:fc:" OPT; do
+while getopts ":d:n:humMg:v:fc:w:" OPT; do
         case ${OPT} in
         d)          PATCH_DIR=`echo ${OPTARG} | sed s'/\/ *$//'`    ;;      # Remove any trailing /
         f)   ALLOW_ACTIVE_NFS="No"                                  ;;
@@ -71,6 +74,7 @@ while getopts ":d:n:humMg:v:fc:" OPT; do
         n)       CLUSTER_NAME=${OPTARG}                             ;;
         u)         UNZIP_DONE="Yes"                                 ;;
         v)     VER_TO_INSTALL=${OPTARG}                             ;;      # Cells, IB and DB Server version to install
+        w)         GI_VERSION=${OPTARG}                             ;;      # Version for GI
         m|M) MODIFY_AT_PREREQ="-modify_at_prereq"                   ;;
         \?) echo "Invalid option: -$OPTARG" >&2; usage              ;;
         esac
@@ -281,8 +285,12 @@ fi
               PATCHMGR=`grep "^PATCHMGR"  ${CONF}                                                                       | awk 'BEGIN{FS="|"} {print $2}'`
           PATCHMGR_ZIP=`grep "^PATCHMGR"  ${CONF}                                                                       | awk 'BEGIN{FS="|"} {print $3}'`
                 OPATCH=`grep "^OPATCH"    ${CONF}                                                                       | awk 'BEGIN{FS="|"} {print $2}'`
-                GI_DIR=`grep "^GI"        ${CONF} | grep ${VERSION}                                                     | awk 'BEGIN{FS="|"} {print $2}'`               # I take the latest version for the GI
-              GI_PATCH=`grep "^GI"        ${CONF} | grep ${VERSION}                                                     | awk 'BEGIN{FS="|"} {print $3}'`               # I take the latest version for the GI
+        if [ -z ${GI_VERSION} ]
+        then
+                GI_VERSION=${VER_TO_INSTALL}
+        fi
+                GI_DIR=`grep "^GI"        ${CONF} | grep ${GI_VERSION}                                                  | awk 'BEGIN{FS="|"} {print $2}'`
+              GI_PATCH=`grep "^GI"        ${CONF} | grep ${GI_VERSION}                                                  | awk 'BEGIN{FS="|"} {print $3}'`
              GI_BUNDLE=${PATCH_DIR}/${GI_DIR}/${GI_PATCH}/bundle.xml
 
 #
