@@ -10,6 +10,8 @@
 #                       - cd /tmp/SAVE/dbserver_patch* instead of the patchmgr version in case we need an upgraded patchmgr version
 #                         (just download the latest patchmgr from bug 21634633 and replace the one that is in <PATH>/Infrastructure/SoftwareMaintenanceTools/DBServerPatch/<VERSION>
 #                          to use another patchmgr than the one shipped with the Bundle)
+#                       - DIR_IB_PATCHING to copy the IB patch outside of any NFS/ZFS to avoid any issue when rebooting the Switches
+#                       - unzip -q instead of nohup unzip
 # 20180518 - Fred Denis - a -w option to choose the GI version when different than cells, IB and DB nodes
 # 20180511 - Fred Denis - Add back ~/ib_group in the IB Switch prereq as the doc saying that ibswitches will be used
 #                          if the file is not specified looks wrong (see 20180404) :
@@ -42,6 +44,7 @@ DEBUG="No"
             MODIFY_AT_PREREQ=""                                         # No "-modify_at_prereq" by default
             ALLOW_ACTIVE_NFS="Yes"                                      # To use the -allow_active_network_mounts option (available starting from version 12.1.2.1.1)
                        CEL01=""                                         # Name of the Cell 01 we will be using to patch the DB Nodes
+             DIR_IB_PATCHING="/tmp/IB_PATCHING"                         # Directory to copy the IB Switch outside of NFS/ZFS to avoid issues when rebooting the IB Switches
 
 #
 # A usage function
@@ -393,7 +396,7 @@ ${S_H3}1.1/ First of all, you need to unzip the ${CELL_AND_IB_ZIP} file${U_DONE}
 
 ${S_PRE}
 ${TAB} ${DBROOTPROMPT} ${S_B} cd ${PATCH_DIR}/${CELL_AND_IB}                                                                                    ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} nohup unzip `basename ${CELL_AND_IB_ZIP}` &                                                                       ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} unzip -q `basename ${CELL_AND_IB_ZIP}`                                                                            ${E_B}
 
 ${TAB} -- This should create a ${S_B} patch_${TARGET_VERSION} ${E_B} directory with the cell patch
 ${E_PRE}
@@ -420,9 +423,14 @@ ${E_PRE}
 ${S_H2}2/ InfiniBand Switches patching ${E_H2}
 
 ${S_H3}2.1 / IB Switches prerequisites${U_DONE}:${E_H3}
-
+- To avoid issues with NFS/ZFS when rebooting the IB Switches, I recommend copying the patch outside of any NFS/ZFS
+- This patch is ~ 2.5 GB so be careful not to fill / if you copy it into /tmp, if not choose another local FS
 ${S_PRE}
-${TAB} ${DBROOTPROMPT} ${S_B} cd ${PATCH_DIR}/${CELL_AND_IB}/patch_${TARGET_VERSION}                                                            ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} df -h ${DIR_IB_PATCHING}                                                                                          ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} rm -r ${DIR_IB_PATCHING}                                                                                          ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} mkdir ${DIR_IB_PATCHING}                                                                                          ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} unzip -q ${PATCH_DIR}/${CELL_AND_IB}/${CELL_AND_IB_ZIP} -d /tmp/IB_PATCHING                                       ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} cd ${DIR_IB_PATCHING}/patch_${TARGET_VERSION}                                                                     ${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} ./patchmgr -ibswitches ~/ib_group -ibswitch_precheck -upgrade                                                     ${E_B}
 ${E_PRE}
 
@@ -430,10 +438,11 @@ ${S_H3}2.2 / Apply the patch on the IB Switches:${E_H3}
 
 ${S_PRE}
 ${TAB} ${DBROOTPROMPT} ${S_B} dcli -g ~/ib_group -l root version                                                                                ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} cd ${PATCH_DIR}/${CELL_AND_IB}/patch_${TARGET_VERSION}                                                            ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} cd ${DIR_IB_PATCHING}/patch_${TARGET_VERSION}                                                                     ${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} ./patchmgr -ibswitches ~/ib_group -ibswitch_precheck -upgrade                                                     ${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} nohup ./patchmgr -ibswitches ~/ib_group -upgrade &                                                                ${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} dcli -g ~/ib_group -l root version                                                                                ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} rm -r ${DIR_IB_PATCHING}                                                                                          ${E_B}
 ${E_PRE}
 
 ${S_H2}3/ Database Servers patching ${E_H2}
@@ -453,7 +462,7 @@ ${TAB} ${DBROOTPROMPT} ${S_B} scp ${PATCH_DIR}/${OL6_DIR}/${ISO} root@${CEL01}:/
 ${TAB} ${DBROOTPROMPT} ${S_B} scp ~/dbs_group root@${CEL01}:~/.                                                                                 ${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} ssh root@${CEL01}                                                                                                 ${E_B}
 ${TAB} ${CELROOTPROMPT} ${S_B} cd /tmp/SAVE                                                                                                     ${E_B}
-${TAB} ${CELROOTPROMPT} ${S_B} nohup unzip ${PATCHMGR_ZIP} &                                                                                    ${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B} unzip -q ${PATCHMGR_ZIP}                                                                                         ${E_B}
 
 ${TAB} This should create a ${S_B} dbserver_patch_`basename ${PATCHMGR}` ${E_B} directory (the name may be slightly different if you use a different patchmgr than the one shipped with the Bundle)
 ${E_PRE}
@@ -512,7 +521,7 @@ ${S_H3}4.1/ To start with, be sure that the patch has been unzipped (as oracle u
 
 ${S_PRE}
 ${TAB} ${DBORACLEPROMPT} ${S_B} cd ${PATCH_DIR}/${GI_DIR}                                                                                       ${E_B}
-${TAB} ${DBORACLEPROMPT} ${S_B} nohup unzip  p${GI_PATCH}*_Linux-x86-64.zip &                                                                   ${E_B}
+${TAB} ${DBORACLEPROMPT} ${S_B} unzip -q p${GI_PATCH}*_Linux-x86-64.zip                                                                         ${E_B}
 ${TAB} -- This should create a ${S_B} ${GI_PATCH} ${E_B} directory.
 ${E_PRE}
 
@@ -576,4 +585,3 @@ ${E_PRE}
 #************************************************************************************************#
 #*                              E N D      O F      S O U R C E                                 *#
 #************************************************************************************************#
-
