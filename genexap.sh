@@ -2,8 +2,14 @@
 # Automatically generates an Exadata patching action plan
 # For more details about the Exadata patching procedure, you can have a look at https://www.pythian.com/blog/patch-exadata-part-1-introduction-prerequisites/
 #
-# The current version of the script is 20180518
+# The current version of the script is 2018024
 #
+# 20180524 - Fred Denis - -allow_active_network_mounts appears for the prechecks as well
+#                       - typos
+#                       - remove /tmp/SAVE to avoid leftovers
+#                       - cd /tmp/SAVE/dbserver_patch* instead of the patchmgr version in case we need an upgraded patchmgr version
+#                         (just download the latest patchmgr from bug 21634633 and replace the one that is in <PATH>/Infrastructure/SoftwareMaintenanceTools/DBServerPatch/<VERSION>
+#                          to use another patchmgr than the one shipped with the Bundle)
 # 20180518 - Fred Denis - a -w option to choose the GI version when different than cells, IB and DB nodes
 # 20180511 - Fred Denis - Add back ~/ib_group in the IB Switch prereq as the doc saying that ibswitches will be used
 #                          if the file is not specified looks wrong (see 20180404) :
@@ -109,6 +115,13 @@ then
                 GI_HOME=${DEFAULT_GI_HOME}
         fi
 fi
+if [ "${ALLOW_ACTIVE_NFS}" = "No" ]
+then
+        ALLOW_ACTIVE_NFS_OPTION=""
+else
+        ALLOW_ACTIVE_NFS_OPTION="-allow_active_network_mounts"
+fi
+
 
 #
 # Grep and format the information we need from the bundle.xml file
@@ -426,13 +439,14 @@ ${E_PRE}
 ${S_H2}3/ Database Servers patching ${E_H2}
 
 - As we cannot patch a node we are connected to, we will start the patch from a cell server (${CEL01}). To be able to do that, we need to copy patchmgr and the ISO file on this cell server. Do NOT unzip the ISO file, patchmgr will take care of it.
--- Use the script ${S_B}${STATUS_SCRIPT}${E_B} to monitore the instances during the patch application
+-- Use the script ${S_B}${STATUS_SCRIPT}${E_B} to monitor the instances during the patch application
 
 ${S_H3}3.1/ Copy what is needed to ${CEL01}:${E_H3}
 
 -- Create a ${S_B}/tmp/SAVE${E_B} directory in order to avoid the automatic maintenance jobs that purge /tmp every day (directories > 5 MB and older than 1 day). If not, these maintenance jobs will delete the dbnodeupdate.zip file that is mandatory to apply the patch -- this won't survive a reboot though
 
 ${S_PRE}
+${TAB} ${DBROOTPROMPT} ${S_B} ssh root@${CEL01} rm -r /tmp/SAVE                                                                                 ${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} ssh root@${CEL01} mkdir /tmp/SAVE                                                                                 ${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} scp ${PATCH_DIR}/${PATCHMGR}/${PATCHMGR_ZIP} root@${CEL01}:/tmp/SAVE/.                                            ${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} scp ${PATCH_DIR}/${OL6_DIR}/${ISO} root@${CEL01}:/tmp/SAVE/.                                                      ${E_B}
@@ -441,7 +455,7 @@ ${TAB} ${DBROOTPROMPT} ${S_B} ssh root@${CEL01}                                 
 ${TAB} ${CELROOTPROMPT} ${S_B} cd /tmp/SAVE                                                                                                     ${E_B}
 ${TAB} ${CELROOTPROMPT} ${S_B} nohup unzip ${PATCHMGR_ZIP} &                                                                                    ${E_B}
 
-${TAB} This should create a ${S_B} dbserver_patch_`basename ${PATCHMGR}` ${E_B} directory
+${TAB} This should create a ${S_B} dbserver_patch_`basename ${PATCHMGR}` ${E_B} directory (the name may be slightly different if you use a different patchmgr than the one shipped with the Bundle)
 ${E_PRE}
 
 ${S_H3}3.2/ Do the prerequisites${U_DONE}:${E_H3}
@@ -449,8 +463,8 @@ ${S_H3}3.2/ Do the prerequisites${U_DONE}:${E_H3}
 -- Consider using the ${S_B}-modify_at_prereq${E_B} option ${S_B}with extra caution${E_B} if you face some dependencies issues (-m or -M option of the action plan generator script)
 
 ${S_PRE}
-${TAB} ${CELROOTPROMPT} ${S_B} cd /tmp/SAVE/dbserver_patch_`basename ${PATCHMGR}`                                                               ${E_B}
-${TAB} ${CELROOTPROMPT} ${S_B} ./patchmgr -dbnodes ~/dbs_group -precheck ${MODIFY_AT_PREREQ} -iso_repo /tmp/SAVE/${ISO} -target_version ${TARGET_VERSION} ${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B} cd /tmp/SAVE/dbserver_patch_*                                                                                    ${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B} ./patchmgr -dbnodes ~/dbs_group -precheck ${MODIFY_AT_PREREQ} -iso_repo /tmp/SAVE/${ISO} -target_version ${TARGET_VERSION} ${ALLOW_ACTIVE_NFS_OPTION} ${E_B}
 ${E_PRE}
 
 -- You can safely ignore the below warning (this is a patchmgr bug for a while) if the GI version is > 11.2.0.2 -- which is most likely the case
@@ -465,17 +479,14 @@ ${S_H3}3.3/ We can now proceed with the rolling patch on the database servers:${
 
 if [ "${ALLOW_ACTIVE_NFS}" = "No" ]
 then
-        ALLOW_ACTIVE_NFS_OPTION=""
 echo -e "-- Before applying the patch, we first need to umount the NFS on all the database servers:${E_H3}
  - The below command will generate the umount command; add \"${S_B}| bash${E_B}\" at the and and it will umount everything automatically
  - If something prevents a NFS to umount, you can check what it is with \"${S_B}lsof FS_NAME${E_B}\" or \"${S_B}fuser -c -u FS_NAME${E_B}\" and kill it with \"${S_B}fuser -c -k FS_NAME${E_B}\"
  - Nothing should prevent ${S_B}umount -l${E_B} to work
 ${S_PRE}
-${TAB} ${DBROOTPROMPT} ${S_B} df -t nfs | awk '{if (\$NF ~ /^\//){print \"umount -l \" \$NF}}'                                         ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} df -t nfs | awk '{if (\$NF ~ /^\//){print \"umount -l \" \$NF}}'                                                  ${E_B}
 ${E_PRE}
 ${TAB} Note : You may consider using the ${S_B}-allow_active_network_mounts${E_B} option if your source version is > 12.1.2.1.1 (default)"
-else
-        ALLOW_ACTIVE_NFS_OPTION="-allow_active_network_mounts"
 fi
 
 
@@ -483,13 +494,13 @@ echo -e "
 -- Apply the patch
 ${S_PRE}
 ${TAB} ${CELROOTPROMPT} ${S_B} dcli -g ~/dbs_group -l root imageinfo -ver                                                                       ${E_B}
-${TAB} ${CELROOTPROMPT} ${S_B} cd /tmp/SAVE/dbserver_patch_`basename ${PATCHMGR}`                                                               ${E_B}
-${TAB} ${CELROOTPROMPT} ${S_B} ./patchmgr -dbnodes ~/dbs_group -precheck ${MODIFY_AT_PREREQ} -iso_repo /tmp/SAVE/${ISO} -target_version ${TARGET_VERSION} ${E_B}
-${TAB} ${CELROOTPROMPT} ${S_B} nohup ./patchmgr -dbnodes ~/dbs_group -upgrade -iso_repo /tmp/SAVE/${ISO} -target_version ${TARGET_VERSION} ${ALLOW_ACTIVE_NFS_OPTION} -rolling & ${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B} cd /tmp/SAVE/dbserver_patch_*                                                                                    ${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B} ./patchmgr -dbnodes ~/dbs_group -precheck ${MODIFY_AT_PREREQ} -iso_repo /tmp/SAVE/${ISO} -target_version ${TARGET_VERSION} ${ALLOW_ACTIVE_NFS_OPTION}    ${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B} nohup ./patchmgr -dbnodes ~/dbs_group -upgrade -iso_repo /tmp/SAVE/${ISO} -target_version ${TARGET_VERSION} ${ALLOW_ACTIVE_NFS_OPTION} -rolling &        ${E_B}
 
 ${TAB} Note : the ${S_B}${ALLOW_ACTIVE_NFS_OPTION}${E_B} option is available starting from 12.1.2.1.1, please regenerate the action plan using the ${S_B}-f${E_B} option if you run a version < 12.1.2.1.1
 
--- You can monitore the patch looking at the nohup.out file (tail -f nohup.out) or the patchmgr.out file
+-- You can monitor the patch looking at the nohup.out file (tail -f nohup.out) or the patchmgr.out file
 
 ${TAB} ${CELROOTPROMPT} ${S_B} dcli -g ~/dbs_group -l root imageinfo -ver                                                                       ${E_B}
 ${E_PRE}
@@ -521,7 +532,7 @@ ${E_PRE}
 
 ${S_H3}4.2/ Apply the patch ${S_B}on each node one after the other (${CLUSTER_NAME}db01 then (${CLUSTER_NAME}db02, etc...)${E_B}:${E_H3}
 
--- Use the script ${S_B}${STATUS_SCRIPT}${E_B} to monitore the instances during the patch application
+-- Use the script ${S_B}${STATUS_SCRIPT}${E_B} to monitor the instances during the patch application
 ${S_PRE}
 ${TAB} -- Check the inventory before the patch
 ${TAB} ${DBORACLEPROMPT} ${S_B} . oraenv <<< \`grep \"^+ASM\" /etc/oratab | awk -F \":\" '{print \$1}'\`                                        ${E_B}
@@ -565,3 +576,4 @@ ${E_PRE}
 #************************************************************************************************#
 #*                              E N D      O F      S O U R C E                                 *#
 #************************************************************************************************#
+
