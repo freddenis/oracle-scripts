@@ -1,12 +1,12 @@
 #!/bin/bash
-# Fred Denis -- denis@pythian.com -- 18th 2017
+# Fred Denis -- fred.denis3@gmail.com -- June 22nd 2018
 #
 # Provide information on the installed and missing patches on ORACLE_HOMEs
 #       $0 -h for more information
 #
-# The version of the script is 20180621
+# The version of the script is 20180622
 #
-# 20180621 - Fred Denis - Initial release
+# 20180622 - Fred Denis - Initial release
 #
 
 #
@@ -92,6 +92,7 @@ if [ ${SHOW_HOMES} = "YES" ]
 then
         printf "\n\033[1;37m%-8s\033[m\n\n" "ORACLE_HOMEs that would be considered :"                    ;
         cat /etc/oratab | grep "^[Aa-Zz|+]" | grep -v agent | awk 'BEGIN {FS=":"} { printf("\t%s\n", $2)}' | grep ${GREP} | grep -v ${UNGREP} | sort | uniq
+            printf "\n"
         exit 0
 fi
 
@@ -200,7 +201,7 @@ function print_a_line()
                                 nodes[1] = $2                                                                   ;
                                        n = 1                                                                    ;
                         }
-                        if ($1 ~ /^Rac system comprising/ )                     # If this is a RAC Home
+                        if (($1 ~ /^Rac system comprising/) && (! NB_PATCHES_INSTALLED))                     # If this is a RAC Home
                         {
                                 cpt=1                                                                           ;
                                 while(getline)
@@ -215,9 +216,6 @@ function print_a_line()
                                 n=asort(nodes)                                                                  ;       # sort array nodes
 
                         }
-                        # Grid Homes have specific headers with the nodes ansd the patch level
-                        # If we check teh patches locally, the header is still there as a footer
-                        # I then have to check if some patches have already been found to not grab the hosts from the footer
                         if (($1 ~ /^Patch level status of Cluster node/) && (! NB_PATCHES_INSTALLED))           # Grid Homes
                         {       getline; getline; getline;
                                 nodes_list = ""                                                                 ;
@@ -281,7 +279,7 @@ function print_a_line()
                                 printf("%s", center("Patch ID", COL_PATCH, WHITE, "|"))                         ;
                                 for (i = 1; i <= n; i++)
                                 {
-                                       printf("%s", center(nodes[i], COL_PATCH, WHITE, "|"))                    ;       # Hostname / nodes
+                                       printf("%s", center(nodes[i], COL_NODE, WHITE, "|"))                     ;       # Hostname / nodes
                                 }
                                 printf("\n")                                                                    ;
                                 print_a_line()                                                                  ;
