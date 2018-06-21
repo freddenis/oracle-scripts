@@ -14,10 +14,10 @@
 #
 
 ALL_NODES=" -all_nodes "                                # We do lsinventory -all_nodes
-GREP="."                                           # What we grep                  -- default is everything
-UNGREP="nothing_to_ungrep_unless_v_option_is_used$$" # What we don't grep (grep -v)  -- default is nothing
-FILE=""                                            # No input file
-TMP=/tmp/fictemplspatches$$                       # A tempfile
+     GREP="."                                           # What we grep                  -- default is everything
+   UNGREP="nothing_to_ungrep_unless_v_option_is_used$$" # What we don't grep (grep -v)  -- default is nothing
+     FILE=""                                            # No input file
+      TMP=/tmp/fictemplspatches$$                       # A tempfile
 
 #
 # An usage function
