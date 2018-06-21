@@ -1,3 +1,7 @@
+goblxdex01db01.ameren.com:oracle:xxx \) cta lspatches.sh ^C
+
+< /home/oracle/pythian >
+goblxdex01db01.ameren.com:oracle:xxx \) cat lspatches.sh
 #!/bin/bash
 # Fred Denis -- denis@pythian.com -- 18th 2017
 #
@@ -13,11 +17,12 @@
 # Default values
 #
 
-ALL_NODES=" -all_nodes "                                # We do lsinventory -all_nodes
-     GREP="."                                           # What we grep                  -- default is everything
-   UNGREP="nothing_to_ungrep_unless_v_option_is_used$$" # What we don't grep (grep -v)  -- default is nothing
-     FILE=""                                            # No input file
-      TMP=/tmp/fictemplspatches$$                       # A tempfile
+ ALL_NODES=" -all_nodes "                                # We do lsinventory -all_nodes
+      GREP="."                                           # What we grep                  -- default is everything
+    UNGREP="nothing_to_ungrep_unless_v_option_is_used$$" # What we don't grep (grep -v)  -- default is nothing
+      FILE=""                                            # No input file
+       TMP=/tmp/fictemplspatches$$                       # A tempfile
+SHOW_HOMES="NO"                                          # YES or NO we want to show the Homes from /etc/oratab ONLY
 
 #
 # An usage function
@@ -26,36 +31,46 @@ usage()
 {
 printf "\n\033[1;37m%-8s\033[m\n" "NAME"                        ;
 cat << END
-$0 -- Provide information on the installed and missing patches on ORACLE_HOMEs
+        $0 -- Provide information on the installed and missing patches on ORACLE_HOMEs
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"                    ;
 cat << END
-$0 [-f] [-g] [-l] [-v] [-h]
+        $0 [-f] [-g] [-l] [-v] [-s] [-h]
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"                 ;
 cat << END
-$0 relies on the content of the /etc/oratab file to look at the installed patch on the ORACLE_HOMEs
-It uses the opatch installed on each Home to list the installed patches and find the missing ones in case of RAC system
-A file containing some opatch outputs can also be provided to $0; it will then not use opatch but rely on the input file
+        $0 relies on the content of the /etc/oratab file to look at the installed patch on the ORACLE_HOMEs
+        It uses the opatch installed on each Home to list the installed patches and find the missing ones in case of RAC system
+        A file containing some opatch outputs can also be provided to $0; it will then not use opatch but rely on the input file
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"                     ;
 cat << END
--f      A file containing one or more opatch outputs (no opatch command is performed in this mode)
--l      Run opatch as Local only (default is opatch is run using the -all_nodes option)
--g      Act as a grep command to grep the Homes you want to have the patches information
-   Examples :
-        $0 -g 12                                                # Will only consider the Homes that contain "12" in their name
-        $0 -g /u01/app/oracle/product/12.1.0.2/dbhome_dr2       # Will only consider this home
-        $0 -g dbhome_1                                  # Will only consider the Homes containing "dbhome_1"
--v      Act as a grep -v comnmand when selecting the Homes you want the patches information from; it can be combined with the -g option
-   Examples :
-        $0 -v 12                                                # Will NOT consider the Homes which have"12" in their name
-        $0 -g dbhome_1 -v 12                            # Will consider the "dbhome_1" Homes BUT those containing "12" in their name
-        $0 -v grid                                              # All the Homes but the grid ones
--h      Show this help
+        -f      A file containing one or more opatch outputs (no opatch command is performed in this mode)
+
+        -l      Run opatch as Local only (default is opatch is run using the -all_nodes option)
+
+        -g      Act as a grep command to grep the Homes you want to have the patches information
+                Examples :
+                  $0 -g 12                                              # Will only consider the Homes that contain "12" in their name
+                  $0 -g /u01/app/oracle/product/12.1.0.2/dbhome_dr2     # Will only consider this home
+                  $0 -g dbhome_1                                        # Will only consider the Homes containing "dbhome_1"
+
+        -v      Act as a grep -v comnmand when selecting the Homes you want the patches information from; it can be combined with the -g option
+                Examples :
+                  $0 -v 12                                              # Will NOT consider the Homes which have"12" in their name
+                  $0 -g dbhome_1 -v 12                          # Will consider the "dbhome_1" Homes BUT those containing "12" in their name
+                  $0 -v grid                                    # All the Homes but the "grid" ones
+
+        -s      Show the ORACLE_HOMEs that would be considered by the script, it can be used in conjunction with the -g and -v options
+                You can then test your -g and -v combination here
+                Examples :
+                  $0 -s                                         # Show all Homes from /etc/oratab
+                  $0 -g 12 -v oa -s                                     # Show all "12" Homes BUT the "oa" ones
+
+        -h      Show this help
 END
 exit 123
 }
@@ -63,16 +78,24 @@ exit 123
 #
 # Parameters management
 #
-while getopts "lg:v:f:h" OPT; do
+while getopts "lg:v:f:hs" OPT; do
 case ${OPT} in
 f)               FILE=${OPTARG}                                 ;;
 g)               GREP=${OPTARG}                                 ;;
 l)          ALL_NODES=""                                        ;;
 v)             UNGREP=${OPTARG}                                 ;;
+s)         SHOW_HOMES="YES"                                     ;;
 h)              usage                                           ;;
 \?) echo "Invalid option: -$OPTARG" >&2; usage                  ;;
 esac
 done
+
+if [ ${SHOW_HOMES} = "YES" ]
+then
+        printf "\n\033[1;37m%-8s\033[m\n\n" "ORACLE_HOMEs that would be considered :"                    ;
+        cat /etc/oratab | grep "^[Aa-Zz|+]" | grep -v agent | awk 'BEGIN {FS=":"} { printf("\t%s\n", $2)}' | grep ${GREP} | grep -v ${UNGREP} | sort | uniq
+        exit 0
+fi
 
 if [ ! -f ${FILE} ]
 then
