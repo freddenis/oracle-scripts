@@ -40,6 +40,8 @@ cat << END
         $0 relies on the content of the /etc/oratab file to look at the installed patch on the ORACLE_HOMEs
         It uses the opatch installed on each Home to list the installed patches and find the missing ones in case of RAC system
         A file containing some opatch outputs can also be provided to $0; it will then not use opatch but rely on the input file
+            oraenv has to work as it is used to check if it is a RAC installation with olsnodes
+            If olsnodes from the ASM Home returns no rows then we go with local opatch
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"                     ;
@@ -107,8 +109,24 @@ fi
 #
 ORACLE_SID=`ps -ef | grep pmon | grep asm | awk '{print $NF}' | sed s'/asm_pmon_//' | egrep "^[+]"`
 
-export ORAENV_ASK=NO
-. oraenv > /dev/null 2>&1
+#
+# No ASM then we go local (I would need a RAC config with FS to test)
+#
+if [ -z ${ORACLE_SID} ]
+then
+            ALL_NODES=""
+else
+        export ORAENV_ASK=NO
+        . oraenv > /dev/null 2>&1
+
+        #
+        # Check if it is a RAC installtion, if not we go Local with opatch
+        #
+        if [[ $(olsnodes | wc -l) -eq "0" ]]    # No RAC installed so we go local only
+        then
+                ALL_NODES=""
+        fi
+fi
 
 if [ -z ${FILE} ]       # If a file as parameter we do not do the opatch
 then
@@ -303,11 +321,11 @@ function print_a_line()
         }
 } ' ${TMP}
 
-#echo ${TMP}
 
 if [ -f ${TMP} ]
 then
-rm -f ${TMP}
+#rm -f ${TMP}
+echo ${TMP}
 fi
 
 #************************************************************************#
