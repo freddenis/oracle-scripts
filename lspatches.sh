@@ -1,7 +1,3 @@
-goblxdex01db01.ameren.com:oracle:xxx \) cta lspatches.sh ^C
-
-< /home/oracle/pythian >
-goblxdex01db01.ameren.com:oracle:xxx \) cat lspatches.sh
 #!/bin/bash
 # Fred Denis -- denis@pythian.com -- 18th 2017
 #
