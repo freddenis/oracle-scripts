@@ -10,7 +10,7 @@
 #                       --- Solaris :
 #                         -  grep "^[Aa-Zz|+]" does not work on Solaris so I moved to grep -v "^#" | grep -v "^$" when reading oratab
 #                         -  default Solaris awk is the original awk and nawk lacks features from gawk (the script definitely does not work with nawk due to array management features)
-#                            gawk is installed by default with Solaris 11 and is available for Solaris < 11, the script then expects gawk to be here for Solaris and if not it cannot continue 
+#                            gawk is installed by default with Solaris 11 and is available for Solaris < 11, the script then expects gawk to be here for Solaris and if not it cannot continue
 #                       --- HP-UX and AIX :
 #                         - The "case" to support other OS is also HP-UX and AIX ready but I have not tested it as I have no such OS handy
 #
@@ -103,8 +103,8 @@ done
 #
 
 OS=`uname`
-case ${OS} in 
-        SunOS)  
+case ${OS} in
+        SunOS)
                     ORATAB=/var/opt/oracle/oratab
                        AWK=/usr/bin/gawk                        ;;
         Linux)
@@ -191,8 +191,8 @@ do
 echo "Proceeding with " ${OH} " . . ."
 if [ -f $OH/OPatch/opatch ] && [ -x $OH/OPatch/opatch ]
 then
-        export ORACLE_HOME=${OH}
-        $OH/OPatch/opatch lsinventory ${ALL_NODES}      >> ${TMP} 2>&1
+        #export ORACLE_HOME=${OH}
+        $OH/OPatch/opatch lsinventory ${ALL_NODES} -oh ${OH}      >> ${TMP} 2>&1
 fi
 done
 else
@@ -236,7 +236,10 @@ function print_a_line()
         for (k=1; k<=WIDTH; k++) {printf("%s", "-");}                                                           ;  # n = number of nodes
         printf("%s", COLOR_END"\n")                                                                             ;
 }
-{
+{       if ($0 ~ /^Oracle Interim Patch Installer version/)
+        {       gsub(/([aA-zZ])| /, "", $0)                                                                     ;
+                OPATCH_VERSION=$0                                                                               ;
+        }
         if ($1 ~ /^Oracle Home/)
         {
                 gsub(" ", "", $2)                                                                               ;
@@ -325,7 +328,8 @@ function print_a_line()
                         {
 
                                 WIDTH = COL_PATCH+COL_NODE*n+n+1                                                ;
-                                printf("%s\n", center(OH, WIDTH-1, BLUE, ""))                                   ;       # OH as a title
+                                printf("%s", center(OH, WIDTH-1, BLUE, ""))                                     ;       # OH as a title
+                                printf("%s\n", "(opatch version " OPATCH_VERSION")")                            ;       # Opatch version
                                 # A header
                                 print_a_line()                                                                  ;
                                 printf("%s", center("Patch ID", COL_PATCH, WHITE, "|"))                         ;
@@ -374,8 +378,8 @@ function print_a_line()
 
 if [ -f ${TMP} ]
 then
-rm -f ${TMP}
-#echo ${TMP}
+#rm -f ${TMP}
+echo ${TMP}
 fi
 
 #************************************************************************#
