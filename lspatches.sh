@@ -4,7 +4,15 @@
 # Provide information on the installed and missing patches on ORACLE_HOMEs
 #       $0 -h for more information
 #
-# The version of the script is 20180622
+# The version of the script is 20180625
+#
+# 20180625 - Fred Denis - Different OS support : (the script is developed under Linux)
+#                       --- Solaris :
+#                         -  grep "^[Aa-Zz|+]" does not work on Solaris so I moved to grep -v "^#" | grep -v "^$" when reading oratab
+#                         -  default Solaris awk is the original awk and nawk lacks features from gawk (the script definitely does not work with nawk due to array management features)
+#                            gawk is installed by default with Solaris 11 and is available for Solaris < 11, the script then expects gawk to be here for Solaris and if not it cannot continue 
+#                       --- HP-UX and AIX :
+#                         - The "case" to support other OS is also HP-UX and AIX ready but I have not tested it as I have no such OS handy
 #
 # 20180622 - Fred Denis - Initial release
 #
@@ -19,6 +27,7 @@
       FILE=""                                            # No input file
        TMP=/tmp/fictemplspatches$$                       # A tempfile
 SHOW_HOMES="NO"                                          # YES or NO we want to show the Homes from /etc/oratab ONLY
+
 
 #
 # An usage function
@@ -88,18 +97,62 @@ h)              usage                                           ;;
 esac
 done
 
+
+#
+# Different OS support
+#
+
+OS=`uname`
+case ${OS} in 
+        SunOS)  
+                    ORATAB=/var/opt/oracle/oratab
+                       AWK=/usr/bin/gawk                        ;;
+        Linux)
+                    ORATAB=/etc/oratab
+                       AWK=`which awk`                          ;;
+        HP-UX)
+                    ORATAB=/etc/oratab
+                       AWK=`which awk`                          ;;
+        AIX)
+                    ORATAB=/etc/oratab
+                       AWK=`which awk`                          ;;
+        *)          echo "Unsupported OS, cannot continue."
+                    exit 666                                    ;;
+esac
+
+if [ ! -f ${ORATAB} ]
+then
+cat << !
+        Unable to find oratab file in ${ORATAB}, cannot continue.
+!
+        exit 667
+fi
+if [ ! -f ${AWK} ]
+then
+cat << !
+        Cannot find a modern version of awk in ${AWK}, cannot continue.
+!
+        exit 668
+fi
+
+#
+# Show Homes only if -s option specified
+#
 if [ ${SHOW_HOMES} = "YES" ]
 then
-        printf "\n\033[1;37m%-8s\033[m\n\n" "ORACLE_HOMEs that would be considered :"                    ;
-        cat /etc/oratab | grep "^[Aa-Zz|+]" | grep -v agent | awk 'BEGIN {FS=":"} { printf("\t%s\n", $2)}' | grep ${GREP} | grep -v ${UNGREP} | sort | uniq
+        printf "\n\033[1;37m%-8s\033[m\n\n" "ORACLE_HOMEs that would be considered (${ORATAB}) :"                    ;
+        cat ${ORATAB} | grep -v "^#" | grep -v "^$" | grep -v agent | awk 'BEGIN {FS=":"} { printf("\t%s\n", $2)}' | grep ${GREP} | grep -v ${UNGREP} | sort | uniq
             printf "\n"
         exit 0
 fi
 
+#
+# Check that the file in parameter exists
+#
 if [ ! -f ${FILE} ]
 then
 cat << !
-File ${FILE} does not exist, cannot proceed.
+        File ${FILE} does not exist, cannot proceed.
 !
 exit 123
 fi
@@ -133,7 +186,7 @@ if [ -z ${FILE} ]       # If a file as parameter we do not do the opatch
 then
 cat /dev/null > ${TMP}
 
-for OH in `cat /etc/oratab | grep "^[Aa-Zz|+]" | grep -v agent | awk 'BEGIN {FS=":"} { print $2}' | grep ${GREP} | grep -v ${UNGREP} | sort | uniq`
+for OH in `cat ${ORATAB} | grep -v "^#" | grep -v "^$" | grep -v agent | awk 'BEGIN {FS=":"} { print $2}' | grep ${GREP} | grep -v ${UNGREP} | sort | uniq`
 do
 echo "Proceeding with " ${OH} " . . ."
 if [ -f $OH/OPatch/opatch ] && [ -x $OH/OPatch/opatch ]
@@ -146,24 +199,23 @@ else
 cp ${FILE} ${TMP}
 fi
 
-awk    'BEGIN {               FS =        ":"                   ;
-        # some colors
-     COLOR_BEGIN =       "\033[1;"              ;
-       COLOR_END =       "\033[m"               ;
-             RED =       "31m"                  ;
-           GREEN =       "32m"                  ;
-          YELLOW =       "33m"                  ;
-            BLUE =       "34m"                  ;
-            TEAL =       "36m"                  ;
-           WHITE =       "37m"                  ;
+${AWK}    'BEGIN {               FS =        ":"                   ;
+                        # some colors
+                     COLOR_BEGIN =       "\033[1;"              ;
+                       COLOR_END =       "\033[m"               ;
+                             RED =       "31m"                  ;
+                           GREEN =       "32m"                  ;
+                          YELLOW =       "33m"                  ;
+                            BLUE =       "34m"                  ;
+                            TEAL =       "36m"                  ;
+                           WHITE =       "37m"                  ;
 
-         UNKNOWN =       "-"                    ;       # Something to print when the status is unknown
+                         UNKNOWN =       "-"                    ;       # Something to print when the status is unknown
 
-        # Default columns size
-        COL_NODE =       16                     ;
-       COL_PATCH =       12                     ;
-         COL_VER =       14                     ;
-        COL_TYPE =       12                     ;
+                        # Default columns size
+                        COL_NODE =       16                     ;
+                       COL_PATCH =       12                     ;
+                         COL_VER =       14                     ;
 }
 
 #
@@ -322,8 +374,8 @@ function print_a_line()
 
 if [ -f ${TMP} ]
 then
-#rm -f ${TMP}
-echo ${TMP}
+rm -f ${TMP}
+#echo ${TMP}
 fi
 
 #************************************************************************#
