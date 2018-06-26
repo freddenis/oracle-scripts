@@ -4,7 +4,11 @@
 # Provide information on the installed and missing patches on ORACLE_HOMEs
 #       $0 -h for more information
 #
-# The version of the script is 20180625
+# The version of the script is 20180626
+#
+# 20180626 - Fred Denis - Started the opatch version management by showing a warning when the special 12.2.0.1.13 and 11.2.0.3.18 versions are used
+#                            see https://unknowndba.blogspot.com/2018/06/deprecation-of-opatch-command-option.html for more information
+#                         Shows an error when opatch raises an error (when another user owns the ORACLE_HOME for example)
 #
 # 20180625 - Fred Denis - Different OS support : (the script is developed under Linux)
 #                       --- Solaris :
@@ -26,8 +30,8 @@
     UNGREP="nothing_to_ungrep_unless_v_option_is_used$$" # What we don't grep (grep -v)  -- default is nothing
       FILE=""                                            # No input file
        TMP=/tmp/fictemplspatches$$                       # A tempfile
+      TMP2=/tmp/fictemplspatches2$$                      # Another tempfile
 SHOW_HOMES="NO"                                          # YES or NO we want to show the Homes from /etc/oratab ONLY
-
 
 #
 # An usage function
@@ -142,7 +146,7 @@ if [ ${SHOW_HOMES} = "YES" ]
 then
         printf "\n\033[1;37m%-8s\033[m\n\n" "ORACLE_HOMEs that would be considered (${ORATAB}) :"                    ;
         cat ${ORATAB} | grep -v "^#" | grep -v "^$" | grep -v agent | awk 'BEGIN {FS=":"} { printf("\t%s\n", $2)}' | grep ${GREP} | grep -v ${UNGREP} | sort | uniq
-            printf "\n"
+        printf "\n"
         exit 0
 fi
 
@@ -188,18 +192,28 @@ cat /dev/null > ${TMP}
 
 for OH in `cat ${ORATAB} | grep -v "^#" | grep -v "^$" | grep -v agent | awk 'BEGIN {FS=":"} { print $2}' | grep ${GREP} | grep -v ${UNGREP} | sort | uniq`
 do
-echo "Proceeding with " ${OH} " . . ."
+printf "%-60s" "Proceeding with ${OH} . . ."
 if [ -f $OH/OPatch/opatch ] && [ -x $OH/OPatch/opatch ]
 then
-        #export ORACLE_HOME=${OH}
-        $OH/OPatch/opatch lsinventory ${ALL_NODES} -oh ${OH}      >> ${TMP} 2>&1
+        $OH/OPatch/opatch lsinventory ${ALL_NODES} -oh ${OH}  >> ${TMP} 2>${TMP2}
+        ERR=$?
+        if [ ${ERR} -eq 0 ]
+        then
+                printf "\t\033[1;32m%-8s\033[m\n" "OK"          ;
+        else
+                printf "\t\033[1;31m%-8s" "Error "              ;
+                cat ${TMP2}                                     ;
+                printf "\033[m\n" ""                            ;
+        fi
 fi
 done
 else
 cp ${FILE} ${TMP}
 fi
 
-${AWK}    'BEGIN {               FS =        ":"                   ;
+printf "\n"                                                     ;
+
+${AWK}    'BEGIN {            FS =       ":"                    ;
                         # some colors
                      COLOR_BEGIN =       "\033[1;"              ;
                        COLOR_END =       "\033[m"               ;
@@ -233,12 +247,25 @@ function center( str, n, color, sep)
 function print_a_line()
 {
         printf("%s", COLOR_BEGIN WHITE)                                                                         ;
-        for (k=1; k<=WIDTH; k++) {printf("%s", "-");}                                                           ;  # n = number of nodes
+        for (k=1; k<=WIDTH; k++) {printf("%s", "-");}                                                           ;       # n = number of nodes
         printf("%s", COLOR_END"\n")                                                                             ;
 }
 {       if ($0 ~ /^Oracle Interim Patch Installer version/)
         {       gsub(/([aA-zZ])| /, "", $0)                                                                     ;
                 OPATCH_VERSION=$0                                                                               ;
+                gsub(/\./, "", $0)                                                                              ;
+                OPATCH_VERSION_NUMERIC=$0                                                                       ;
+                #
+                # See https://unknowndba.blogspot.com/2018/06/deprecation-of-opatch-command-option.html
+                # about versions 11.2.0.3.18 and 12.2.0.1.13 not having the -all_nodes option
+                #
+                if ((OPATCH_VERSION_NUMERIC == 1220113) || (OPATCH_VERSION_NUMERIC == 1120318))
+                {       WARNING_NO_ALL_NODES = "YES"                                                            ;
+                }
+                if (((substr(OPATCH_VERSION_NUMERIC,1,2) == 12) && (OPATCH_VERSION_NUMERIC > 1220112)) ||
+                    ((substr(OPATCH_VERSION_NUMERIC,1,2) == 11) && (OPATCH_VERSION_NUMERIC > 1120318)))
+                {       NON_SUPPORTED_OPATCH="YES"                                                              ;
+                }
         }
         if ($1 ~ /^Oracle Home/)
         {
@@ -248,7 +275,7 @@ function print_a_line()
 
                 while (getline)
                 {
-                        if ($1 ~ /^Hostname/)                                   # The hostname in case it is a local opatch
+                        if ($1 ~ /^Hostname/)                                                                           # The hostname in case it is a local opatch
                         {
                                 gsub(" ", "", $2)                                                               ;
                                 sub(/\..*$/, "", $2)                                                            ;
@@ -256,7 +283,7 @@ function print_a_line()
                                 nodes[1] = $2                                                                   ;
                                        n = 1                                                                    ;
                         }
-                        if (($1 ~ /^Rac system comprising/) && (! NB_PATCHES_INSTALLED))                     # If this is a RAC Home
+                        if (($1 ~ /^Rac system comprising/) && (! NB_PATCHES_INSTALLED))                                # RAC Home
                         {
                                 cpt=1                                                                           ;
                                 while(getline)
@@ -271,7 +298,7 @@ function print_a_line()
                                 n=asort(nodes)                                                                  ;       # sort array nodes
 
                         }
-                        if (($1 ~ /^Patch level status of Cluster node/) && (! NB_PATCHES_INSTALLED))           # Grid Homes
+                        if (($1 ~ /^Patch level status of Cluster node/) && (! NB_PATCHES_INSTALLED))                   # Grid Homes
                         {       getline; getline; getline;
                                 nodes_list = ""                                                                 ;
                                 while(getline)
@@ -373,14 +400,22 @@ function print_a_line()
                 }
 
         }
-} ' ${TMP}
+} END {         if (WARNING_NO_ALL_NODES == "YES")
+                {
+                        printf("%s\n",   "Warning : Versions 12.2.0.1.13 and 11.2.0.3.18 have no -all_nodes options then cannot get any remote patch information")                      ;
+                        printf("%s\n\n", "          Please have a look at https://unknowndba.blogspot.com/2018/06/deprecation-of-opatch-command-option.html for more information")      ;
+                }
+}' ${TMP}
 
 
-if [ -f ${TMP} ]
-then
-#rm -f ${TMP}
-echo ${TMP}
-fi
+for F in ${TMP} ${TMP2}
+do
+        if [ -f ${F} ]
+        then
+        rm -f ${F}
+        #echo ${F}
+        fi
+done
 
 #************************************************************************#
 #*                      E N D      O F      S O U R C E                 *#
