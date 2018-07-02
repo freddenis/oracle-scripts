@@ -1,9 +1,12 @@
+#!/bin/bash
 # Fred Denis -- denis@pythian.com -- March 2017
-# Automatically generates an Exadata patching action plan
+#
+# Automatically generatesan Exadata patching action plan
 # For more details about the Exadata patching procedure, you can have a look at https://www.pythian.com/blog/patch-exadata-part-1-introduction-prerequisites/
 #
-# The current version of the script is 2018024
+# The current version of the script is 20180702
 #
+# 20180702 - Fred Denis - a -s option to set the database server name if it does not follow the ${CLUSTER_NAME}db01 naming convention
 # 20180524 - Fred Denis - -allow_active_network_mounts appears for the prechecks as well
 #                       - typos
 #                       - remove /tmp/SAVE to avoid leftovers
@@ -43,7 +46,8 @@ DEBUG="No"
                   GI_VERSION=""                                         # GI version to install
             MODIFY_AT_PREREQ=""                                         # No "-modify_at_prereq" by default
             ALLOW_ACTIVE_NFS="Yes"                                      # To use the -allow_active_network_mounts option (available starting from version 12.1.2.1.1)
-                       CEL01=""                                         # Name of the Cell 01 we will be using to patch the DB Nodes
+                       CEL01=""                                         # Name of the Cell 01 we will be using to patch the DB Nodes (can be modify using the -c option)
+			DB01=""						# Name of the DB Server 01 we will be using to patch the DB Nodes (can be modify using the -s option)
              DIR_IB_PATCHING="/tmp/IB_PATCHING"                         # Directory to copy the IB Switch outside of NFS/ZFS to avoid issues when rebooting the IB Switches
 
 #
@@ -58,6 +62,7 @@ usage()
                 -f                                                      (optional) Generate the commands to force umount the NFS before patching (for versions < 12.1.2.1.1)
                 -g <GI_HOME>                                            (optional)
                 -c <Cel01 name>                                         (optional -- if your cel01 is not named in the form ${CLUSTER_NAME}cel01)
+		-s <DB01 name>						(optional -- if your db01  is not named in the form ${CLUSTER_NAME}db01)
                 -h                                                      (generate a HTML action plan, mandatory, default is no HTML)
                 -n <NAME_OF_THE_CLUSTER>                                (optional)
                 -u                                                      (Unzip and prereqs steps have been done, shows a green "DONE" for the unzip parts, default is unzip has not been done)
@@ -73,12 +78,13 @@ usage()
 #
 # Parameters management
 #
-while getopts ":d:n:humMg:v:fc:w:" OPT; do
+while getopts ":d:n:humMg:v:fc:s:w:" OPT; do
         case ${OPT} in
         d)          PATCH_DIR=`echo ${OPTARG} | sed s'/\/ *$//'`    ;;      # Remove any trailing /
         f)   ALLOW_ACTIVE_NFS="No"                                  ;;
         g)            GI_HOME=`echo ${OPTARG} | sed s'/\/ *$//'`    ;;      # Remove any trailing /
         c)             CEL01=${OPTARG}                              ;;
+        s)              DB01=${OPTARG}                              ;;
         h)               HTML="Yes"                                 ;;
         n)       CLUSTER_NAME=${OPTARG}                             ;;
         u)         UNZIP_DONE="Yes"                                 ;;
@@ -106,9 +112,13 @@ then
                 CLUSTER_NAME=${DEFAULT_CLUSTER_NAME}
         fi
 fi
-if [ -z ${CEL01} ]              # Build te default cel01 name if not specified from the command line
+if [ -z ${CEL01} ]              # Build the default cel01 name if not specified from the command line (-c option)
 then
         CEL01=${CLUSTER_NAME}cel01
+fi
+if [ -z ${DB01} ]		# Build the default db01 name if not specified from the command line (-s option)
+then
+        DB01=${CLUSTER_NAME}db01
 fi
 if [ -z ${GI_HOME} ]            # If Grid Home is not set, we try to find out, if not we put a default
 then
@@ -312,9 +322,9 @@ fi
 #
 # Define some prompts to put in the action plan
 #
-         DBROOTPROMPT="[root@${CLUSTER_NAME}db01 ~]#"
+         DBROOTPROMPT="[root@${DB01} ~]#"
         CELROOTPROMPT="[root@${CEL01} ~]#"
-       DBORACLEPROMPT="[oracle@${CLUSTER_NAME}db01 ~]$"
+       DBORACLEPROMPT="[oracle@${DB01} ~]$"
 
 #
 # Show debug info (check the DEBUG variable on top of this script if you want / don't want these debug information)
@@ -483,7 +493,7 @@ ${E_PRE}
 
 ${S_H3}3.3/ We can now proceed with the rolling patch on the database servers:${E_H3}
 
--- ${S_B}Direct connect to the ${CEL01} server${E_B}, if you go through ${CLUSTER_NAME}db01 or another database server, you will lose your connection when it will be rebooted
+-- ${S_B}Direct connect to the ${CEL01} server${E_B}, if you go through ${DB01} or another database server, you will lose your connection when it will be rebooted
 "
 
 if [ "${ALLOW_ACTIVE_NFS}" = "No" ]
@@ -539,7 +549,7 @@ ${TAB} ${DBROOTPROMPT} ${S_B} cd ${PATCH_DIR}/${GI_DIR}/${GI_PATCH}             
 ${TAB} ${DBROOTPROMPT} ${S_B} ${GI_HOME}/OPatch/opatchauto apply -oh ${GI_HOME} -analyze                                                        ${E_B}
 ${E_PRE}
 
-${S_H3}4.2/ Apply the patch ${S_B}on each node one after the other (${CLUSTER_NAME}db01 then (${CLUSTER_NAME}db02, etc...)${E_B}:${E_H3}
+${S_H3}4.2/ Apply the patch ${S_B}on each node one after the other (${DB01} then the next node, etc...)${E_B}:${E_H3}
 
 -- Use the script ${S_B}${STATUS_SCRIPT}${E_B} to monitor the instances during the patch application
 ${S_PRE}
