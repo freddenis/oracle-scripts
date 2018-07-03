@@ -65,6 +65,7 @@ set feedback off ;
 --
 --set feedback on ;
 --
+-- select sid, BLOCKING_SESSION, FINAL_BLOCKING_INSTANCE, FINAL_BLOCKING_SESSION from v$session where event = 'library cache pin' order by FINAL_BLOCKING_SESSION ;
 
 --------------------------------------------------------------------
 ----              E N D      O F      S O U R C E                 --
