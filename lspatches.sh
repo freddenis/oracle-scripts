@@ -4,7 +4,7 @@
 # Provide information on the installed and missing patches on ORACLE_HOMEs
 #       $0 -h for more information
 #
-# The version of the script is 20180626
+# The version of the script is 20180704
 #
 # 20180704 - Fred Denis - GREP and UNGREP now works when a file is specified
 #                                                 A new -o option to only get the opatch output on a file
