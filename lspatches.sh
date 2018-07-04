@@ -6,6 +6,10 @@
 #
 # The version of the script is 20180626
 #
+# 20180704 - Fred Denis - GREP and UNGREP now works when a file is specified
+#                                                 A new -o option to only get the opatch output on a file
+#                                                 The -s option is now compatible with the -f one
+#
 # 20180626 - Fred Denis - Started the opatch version management by showing a warning when the special 12.2.0.1.13 and 11.2.0.3.18 versions are used
 #                            see https://unknowndba.blogspot.com/2018/06/deprecation-of-opatch-command-option.html for more information
 #                         Shows an error when opatch raises an error (when another user owns the ORACLE_HOME for example)
@@ -29,9 +33,10 @@
       GREP="."                                           # What we grep                  -- default is everything
     UNGREP="nothing_to_ungrep_unless_v_option_is_used$$" # What we don't grep (grep -v)  -- default is nothing
       FILE=""                                            # No input file
+       OUT=""                                                                                    # No output file
        TMP=/tmp/fictemplspatches$$                       # A tempfile
       TMP2=/tmp/fictemplspatches2$$                      # Another tempfile
-SHOW_HOMES="NO"                                          # YES or NO we want to show the Homes from /etc/oratab ONLY
+SHOW_HOMES="NO"                                          # YES or NO we want to show the Homes from /etc/oratab or the input file $FILE ONLY
 
 #
 # An usage function
@@ -45,7 +50,7 @@ END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"                    ;
 cat << END
-        $0 [-f] [-g] [-l] [-v] [-s] [-h]
+        $0 [-f] [-o] [-g] [-l] [-v] [-s] [-h]
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"                 ;
@@ -59,7 +64,13 @@ END
 
 printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"                     ;
 cat << END
-        -f      A file containing one or more opatch outputs (no opatch command is performed in this mode)
+        -f      A file containing one or more opatch outputs (no opatch command is performed in this mode
+                                        - not compatible with the -o option
+                                        - compatible with the -g and -v options
+
+                -o              An output file if you just want to generate the opatch output (no patch analysis shown)
+                                        - not compatible with the -f option
+                                        - compatible with the -g and -v options
 
         -l      Run opatch as Local only (default is opatch is run using the -all_nodes option)
 
@@ -68,6 +79,7 @@ cat << END
                   $0 -g 12                                              # Will only consider the Homes that contain "12" in their name
                   $0 -g /u01/app/oracle/product/12.1.0.2/dbhome_dr2     # Will only consider this home
                   $0 -g dbhome_1                                        # Will only consider the Homes containing "dbhome_1"
+                                  $0 -g dbhome_1 -f /tmp/opatchoutput                                   # Will only consider the Homes containing "dbhome_1"in the /tmp/opatchoutput file
 
         -v      Act as a grep -v comnmand when selecting the Homes you want the patches information from; it can be combined with the -g option
                 Examples :
@@ -79,9 +91,11 @@ cat << END
                 You can then test your -g and -v combination here
                 Examples :
                   $0 -s                                         # Show all Homes from /etc/oratab
-                  $0 -g 12 -v oa -s                                     # Show all "12" Homes BUT the "oa" ones
+                  $0 -g 12 -v oa -s                             # Show all "12" Homes BUT the "oa" ones
+                                  $0 -f /tmp/opatchoutput -g 12 -s                              # Show the Homes from an opatch output file for the "12" Homes only
 
         -h      Show this help
+
 END
 exit 123
 }
@@ -89,16 +103,17 @@ exit 123
 #
 # Parameters management
 #
-while getopts "lg:v:f:hs" OPT; do
-case ${OPT} in
-f)               FILE=${OPTARG}                                 ;;
-g)               GREP=${OPTARG}                                 ;;
-l)          ALL_NODES=""                                        ;;
-v)             UNGREP=${OPTARG}                                 ;;
-s)         SHOW_HOMES="YES"                                     ;;
-h)              usage                                           ;;
-\?) echo "Invalid option: -$OPTARG" >&2; usage                  ;;
-esac
+while getopts "lg:v:f:o:hs" OPT; do
+        case ${OPT} in
+                f)               FILE=${OPTARG}                                 ;;
+                o)                            OUT=${OPTARG}                                                                     ;;
+                g)               GREP=${OPTARG}                                 ;;
+                l)          ALL_NODES=""                                        ;;
+                v)             UNGREP=${OPTARG}                                 ;;
+                s)         SHOW_HOMES="YES"                                     ;;
+                h)              usage                                           ;;
+                \?) echo "Invalid option: -$OPTARG" >&2; usage                  ;;
+        esac
 done
 
 
@@ -139,14 +154,29 @@ cat << !
         exit 668
 fi
 
+if [[ -n ${FILE} && -n ${OUT} ]]
+then
+        cat << END
+        The -f and -o options cannot be used together; cannot continue.
+        $0 -h for help
+END
+        exit 669
+fi
+
 #
 # Show Homes only if -s option specified
 #
 if [ ${SHOW_HOMES} = "YES" ]
 then
-        printf "\n\033[1;37m%-8s\033[m\n\n" "ORACLE_HOMEs that would be considered (${ORATAB}) :"                    ;
-        cat ${ORATAB} | grep -v "^#" | grep -v "^$" | grep -v agent | awk 'BEGIN {FS=":"} { printf("\t%s\n", $2)}' | grep ${GREP} | grep -v ${UNGREP} | sort | uniq
-        printf "\n"
+                if [[ -f ${FILE} ]]
+                then
+                        printf "\n\033[1;37m%-8s\033[m\n\n" "ORACLE_HOMEs that would be considered (${FILE}) :"                    ;
+                        cat ${FILE} | grep "^Oracle Home" | awk 'BEGIN {FS=":"} { printf("\t%s\n", $NF)}' | grep ${GREP} | grep -v ${UNGREP} | sort | uniq
+                else
+                        printf "\n\033[1;37m%-8s\033[m\n\n" "ORACLE_HOMEs that would be considered (${ORATAB}) :"                    ;
+                        cat ${ORATAB} | grep -v "^#" | grep -v "^$" | grep -v agent | awk 'BEGIN {FS=":"} { printf("\t%s\n", $2)}' | grep ${GREP} | grep -v ${UNGREP} | sort | uniq
+                fi
+                printf "\n"
         exit 0
 fi
 
@@ -161,6 +191,14 @@ cat << !
 exit 123
 fi
 
+#
+# Check if we could write in the out file
+#
+if [[ -n ${OUT} ]]
+then
+        if [ -d ${OUT} ]; then  echo "${OUT} is a directory, please specify a regular file; cannot continue."; exit 670; fi
+        if [ ! -w `dirname ${OUT}` ] ; then echo "`dirname ${OUT}` is not writable; cannot continue."; exit 671; fi
+fi
 
 #
 # Set the ASM env to be able to use crsctl commands as well as olsnodes
@@ -188,32 +226,53 @@ fi
 
 if [ -z ${FILE} ]       # If a file as parameter we do not do the opatch
 then
-cat /dev/null > ${TMP}
+        cat /dev/null > ${TMP}
 
-for OH in `cat ${ORATAB} | grep -v "^#" | grep -v "^$" | grep -v agent | awk 'BEGIN {FS=":"} { print $2}' | grep ${GREP} | grep -v ${UNGREP} | sort | uniq`
-do
-printf "%-60s" "Proceeding with ${OH} . . ."
-if [ -f $OH/OPatch/opatch ] && [ -x $OH/OPatch/opatch ]
+        for OH in `cat ${ORATAB} | grep -v "^#" | grep -v "^$" | grep -v agent | awk 'BEGIN {FS=":"} { print $2}' | grep ${GREP} | grep -v ${UNGREP} | sort | uniq`
+        do
+                printf "%-80s" "Proceeding with ${OH} . . ."
+                if [ -f $OH/OPatch/opatch ] && [ -x $OH/OPatch/opatch ]
+                then
+                                $OH/OPatch/opatch lsinventory ${ALL_NODES} -oh ${OH}  >> ${TMP} 2>${TMP2}
+                                ERR=$?
+                                if [ ${ERR} -eq 0 ]
+                                then
+                                                printf "\t\033[1;32m%-8s\033[m\n" "OK"          ;
+                                else
+                                                printf "\t\033[1;31m%-8s" "Error "              ;
+                                                cat ${TMP2}                                     ;
+                                                printf "\033[m\n" ""                            ;
+                                fi
+                fi
+        done
+else
+        cp ${FILE} ${TMP}
+fi
+
+#
+# An output file is specified, we just want the opatch output so we exit before analyzing the opatch output
+#
+if [[ -n ${OUT} ]]
 then
-        $OH/OPatch/opatch lsinventory ${ALL_NODES} -oh ${OH}  >> ${TMP} 2>${TMP2}
-        ERR=$?
-        if [ ${ERR} -eq 0 ]
+        if [ -f ${TMP} ]
         then
-                printf "\t\033[1;32m%-8s\033[m\n" "OK"          ;
-        else
-                printf "\t\033[1;31m%-8s" "Error "              ;
-                cat ${TMP2}                                     ;
-                printf "\033[m\n" ""                            ;
+                cp ${TMP} ${OUT}
+                if [ $? -ne 0 ]
+                then
+                        cat << END
+                        Could not copy the tempfile into ${OUT}; the opatch output should be in ${TMP};
+END
+                fi
+        rm -f ${TMP}
+        exit $?
         fi
 fi
-done
-else
-cp ${FILE} ${TMP}
-fi
+
 
 printf "\n"                                                     ;
 
-${AWK}    'BEGIN {            FS =       ":"                    ;
+${AWK}  -v GREP="$GREP" -v UNGREP="$UNGREP"\
+        'BEGIN {              FS =       ":"                    ;
                         # some colors
                      COLOR_BEGIN =       "\033[1;"              ;
                        COLOR_END =       "\033[m"               ;
@@ -272,6 +331,10 @@ function print_a_line()
                 gsub(" ", "", $2)                                                                               ;
                 OH=$2                                                                                           ;
                 oh_tab[oh_nb++]=OH                                                                              ;
+                                if ((OH !~ GREP) || (OH ~ UNGREP))
+                            {
+                                        next                                                                                                                                                                            ;
+                                }
 
                 while (getline)
                 {
@@ -393,13 +456,14 @@ function print_a_line()
                                 delete all_patches                                                              ;
                                 delete patch_tab                                                                ;
                                 delete nodes                                                                    ;
+                                                                NB_PATCHES_INSTALLED=0                                                                                                                  ;
                                 print_a_line()                                                                  ;
                                 printf "\n"                                                                     ;
                                 break                                                                           ;
                         }
                 }
 
-        }
+        }                       # End if ($1 ~ /^Oracle Home/)
 } END {         if (WARNING_NO_ALL_NODES == "YES")
                 {
                         printf("%s\n",   "Warning : Versions 12.2.0.1.13 and 11.2.0.3.18 have no -all_nodes options then cannot get any remote patch information")                      ;
@@ -412,8 +476,7 @@ for F in ${TMP} ${TMP2}
 do
         if [ -f ${F} ]
         then
-        rm -f ${F}
-        #echo ${F}
+                rm -f ${F}
         fi
 done
 
