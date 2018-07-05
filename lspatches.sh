@@ -418,7 +418,7 @@ function print_a_line()
                         {
 
                                 WIDTH = COL_PATCH+COL_NODE*n+n+1                                                ;
-                                printf("%s", center(OH, WIDTH-1, BLUE, ""))                                     ;       # OH as a title
+                                printf(COLOR_BEGIN BLUE"  %s"COLOR_END, OH)                                     ;       # OH as a title
                                 printf("%s\n", "(opatch version " OPATCH_VERSION")")                            ;       # Opatch version
                                 # A header
                                 print_a_line()                                                                  ;
