@@ -466,7 +466,7 @@ function print_a_line()
         }                       # End if ($1 ~ /^Oracle Home/)
 } END {         if (WARNING_NO_ALL_NODES == "YES")
                 {
-                        printf("%s\n",   "Warning : Versions 12.2.0.1.13 and 11.2.0.3.18 have no -all_nodes options then cannot get any remote patch information")                      ;
+                        printf("%s\n",   "Warning : Versions 12.2.0.1.13 and 11.2.0.3.1[89] have no -all_nodes options then cannot get any remote patch information")                      ;
                         printf("%s\n\n", "          Please have a look at https://unknowndba.blogspot.com/2018/06/deprecation-of-opatch-command-option.html for more information")      ;
                 }
 }' ${TMP}
