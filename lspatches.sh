@@ -1,6 +1,8 @@
 #!/bin/bash
 # Fred Denis -- fred.denis3@gmail.com -- June 22nd 2018
 #
+# Please have a look at https://unknowndba.blogspot.com/2018/07/lspatchessh-oracle-patch-reporting-tool.html for detailed explanations
+#
 # Provide information on the installed and missing patches on ORACLE_HOMEs
 #       $0 -h for more information
 #
