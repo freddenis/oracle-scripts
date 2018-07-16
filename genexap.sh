@@ -436,7 +436,7 @@ ${S_H3}2.1 / IB Switches prerequisites${U_DONE}:${E_H3}
 - To avoid issues with NFS/ZFS when rebooting the IB Switches, I recommend copying the patch outside of any NFS/ZFS
 - This patch is ~ 2.5 GB so be careful not to fill / if you copy it into /tmp, if not choose another local FS
 ${S_PRE}
-${TAB} ${DBROOTPROMPT} ${S_B} df -h ${DIR_IB_PATCHING}                                                                                          ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} du -sh ${DIR_IB_PATCHING}                                                                                          ${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} rm -r ${DIR_IB_PATCHING}                                                                                          ${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} mkdir ${DIR_IB_PATCHING}                                                                                          ${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} unzip -q ${PATCH_DIR}/${CELL_AND_IB}/${CELL_AND_IB_ZIP} -d /tmp/IB_PATCHING                                       ${E_B}
