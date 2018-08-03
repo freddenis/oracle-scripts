@@ -4,8 +4,9 @@
 # Automatically generatesan Exadata patching action plan
 # For more details about the Exadata patching procedure, you can have a look at https://www.pythian.com/blog/patch-exadata-part-1-introduction-prerequisites/
 #
-# The current version of the script is 20180723
+# The current version of the script is 20180803
 #
+# 20180803 - Fred Denis - rm -fr instead of rm -r
 # 20180723 - Fred Denis - Remove DIR_DB_PATCHING directory after DB server patching
 #                       - Set disk_repair_time before cell patching and set it back after
 #                       - Wording
@@ -502,7 +503,7 @@ ${S_H3}2.1 / IB Switches prerequisites${U_DONE}:${E_H3}
 - This patch is ~ 2.5 GB so be careful not to fill / if you copy it into /tmp, if not choose another local FS
 ${S_PRE}
 ${TAB} ${DBROOTPROMPT} ${S_B} du -sh ${DIR_IB_PATCHING}                                                                                          ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} rm -r ${DIR_IB_PATCHING}                                                                                          ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} rm -fr ${DIR_IB_PATCHING}                                                                                          ${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} mkdir ${DIR_IB_PATCHING}                                                                                          ${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} unzip -q ${PATCH_DIR}/${CELL_AND_IB}/${CELL_AND_IB_ZIP} -d /tmp/IB_PATCHING                                       ${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} cd ${DIR_IB_PATCHING}/patch_${TARGET_VERSION}                                                                     ${E_B}
@@ -527,7 +528,7 @@ ${TAB} -- Verify that the Switches are now running with the new version
 ${TAB} ${DBROOTPROMPT} ${S_B} ${EXAVERSIONS} -i                                                                                                 ${E_B}
 
 ${TAB} -- Delete the temporary directory used for patching
-${TAB} ${DBROOTPROMPT} ${S_B} rm -r ${DIR_IB_PATCHING}                                                                                          ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} rm -fr ${DIR_IB_PATCHING}                                                                                          ${E_B}
 ${E_PRE}
 
 ${S_H2}3/ Database Servers patching ${E_H2}
@@ -540,7 +541,7 @@ ${S_H3}3.1/ Copy what is needed to ${CEL01}:${E_H3}
 -- Create a ${S_B}${DIR_DB_PATCHING}${E_B} directory to patch the database servers. Having a "SAVE" directory in /tmp is a good idea to avoid the automatic maintenance jobs that purge /tmp every day (directories > 5 MB and older than 1 day). If not, these maintenance jobs will delete the dbnodeupdate.zip file that is mandatory to apply the patch -- this won't survive a reboot though
 
 ${S_PRE}
-${TAB} ${DBROOTPROMPT} ${S_B} ssh root@${CEL01} rm -r ${DIR_DB_PATCHING}                                                                        ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B} ssh root@${CEL01} rm -fr ${DIR_DB_PATCHING}                                                                        ${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} ssh root@${CEL01} mkdir ${DIR_DB_PATCHING}                                                                        ${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} scp ${PATCH_DIR}/${PATCHMGR}/${PATCHMGR_ZIP} root@${CEL01}:${DIR_DB_PATCHING}/.                                   ${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B} scp ${PATCH_DIR}/${OL6_DIR}/${ISO} root@${CEL01}:${DIR_DB_PATCHING}/.                                             ${E_B}
@@ -606,7 +607,7 @@ ${TAB} -- Verify that the DB Servers versions are now ${TARGET_VERSION}
 ${TAB} ${CELROOTPROMPT} ${S_B} ${EXAVERSIONS} -d                                                                                                ${E_B}
 
 ${TAB} -- Remove the temporary directory used for the patch from the cell
-${TAB} ${CELROOTPROMPT} ${S_B} rm -r ${DIR_DB_PATCHING}                                                                                         ${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B} rm -fr ${DIR_DB_PATCHING}                                                                                         ${E_B}
 ${E_PRE}
 
 
