@@ -6,7 +6,9 @@
 # Provide information on the installed and missing patches on ORACLE_HOMEs
 #       $0 -h for more information
 #
-# The version of the script is 20180704
+# The version of the script is 20180809
+#
+# 20180809 - Fred Denis - Add the desription of a patch if available
 #
 # 20180704 - Fred Denis - GREP and UNGREP now works when a file is specified
 #                                                 A new -o option to only get the opatch output on a file
@@ -333,10 +335,10 @@ function print_a_line()
                 gsub(" ", "", $2)                                                                               ;
                 OH=$2                                                                                           ;
                 oh_tab[oh_nb++]=OH                                                                              ;
-                                if ((OH !~ GREP) || (OH ~ UNGREP))
-                            {
-                                        next                                                                                                                                                                            ;
-                                }
+                if ((OH !~ GREP) || (OH ~ UNGREP))
+                {
+                        next                                                                                    ;
+                }
 
                 while (getline)
                 {
@@ -403,12 +405,20 @@ function print_a_line()
                                 {
                                         if (($1 ~ /^Patch/) && ($0 ~ /applied on/))     # Patch id
                                         {       NB_PATCHES_FOUND++                                              ;
-                                                sub("Patch", "", $1)                                            ;
-                                                gsub(" ", "", $1)                                               ;
-                                                patch_tab[SERVER, $1]=$1                                        ;       # Patches per server
-                                                if ($1 in all_patches)
+                                                patch_id = $1                                                   ;
+                                                sub("Patch", "", patch_id)                                      ;
+                                                gsub(" ", "", patch_id)                                         ;
+                                                patch_tab[SERVER, patch_id]=patch_id                            ;       # Patches per server
+                                                if (patch_id in all_patches)
                                                 { cpt++; } else {
-                                                        all_patches[$1] = $1                                    ;       # All patches accross all nodes
+                                                        all_patches[patch_id] = patch_id                        ;       # All patches accross all nodes
+                                                }
+                                                getline; getline ;
+                                                if ($1 ~ /^Patch description/)                                          # Get the patch descr is available
+                                                {
+                                                        sub("Patch description: ", "", $0)                      ;
+                                                        gsub("\"", "", $0)                                      ;
+                                                        descr[patch_id] = $0                                    ;
                                                 }
                                         }
                                         if (NB_PATCHES_FOUND == NB_PATCHES_INSTALLED)
@@ -449,6 +459,7 @@ function print_a_line()
                                                         printf("%s", center("Missing", COL_NODE, RED, "|"))     ;
                                                 }
                                         }
+                                        printf ("%s", descr[all_patches[i]])                                    ;       # Patch description
                                         printf "\n"                                                             ;
                                 }
                                 if (some_patches == 0)
@@ -458,7 +469,8 @@ function print_a_line()
                                 delete all_patches                                                              ;
                                 delete patch_tab                                                                ;
                                 delete nodes                                                                    ;
-                                                                NB_PATCHES_INSTALLED=0                                                                                                                  ;
+                                delete descr                                                                    ;
+                                NB_PATCHES_INSTALLED=0                                                          ;
                                 print_a_line()                                                                  ;
                                 printf "\n"                                                                     ;
                                 break                                                                           ;
