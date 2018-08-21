@@ -1,11 +1,16 @@
 #!/bin/bash
 # Fred Denis -- denis@pythian.com -- March 2017
 #
-# Automatically generatesan Exadata patching action plan
+# Automatically generates an Exadata patching action plan from a bundle.xml file
 # For more details about the Exadata patching procedure, you can have a look at https://www.pythian.com/blog/patch-exadata-part-1-introduction-prerequisites/
 #
 # The current version of the script is 20180803
 #
+# 20180821 - Fred Denis - No zipfile has the correct version in their name any more -- then replaced with a "*" in the zip files names
+#                         Better grep the version to install by adding a "." if a main version only is specified like "-v 18"
+#                         As for Exadata Stack, I now take the highest version for GI is -w is not specific enough and returns more than 1 version
+#                         Opatch also has wrong path now in in the bundle -- replaced the 2 last digits with a "*"
+#                         A new -o option to be able to specific the GI owner if different than the default "oracle"
 # 20180803 - Fred Denis - rm -fr instead of rm -r
 # 20180723 - Fred Denis - Remove DIR_DB_PATCHING directory after DB server patching
 #                       - Set disk_repair_time before cell patching and set it back after
@@ -57,7 +62,7 @@ DEBUG="No"
                         DB01=""                                         # Name of the DB Server 01 we will be using to patch the DB Nodes (can be modify using the -s option)
              DIR_IB_PATCHING="/tmp/IB_PATCHING"                         # Directory to copy the IB Switch outside of NFS/ZFS to avoid issues when rebooting the IB Switches
              DIR_DB_PATCHING="/tmp/SAVE"                                # Directory used on cel01 to patch the DB servers
-
+                    GI_OWNER="oracle"                                   # Default Grid Owner -- can be overwritten by the -o option
 #
 # A usage function
 #
@@ -76,6 +81,7 @@ usage()
                 -u                                                      (Unzip and prereqs steps have been done, shows a green "DONE" for the unzip parts, default is unzip has not been done)
                 -v <Cells, IB and DB Server version to install>         (optional -- default is the highest)
                 -w <GI version to install>                              (optional -- same as cells and DB nodes if not specified)
+                -o <GI_OWNER>                                           (optional -- if different than the default ${GI_OWNER})
 
                 # Use the below -[mM] options with caution
                 -m                                                      (optional -- use the -modify_at_prereq option when patching the DB Servers; default is -modify_at_prereq is not used)
@@ -86,7 +92,7 @@ usage()
 #
 # Parameters management
 #
-while getopts ":d:n:humMg:v:fc:s:w:" OPT; do
+while getopts ":d:n:humMg:v:fc:s:w:o:" OPT; do
         case ${OPT} in
         d)          PATCH_DIR=`echo ${OPTARG} | sed s'/\/ *$//'`    ;;      # Remove any trailing /
         f)   ALLOW_ACTIVE_NFS="No"                                  ;;
@@ -96,7 +102,12 @@ while getopts ":d:n:humMg:v:fc:s:w:" OPT; do
         h)               HTML="Yes"                                 ;;
         n)       CLUSTER_NAME=${OPTARG}                             ;;
         u)         UNZIP_DONE="Yes"                                 ;;
-        v)     VER_TO_INSTALL=${OPTARG}                             ;;      # Cells, IB and DB Server version to install
+        o)           GI_OWNER=${OPTARG}                             ;;
+        v)     VER_TO_INSTALL=${OPTARG}                                     # Cells, IB and DB Server version to install
+                if [ ${#VER_TO_INSTALL} -eq 2 ]
+                then
+                        VER_TO_INSTALL=$VER_TO_INSTALL"\."                  # To avoid grepping something else than a version
+                fi                                          ;;
         w)         GI_VERSION=${OPTARG}                             ;;      # Version for GI
         m|M) MODIFY_AT_PREREQ="-modify_at_prereq"                   ;;
         \?) echo "Invalid option: -$OPTARG" >&2; usage              ;;
@@ -237,7 +248,7 @@ fi
                                                         gsub(/\./, "", NON_DOTTED_VERSION)       ;
 
                                                         # Cells and IB infos
-                                                        print "CELLS", CELL_DIR, CELL_VERSION, CELL_VERSION_AFTER_PATCHING, "p"CELL_PATCH_ID"_"NON_DOTTED_VERSION"_Linux-x86-64.zip"              ;
+                                                        print "CELLS", CELL_DIR, CELL_VERSION, CELL_VERSION_AFTER_PATCHING, CELL_PATCH_ID              ;
 
                                                         next                                    ;
                                                 }
@@ -293,7 +304,7 @@ fi
                                         }
                                         if ($0 ~ /<\/target_types>/)
                                         {
-                                                print "DB_SERVER", DB_DIR, DB_SERVER_VERSION, DB_SERVER_VERSION_AFTER_PATCHING, "p"DB_SERVER_PATCH_ID"_"NON_DOTTED_VERSION"_Linux-x86-64.zip"   ;
+                                                print "DB_SERVER", DB_DIR, DB_SERVER_VERSION, DB_SERVER_VERSION_AFTER_PATCHING, DB_SERVER_PATCH_ID  ;
                                                 break                                           ;
                                         }
                                 }
@@ -303,12 +314,13 @@ fi
                 END\
                 {
                         # Patchmgr infos
-                        print "PATCHMGR", PATCHMGR, "p"PATCHMGR_PATCH_ID"_*_Linux-x86-64.zip"   ;       # I put a star in the name as for Jan 2017 the bundle do not show the correct version
+                        print "PATCHMGR", PATCHMGR, PATCHMGR_PATCH_ID                           ;
                 }' ${BUNDLE_XML} > ${CONF}
 
 
 #
 # Grep what is needed from the config file
+# If more than one version is returned as the -v or -w option are not specific enough, we take the highest version
 #
 
            CELL_AND_IB=`grep "^CELLS"     ${CONF}                         | grep ${VER_TO_INSTALL} | sort | tail -1     | awk 'BEGIN{FS="|"} {print $2}'`
@@ -323,16 +335,25 @@ fi
         then
                 GI_VERSION=${VER_TO_INSTALL}
         fi
-                GI_DIR=`grep "^GI"        ${CONF} | grep ${GI_VERSION}                                                  | awk 'BEGIN{FS="|"} {print $2}'`
-              GI_PATCH=`grep "^GI"        ${CONF} | grep ${GI_VERSION}                                                  | awk 'BEGIN{FS="|"} {print $3}'`
+                GI_DIR=`grep "^GI"        ${CONF}                         | grep ${GI_VERSION}     | sort | tail -1     | awk 'BEGIN{FS="|"} {print $2}'`
+              GI_PATCH=`grep "^GI"        ${CONF}                         | grep ${GI_VERSION}     | sort | tail -1     | awk 'BEGIN{FS="|"} {print $3}'`
              GI_BUNDLE=${PATCH_DIR}/${GI_DIR}/${GI_PATCH}/bundle.xml
+
+#
+# Zip files names
+#
+CELL_AND_IB_ZIP="p"$CELL_AND_IB_ZIP"_*_Linux-x86-64.zip"        ;
+            ISO="p"$ISO"_*_Linux-x86-64.zip"                    ;
+       PATCHMGR="p"$PATCHMGR"_*_Linux-x86-64.zip"               ;
+         OPATCH=`echo $OPATCH | sed s'/\.[0-9]*$/\.\*/'`        ;
+
 
 #
 # Define some prompts to put in the action plan
 #
          DBROOTPROMPT="[root@${DB01} ~]#"
         CELROOTPROMPT="[root@${CEL01} ~]#"
-       DBORACLEPROMPT="[oracle@${DB01} ~]$"
+       DBORACLEPROMPT="["$GI_OWNER"@${DB01} ~]$"
             SQLPROMPT="SQL>"
 
 #
@@ -350,7 +371,7 @@ fi
                 ISO RPM         :       ${ISO}
                 Patchmgr        :       ${PATCHMGR}
                 Patchmgr ZIP    :       ${PATCHMGR_ZIP}
-                opatch 12c      :       ${OPATCH}
+                OPatch          :       ${OPATCH}
                 Cluster Name    :       ${CLUSTER_NAME}
                 Cells and IB    :       ${CELL_AND_IB}
                 Cells and IB ZIP:       ${CELL_AND_IB_ZIP}
@@ -613,7 +634,7 @@ ${E_PRE}
 
 ${S_H2}4/ Grid Infrastructure patching ${E_H2}
 
-${S_H3}4.1/ To start with, be sure that the patch has been unzipped (as oracle user to avoid any further permission issue)${U_DONE}:${E_H3}
+${S_H3}4.1/ To start with, be sure that the patch has been unzipped (as $GI_OWNER user to avoid any further permission issue)${U_DONE}:${E_H3}
 
 ${S_PRE}
 ${TAB} ${DBORACLEPROMPT} ${S_B} cd ${PATCH_DIR}/${GI_DIR}                                                                                       ${E_B}
@@ -623,9 +644,9 @@ ${E_PRE}
 
 -- Upgrade opatch if opatch is not already at the latest version: ${U_DONE}
 ${S_PRE}
-${TAB} ${DBORACLEPROMPT} ${S_B}dcli -g ~/dbs_group -l oracle ${GI_HOME}/OPatch/opatch version | grep Version                                    ${E_B}
-${TAB} ${DBORACLEPROMPT} ${S_B}dcli -g ~/dbs_group -l oracle -f ${PATCH_DIR}/${OPATCH}/p6880880_12*_Linux-x86-64.zip -d /tmp                    ${E_B}
-${TAB} ${DBORACLEPROMPT} ${S_B}dcli -g ~/dbs_group -l oracle \"unzip -o /tmp/p6880880_12*_Linux-x86-64.zip -d ${GI_HOME}; ${GI_HOME}/OPatch/opatch version; rm /tmp/p6880880_12*_Linux-x86-64.zip\" | grep Version${E_B}
+${TAB} ${DBORACLEPROMPT} ${S_B}dcli -g ~/dbs_group -l ${GI_OWNER} ${GI_HOME}/OPatch/opatch version | grep Version                                    ${E_B}
+${TAB} ${DBORACLEPROMPT} ${S_B}dcli -g ~/dbs_group -l ${GI_OWNER} -f ${PATCH_DIR}/${OPATCH}/p6880880_12*_Linux-x86-64.zip -d /tmp                    ${E_B}
+${TAB} ${DBORACLEPROMPT} ${S_B}dcli -g ~/dbs_group -l ${GI_OWNER} \"unzip -o /tmp/p6880880_12*_Linux-x86-64.zip -d ${GI_HOME}; ${GI_HOME}/OPatch/opatch version; rm /tmp/p6880880_12*_Linux-x86-64.zip\" | grep Version${E_B}
 ${E_PRE}
 
 -- It is also recommended to execute the prerequisites: ${U_DONE}
@@ -652,25 +673,6 @@ ${TAB} ${DBORACLEPROMPT} ${S_B} . oraenv <<< \`grep \"^+ASM\" /etc/oratab | awk 
 ${TAB} ${DBORACLEPROMPT} ${S_B} ${LSPATCHES} -g ${GI_HOME}                                                                                      ${E_B}
 
 ${TAB} -- jump to the next node an re apply 4.2
-${E_PRE}
-
--- Opatch will most likely finish with some warnings :
-
-${S_PRE}
-${TAB} [Jun 5, 2016 5:50:47 PM]     --------------------------------------------------------------------------------
-${TAB} [Jun 5, 2016 5:50:47 PM]     The following warnings have occurred during OPatch execution:
-${TAB} [Jun 5, 2016 5:50:47 PM]     1) OUI-67303:
-${TAB}                       Patches [   20831113   20299018   19872484 ] will be rolled back.
-${TAB} [Jun 5, 2016 5:50:47 PM]     --------------------------------------------------------------------------------
-${TAB} [Jun 5, 2016 5:50:47 PM]     OUI-67008:OPatch Session completed with warnings.
-
-${TAB} Checking the logfiles, you will find that this is probably due to superset patches :
-
-${TAB}   Patch : 23006522 Bug Superset of 20831113
-
-${TAB} If you check this patch number, you will find that this is an old patch : Patch 20831113: OCW PATCH SET UPDATE 12.1.0.2.4
-
-${TAB} Then this is safely ignorable as opatch rollback old patches after having applied the new ones.
 ${E_PRE}
 
 ****************************** STOP COPYING THE ACTION PLAN ABOVE THIS LINE ******************************
