@@ -7,6 +7,7 @@
 # The current version of the script is 20180822
 #
 # 20180822 - Fred Denis - Fixed a bug with the v$ view that were not appearing properly
+#                         Fixed a mismatch between PATCHMGHR and PATCHMGR_ZIP I introduced yesterday in 20180821
 # 20180821 - Fred Denis - No zipfile has the correct version in their name any more -- then replaced with a "*" in the zip files names
 #                         Better grep the version to install by adding a "." if a main version only is specified like "-v 18"
 #                         As for Exadata Stack, I now take the highest version for GI is -w is not specific enough and returns more than 1 version
@@ -43,7 +44,7 @@
 # If we want some "debug" information, comment the line you don't want
 #
 DEBUG="Yes"
-DEBUG="No"
+#DEBUG="No"
 
 #
 # Some default values
@@ -345,7 +346,7 @@ fi
 #
 CELL_AND_IB_ZIP="p"$CELL_AND_IB_ZIP"_*_Linux-x86-64.zip"        ;
             ISO="p"$ISO"_*_Linux-x86-64.zip"                    ;
-       PATCHMGR="p"$PATCHMGR"_*_Linux-x86-64.zip"               ;
+   PATCHMGR_ZIP="p"$PATCHMGR_ZIP"_*_Linux-x86-64.zip"           ;
          OPATCH=`echo $OPATCH | sed s'/\.[0-9]*$/\.\*/'`        ;
 
 
