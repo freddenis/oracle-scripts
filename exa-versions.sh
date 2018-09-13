@@ -5,8 +5,20 @@
 # -- has to be run as root
 # -- the server where this script is started should have the root ssh  keys deployed on all the other servers (DB Nodes, Cells and IB Swicthes)
 # -- see the usage fonction and/or use the -h option for a complete description
+# -- For Cells and DB servers (I found no equivalent for the IB swicthes), I also check the status of the image
+#    from the imageinfo command as it can be "failure" even if the good version is shown;
+#    I then use a piece of awk to format the "imageinfo -ver -status" output like this :
+#      node1:12.2.1.1.3.171017:success
+#      node2:12.2.1.1.3.171017:failure    <= a failure status when the good version shown
+#      node3:12.2.1.1.3.171017:success
+#      node4:12.2.1.1.3.171017:success
+#    If a DB servers or cell has a status = failure returned by the imageinfo command, the host will appear
+#    in red and a note about this will be shown at the end of the report
 #
-# The current version of the script is 20180220
+#
+# The current version of the script is 20180913
+#
+# 20180913 - Fred Denis - Add the status = failure information for the Cells and DB Servers
 #
 
 #
@@ -117,12 +129,12 @@ fi
 
 ( if [[ "$SHOW_DBS" == "Yes" ]] || [[ "$SHOW_ALL" == "Yes" ]]
   then
-        dcli -g ${DBS_GROUP}  -l root imageinfo -ver                                                   | sort
+        dcli -g ${DBS_GROUP}  -l root "imageinfo -ver -status" | sort | awk -F ": " '{if(node==""){node=$1}; if($2 != "") {status=$3; getline; printf ("%s:%s:%s\n",node, $3, status);  node="" ;}}'
         echo ""
   fi
   if [[ "$SHOW_CELLS" == "Yes" ]] || [[ "$SHOW_ALL" == "Yes" ]]
   then
-        dcli -g ${CELL_GROUP} -l root imageinfo -ver                                                   | sort
+        dcli -g ${CELL_GROUP}  -l root "imageinfo -ver -status" | grep "Active" | sort | awk -F ": " '{if(node==""){node=$1}; if($2 != "") {status=$3; getline; printf ("%s:%s:%s\n",node, $3, status);  node="" ;}}'
         echo ""
   fi
   if [[ "$SHOW_IBS" == "Yes" ]] || [[ "$SHOW_ALL" == "Yes" ]]
@@ -148,6 +160,7 @@ fi
 
                   # Some variables
                         nb_node  =      0                                                                               ;
+                        FAILURES =      0                                                                               ;
                 }
                 function print_a_line(size)
                 {
@@ -168,6 +181,7 @@ fi
                                             nb_node++                                                                   ;
                                    db_node[nb_node] = $1                                                                ;
                                 db_version[nb_node] = $2                                                                ;
+                                 db_status[nb_node] = $3                                                                ;
 
                                 while (getline)
                                 {
@@ -187,9 +201,11 @@ fi
                                                         # Print the node names
                                                         for (i=a+1; i<=a+NB_PER_LINE; i++)
                                                         {
+                                                                COLOR=WHITE                                             ;
+                                                                if(db_status[i] == "failure") {COLOR=RED; FAILURES=1}   ;
                                                                 if (length(db_node[i]) > 0)
                                                                 {
-                                                                        printf("%s", center(db_node[i],COL_SIZE,WHITE)) ;
+                                                                        printf("%s", center(db_node[i],COL_SIZE,COLOR)) ;
                                                                         nb_printed++                                    ;
                                                                 }
                                                         }
@@ -220,14 +236,19 @@ fi
                                                 nb_node = 0                                                             ;
                                                 delete db_node                                                          ;
                                                 delete db_version                                                       ;
+                                                delete db_status                                                        ;
                                                 break                                                                   ;
                                         }       # END if ($0 ~ /^$/)
 
                                                   nb_node++                                                             ;
                                            db_node[nb_node] = $1                                                        ;
                                         db_version[nb_node] = $2                                                        ;
+                                         db_status[nb_node] = $3                                                        ;
                                 }       # END while (getline)
                         }       # END  if ($0 !~ /^$/)
+                } END { if (FAILURES == 1)
+                        {       printf("%s\n\n", "Note : Please investigate the hosts in red as they have a status = failure returned by the imageinfo command.")       ;
+                        }
                 }'
 
 # Delete tempfiles
