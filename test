@@ -4,8 +4,9 @@
 # Automatically generates an Exadata patching action plan from a bundle.xml file
 # For more details about the Exadata patching procedure, you can have a look at https://www.pythian.com/blog/patch-exadata-part-1-introduction-prerequisites/
 #
-# The current version of the script is 20180822
+# The current version of the script is 20180914
 #
+# 20180914 - Fred Denis - ${EXAVERSIONS} -d was not executed from the good servers during DB servers patching
 # 20180822 - Fred Denis - Fixed a bug with the v$ view that were not appearing properly
 #                         Fixed a mismatch between PATCHMGHR and PATCHMGR_ZIP I introduced yesterday in 20180821
 # 20180821 - Fred Denis - No zipfile has the correct version in their name any more -- then replaced with a "*" in the zip files names
@@ -612,9 +613,11 @@ echo -e "
 -- Apply the patch
 ${S_PRE}
 ${TAB} -- Check the current versions of the DB Servers
-${TAB} ${CELROOTPROMPT} ${S_B} ${EXAVERSIONS} -d                                                                                                ${E_B}
+${TAB} ssh root@${DB01}
+${TAB} ${DBROOTPROMPT} ${S_B} ${EXAVERSIONS} -d                                                                                                ${E_B}
 
 ${TAB} -- Verify that the ~/dbs_group file contains the same DB Servers as those shown by the ${EXAVERSIONS} script
+${TAB} ssh root@${CEL01}
 ${TAB} ${CELROOTPROMPT} ${S_B} cat ~/dbs_group                                                                                                  ${E_B}
 
 ${TAB} -- Patch the Database Servers
@@ -626,11 +629,13 @@ ${TAB} Note : the ${S_B}${ALLOW_ACTIVE_NFS_OPTION}${E_B} option is available sta
 
 ${TAB} -- You can monitor the patch looking at the nohup.out file (tail -f nohup.out) or the patchmgr.out file
 
-${TAB} -- Verify that the DB Servers versions are now ${TARGET_VERSION}
-${TAB} ${CELROOTPROMPT} ${S_B} ${EXAVERSIONS} -d                                                                                                ${E_B}
-
 ${TAB} -- Remove the temporary directory used for the patch from the cell
 ${TAB} ${CELROOTPROMPT} ${S_B} rm -fr ${DIR_DB_PATCHING}                                                                                         ${E_B}
+
+${TAB} -- Verify that the DB Servers versions are now ${TARGET_VERSION}
+${TAB} ssh root@${DB01}
+${TAB} ${DBROOTPROMPT} ${S_B} ${EXAVERSIONS} -d                                                                                                ${E_B}
+
 ${E_PRE}
 
 
