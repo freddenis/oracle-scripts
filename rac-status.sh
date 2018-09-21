@@ -209,6 +209,9 @@ crsctl stat res -p -w "TYPE = ora.scan_listener.type"   >> $TMP
                         {
                                 printf("%s", center(lsnr_sorted[j]   , COL_DB, WHITE))                          ;       # Listener name
                                 printf(COLOR_BEGIN WHITE " %-8s" COLOR_END, port[lsnr_sorted[j]], COL_VER, WHITE);      # Port
+                                if (length(port[lsnr_sorted[j]]) > COL_VER)
+                                {       printf("\n%"(COL_DB+10)"s", "") ;
+                                }
                                 printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|","")                                 ;       # Nothing
 
                                 for (i = 1; i <= n; i++)
