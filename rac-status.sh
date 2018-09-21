@@ -8,10 +8,11 @@
 # Please have a look at https://unknowndba.blogspot.com/2018/04/rac-statussh-overview-of-your-rac-gi.html for some details and screenshots
 # The script last version can be downloaded here : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/rac-status.sh
 #
-# The current script version is 20180227
+# The current script version is 20180921
 #
 # History :
 #
+# 20180921 - Fred Denis - Added the listeners
 # 20180227 - Fred Denis - Make the the size of the DB column dynamic to handle very long database names (Thanks Michael)
 #                       - Added a (P) for Primary databases and a (S) for Stanby for color blind people who
 #                         may not see the difference between white and red (Thanks Michael)
@@ -59,8 +60,13 @@ else
         printf "\n"
 fi
 
-crsctl stat res -p -w "TYPE = ora.database.type" >  $TMP
-crsctl stat res -v -w "TYPE = ora.database.type" >> $TMP
+crsctl stat res -p -w "TYPE = ora.database.type"        >  $TMP
+crsctl stat res -v -w "TYPE = ora.database.type"        >> $TMP
+crsctl stat res -v -w "TYPE = ora.listener.type"        >> $TMP
+crsctl stat res -p -w "TYPE = ora.listener.type"        >> $TMP
+crsctl stat res -v -w "TYPE = ora.scan_listener.type"   >> $TMP
+crsctl stat res -p -w "TYPE = ora.scan_listener.type"   >> $TMP
+
         awk  -v NODES="$NODES" 'BEGIN\
         {             FS = "="                          ;
                       split(NODES, nodes, ",")          ;       # Make a table with the nodes of the cluster
@@ -107,6 +113,7 @@ crsctl stat res -v -w "TYPE = ora.database.type" >> $TMP
                {
                         sub("^ora.", "", $2)                                                                    ;
                         sub(".db$", "", $2)                                                                     ;
+                        if ($2 ~ ".lsnr"){sub(".lsnr$", "", $2); tab_lsnr[$2] = $2}                             ;
                         DB=$2                                                                                   ;
                         if (length(DB)+2 > COL_DB)              # Adjust the size of the DB column in case of very long DB name
                         {                                       # +2 is to have 1 blank character before and after the DB name
@@ -116,32 +123,45 @@ crsctl stat res -v -w "TYPE = ora.database.type" >> $TMP
                         getline; getline                                                                        ;
                         if ($1 == "ACL")                        # crsctl stat res -p output
                         {
-                                if (DB in version == 0)
+                                if ((DB in version == 0) && (DB in tab_lsnr == 0))
                                 {
                                         while (getline)
-                                        {
-                                                if ($1 == "ORACLE_HOME")
-                                                {                    OH = $2                                    ;
-                                                        match($2, /1[0-9]\.[0-9]\.?[0-9]?\.?[0-9]?/)            ;       # Grab the version from the OH path)
-                                                                VERSION = substr($2,RSTART,RLENGTH)             ;
-                                                }
-                                                if ($1 == "DATABASE_TYPE")                                              # RAC / RACOneNode / Single Instance are expected here
+                                        {       if ( ! is_a_listener)
                                                 {
-                                                             dbtype[DB] = $2                                    ;
-                                                }
-                                                if ($1 == "ROLE")                                                       # Primary / Standby expected here
-                                                {              role[DB] = $2                                    ;
-                                                }
-                                                if ($0 ~ /^$/)
-                                                {           version[DB] = VERSION                               ;
-                                                                 oh[DB] = OH                                    ;
-
-                                                        if (!(OH in oh_list))
-                                                        {
-                                                                oh_ref++                                        ;
-                                                            oh_list[OH] = oh_ref                                ;
+                                                        if ($1 == "ORACLE_HOME")
+                                                        {                    OH = $2                                    ;
+                                                                match($2, /1[0-9]\.[0-9]\.?[0-9]?\.?[0-9]?/)            ;       # Grab the version from the OH path)
+                                                                        VERSION = substr($2,RSTART,RLENGTH)             ;
                                                         }
-                                                        break                                                   ;
+                                                        if ($1 == "DATABASE_TYPE")                                              # RAC / RACOneNode / Single Instance are expected here
+                                                        {
+                                                                     dbtype[DB] = $2                                    ;
+                                                        }
+                                                        if ($1 == "ROLE")                                                       # Primary / Standby expected here
+                                                        {              role[DB] = $2                                    ;
+                                                        }
+                                                        if ($0 ~ /^$/)
+                                                        {           version[DB] = VERSION                               ;
+                                                                         oh[DB] = OH                                    ;
+
+                                                                if (!(OH in oh_list))
+                                                                {
+                                                                        oh_ref++                                        ;
+                                                                    oh_list[OH] = oh_ref                                ;
+                                                                }
+                                                                break                                                   ;
+                                                        }
+                                                }
+                                        }
+                                }
+                                if (DB in tab_lsnr == 1)
+                                {
+                                        while(getline)
+                                        {
+                                                if ($1 == "ENDPOINTS")
+                                                {
+                                                        port[DB] = $2                                                   ;
+                                                        break                                                           ;
                                                 }
                                         }
                                 }
@@ -151,16 +171,64 @@ crsctl stat res -v -w "TYPE = ora.database.type" >> $TMP
                                 SERVER = $2     ;
                                 while (getline)
                                 {
-                                        if ($1 == "LAST_SERVER")        {       SERVER = $2                     ;}
-                                        if ($1 == "STATE_DETAILS")      {       NB++                            ;       # Number of instances we came through
-                                                                                sub("STATE_DETAILS=", "", $0)   ;
-                                                                                status[DB,SERVER] = $0          ; }
-                                        if ($1 == "INSTANCE_COUNT")     {       if (NB == $2) { break           ;}}
+                                        if ($1 == "LAST_SERVER")        {       SERVER = $2                             ;}
+                                        if ($1 == "STATE")              {       gsub(" on .*$", "", $2)                 ;
+                                                                                if ($2 ~ /ONLINE/ ) {STATE="Online"     ;}
+                                                                                if ($2 ~ /OFFLINE/) {STATE="Offline"    ;}
+                                                                        }
+                                        if ($1 == "TARGET")             {       TARGET = $2                             ;}
+                                        if ($1 == "STATE_DETAILS")      {       NB++                                    ;       # Number of instances we came through
+                                                                                if ($2 == "")
+                                                                                {       status[DB,SERVER] = STATE       ;}
+                                                                                else {
+                                                                                        status[DB,SERVER] = $2          ;}
+                                                                                }
+                                        if ($1 == "INSTANCE_COUNT")     {       if (NB == $2) { break                   ;}}
                                 }
                         }
                 }       # End of if ($1 ~ /^NAME/)
             }
-            END {       # Print a header
+            END {       # A header for the listeners
+                        printf("%s", center("Listener" ,  COL_DB, WHITE))                                       ;
+                        printf("%s", center("Port"     , COL_VER, WHITE))                                       ;
+                        n=asort(nodes)                                                                          ;       # sort array nodes
+                        for (i = 1; i <= n; i++) {
+                                printf("%s", center(nodes[i], COL_NODE, WHITE))                                 ;
+                        }
+                        printf("%s", center("Type"    , COL_TYPE, WHITE))                                       ;
+                        printf("\n")                                                                            ;
+
+
+                        # a "---" line under the header
+                        print_a_line()                                                                          ;
+
+                        # print the listeners
+                        x=asorti(tab_lsnr, lsnr_sorted)                                                         ;
+                        for (j = 1; j <= x; j++)
+                        {
+                                printf("%s", center(lsnr_sorted[j]   , COL_DB, WHITE))                          ;       # Listener name
+                                printf(COLOR_BEGIN WHITE " %-8s" COLOR_END, port[lsnr_sorted[j]], COL_VER, WHITE);      # Port
+                                printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|","")                                 ;       # Nothing
+
+                                for (i = 1; i <= n; i++)
+                                {
+                                        dbstatus = status[lsnr_sorted[j],nodes[i]]                              ;
+
+                                        if (dbstatus == "")             {printf("%s", center(UNKNOWN , COL_NODE, BLUE         ))      ;}      else
+                                        if (dbstatus == "Online")       {printf("%s", center(dbstatus, COL_NODE, GREEN        ))      ;}
+                                        else                            {printf("%s", center(dbstatus, COL_NODE, RED          ))      ;}
+                                }
+                                if (toupper(lsnr_sorted[j]) ~ /SCAN/)
+                                {       LSNR_TYPE = "SCAN Listener"                                             ;
+                                } else {
+                                        LSNR_TYPE = "Listener"                                                  ;
+                                }
+                                printf("%s", center(LSNR_TYPE, COL_TYPE, WHITE))                                ;
+                                printf("\n")                                                                    ;
+                        }
+                        printf("\n")                                                                            ;
+
+                        # A header for the databases
                         printf("%s", center("DB"        , COL_DB, WHITE))                                       ;
                         printf("%s", center("Version"   , COL_VER, WHITE))                                      ;
                         n=asort(nodes)                                                                          ;       # sort array nodes
@@ -170,10 +238,10 @@ crsctl stat res -v -w "TYPE = ora.database.type" >> $TMP
                         printf("%s", center("DB Type"    , COL_TYPE, WHITE))                                    ;
                         printf("\n")                                                                            ;
 
-
                         # a "---" line under the header
                         print_a_line()                                                                          ;
 
+                        # Print the databases
                         m=asorti(version, version_sorted)                                                       ;
                         for (j = 1; j <= m; j++)
                         {
