@@ -178,10 +178,11 @@ crsctl stat res -p -w "TYPE = ora.scan_listener.type"   >> $TMP
                                                                         }
                                         if ($1 == "TARGET")             {       TARGET = $2                             ;}
                                         if ($1 == "STATE_DETAILS")      {       NB++                                    ;       # Number of instances we came through
-                                                                                if ($2 == "")
+                                                                                sub("STATE_DETAILS=", "", $0)           ;
+                                                                                if ($0 == "")
                                                                                 {       status[DB,SERVER] = STATE       ;}
                                                                                 else {
-                                                                                        status[DB,SERVER] = $2          ;}
+                                                                                        status[DB,SERVER] = $0          ;}
                                                                                 }
                                         if ($1 == "INSTANCE_COUNT")     {       if (NB == $2) { break                   ;}}
                                 }
