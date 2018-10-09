@@ -12,6 +12,7 @@
 #
 # History :
 #
+# 20181009 - Fred Denis - Show the usual blue "-" when a target is offline on purpose instead of a red "Offline" which was confusing
 # 20180921 - Fred Denis - Added the listeners
 # 20180227 - Fred Denis - Make the the size of the DB column dynamic to handle very long database names (Thanks Michael)
 #                       - Added a (P) for Primary databases and a (S) for Stanby for color blind people who
@@ -174,7 +175,7 @@ crsctl stat res -p -w "TYPE = ora.scan_listener.type"   >> $TMP
                                         if ($1 == "LAST_SERVER")        {       SERVER = $2                             ;}
                                         if ($1 == "STATE")              {       gsub(" on .*$", "", $2)                 ;
                                                                                 if ($2 ~ /ONLINE/ ) {STATE="Online"     ;}
-                                                                                if ($2 ~ /OFFLINE/) {STATE="Offline"    ;}
+                                                                                if ($2 ~ /OFFLINE/) {STATE=""           ;}
                                                                         }
                                         if ($1 == "TARGET")             {       TARGET = $2                             ;}
                                         if ($1 == "STATE_DETAILS")      {       NB++                                    ;       # Number of instances we came through
@@ -209,9 +210,6 @@ crsctl stat res -p -w "TYPE = ora.scan_listener.type"   >> $TMP
                         {
                                 printf("%s", center(lsnr_sorted[j]   , COL_DB, WHITE))                          ;       # Listener name
                                 printf(COLOR_BEGIN WHITE " %-8s" COLOR_END, port[lsnr_sorted[j]], COL_VER, WHITE);      # Port
-                                if (length(port[lsnr_sorted[j]]) > COL_VER)
-                                {       printf("\n%"(COL_DB+10)"s", "") ;
-                                }
                                 printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|","")                                 ;       # Nothing
 
                                 for (i = 1; i <= n; i++)
