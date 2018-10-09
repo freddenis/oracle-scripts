@@ -127,31 +127,29 @@ crsctl stat res -p -w "TYPE = ora.scan_listener.type"   >> $TMP
                                 if ((DB in version == 0) && (DB in tab_lsnr == 0))
                                 {
                                         while (getline)
-                                        {       if ( ! is_a_listener)
+                                        {
+                                                if ($1 == "ORACLE_HOME")
+                                                {                    OH = $2                                    ;
+                                                        match($2, /1[0-9]\.[0-9]\.?[0-9]?\.?[0-9]?/)            ;       # Grab the version from the OH path)
+                                                                VERSION = substr($2,RSTART,RLENGTH)             ;
+                                                }
+                                                if ($1 == "DATABASE_TYPE")                                              # RAC / RACOneNode / Single Instance are expected here
                                                 {
-                                                        if ($1 == "ORACLE_HOME")
-                                                        {                    OH = $2                                    ;
-                                                                match($2, /1[0-9]\.[0-9]\.?[0-9]?\.?[0-9]?/)            ;       # Grab the version from the OH path)
-                                                                        VERSION = substr($2,RSTART,RLENGTH)             ;
-                                                        }
-                                                        if ($1 == "DATABASE_TYPE")                                              # RAC / RACOneNode / Single Instance are expected here
-                                                        {
-                                                                     dbtype[DB] = $2                                    ;
-                                                        }
-                                                        if ($1 == "ROLE")                                                       # Primary / Standby expected here
-                                                        {              role[DB] = $2                                    ;
-                                                        }
-                                                        if ($0 ~ /^$/)
-                                                        {           version[DB] = VERSION                               ;
-                                                                         oh[DB] = OH                                    ;
+                                                             dbtype[DB] = $2                                    ;
+                                                }
+                                                if ($1 == "ROLE")                                                       # Primary / Standby expected here
+                                                {              role[DB] = $2                                    ;
+                                                }
+                                                if ($0 ~ /^$/)
+                                                {           version[DB] = VERSION                               ;
+                                                                 oh[DB] = OH                                    ;
 
-                                                                if (!(OH in oh_list))
-                                                                {
-                                                                        oh_ref++                                        ;
-                                                                    oh_list[OH] = oh_ref                                ;
-                                                                }
-                                                                break                                                   ;
+                                                        if (!(OH in oh_list))
+                                                        {
+                                                                oh_ref++                                        ;
+                                                            oh_list[OH] = oh_ref                                ;
                                                         }
+                                                        break                                                   ;
                                                 }
                                         }
                                 }
