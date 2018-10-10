@@ -8,10 +8,11 @@
 # Please have a look at https://unknowndba.blogspot.com/2018/04/rac-statussh-overview-of-your-rac-gi.html for some details and screenshots
 # The script last version can be downloaded here : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/rac-status.sh
 #
-# The current script version is 20180921
+# The current script version is 20181010
 #
 # History :
 #
+# 20181010 - Fred Denis - Added the services
 # 20181009 - Fred Denis - Show the usual blue "-" when a target is offline on purpose instead of a red "Offline" which was confusing
 # 20180921 - Fred Denis - Added the listeners
 # 20180227 - Fred Denis - Make the the size of the DB column dynamic to handle very long database names (Thanks Michael)
@@ -67,6 +68,8 @@ crsctl stat res -v -w "TYPE = ora.listener.type"        >> $TMP
 crsctl stat res -p -w "TYPE = ora.listener.type"        >> $TMP
 crsctl stat res -v -w "TYPE = ora.scan_listener.type"   >> $TMP
 crsctl stat res -p -w "TYPE = ora.scan_listener.type"   >> $TMP
+crsctl stat res -v -w "TYPE = ora.service.type"         >> $TMP
+#crsctl stat res -p -w "TYPE = ora.service.type"                >> $TMP         # not used, in case we need it one day
 
         awk  -v NODES="$NODES" 'BEGIN\
         {             FS = "="                          ;
@@ -102,10 +105,13 @@ crsctl stat res -p -w "TYPE = ora.scan_listener.type"   >> $TMP
         #
         # A function that just print a "---" white line
         #
-        function print_a_line()
+        function print_a_line(size)
         {
+                if ( ! size)
+                {       size = COL_DB+COL_VER+(COL_NODE*n)+COL_TYPE+n+3                                         ;
+                }
                 printf("%s", COLOR_BEGIN WHITE)                                                                 ;
-                for (k=1; k<=COL_DB+COL_VER+(COL_NODE*n)+COL_TYPE+n+3; k++) {printf("%s", "-");}                ;       # n = number of nodes
+                for (k=1; k<=size; k++) {printf("%s", "-");}                                                    ;       # n = number of nodes
                 printf("%s", COLOR_END"\n")                                                                     ;
         }
         {
@@ -114,7 +120,8 @@ crsctl stat res -p -w "TYPE = ora.scan_listener.type"   >> $TMP
                {
                         sub("^ora.", "", $2)                                                                    ;
                         sub(".db$", "", $2)                                                                     ;
-                        if ($2 ~ ".lsnr"){sub(".lsnr$", "", $2); tab_lsnr[$2] = $2}                             ;
+                        if ($2 ~ ".lsnr"){sub(".lsnr$", "", $2); tab_lsnr[$2] = $2}                             ;       # Listeners
+                        if ($2 ~ ".svc"){sub(".svc$", "", $2); tab_svc[$2] = $2}                                ;       # Services
                         DB=$2                                                                                   ;
                         if (length(DB)+2 > COL_DB)              # Adjust the size of the DB column in case of very long DB name
                         {                                       # +2 is to have 1 blank character before and after the DB name
@@ -124,7 +131,7 @@ crsctl stat res -p -w "TYPE = ora.scan_listener.type"   >> $TMP
                         getline; getline                                                                        ;
                         if ($1 == "ACL")                        # crsctl stat res -p output
                         {
-                                if ((DB in version == 0) && (DB in tab_lsnr == 0))
+                                if ((DB in version == 0) && (DB in tab_lsnr == 0) && (DB in tab_svc == 0))
                                 {
                                         while (getline)
                                         {
@@ -159,8 +166,8 @@ crsctl stat res -p -w "TYPE = ora.scan_listener.type"   >> $TMP
                                         {
                                                 if ($1 == "ENDPOINTS")
                                                 {
-                                                        port[DB] = $2                                                   ;
-                                                        break                                                           ;
+                                                        port[DB] = $2                                           ;
+                                                        break                                                   ;
                                                 }
                                         }
                                 }
@@ -198,7 +205,6 @@ crsctl stat res -p -w "TYPE = ora.scan_listener.type"   >> $TMP
                         printf("%s", center("Type"    , COL_TYPE, WHITE))                                       ;
                         printf("\n")                                                                            ;
 
-
                         # a "---" line under the header
                         print_a_line()                                                                          ;
 
@@ -226,6 +232,41 @@ crsctl stat res -p -w "TYPE = ora.scan_listener.type"   >> $TMP
                                 printf("%s", center(LSNR_TYPE, COL_TYPE, WHITE))                                ;
                                 printf("\n")                                                                    ;
                         }
+                        # a "---" line under the header
+                        print_a_line()                                                                          ;
+                        printf("\n")                                                                            ;
+
+                        # A header for the services
+                        COL_SVC=COL_DB+COL_VER+1                                                                ;       # We need no second colum
+                        printf("%s", center("Service" ,  COL_SVC, WHITE))                                       ;
+                        n=asort(nodes)                                                                          ;       # sort array nodes
+                        for (i = 1; i <= n; i++) {
+                                printf("%s", center(nodes[i], COL_NODE, WHITE))                                 ;
+                        }
+                        printf("\n")
+
+                        # a "---" line under the header
+                        print_a_line(COL_SVC+COL_NODE*n+n+1)                                                    ;
+
+
+                        # Print the Services
+                        x=asorti(tab_svc, svc_sorted)                                                           ;
+                        for (j = 1; j <= x; j++)
+                        {
+                                printf("%s", center(svc_sorted[j]   , COL_SVC, WHITE))                          ;      # Service name
+
+                                for (i = 1; i <= n; i++)
+                                {
+                                        dbstatus = status[svc_sorted[j],nodes[i]]                              ;
+
+                                        if (dbstatus == "")             {printf("%s", center(UNKNOWN , COL_NODE, BLUE         ))      ;}      else
+                                        if (dbstatus == "Online")       {printf("%s", center(dbstatus, COL_NODE, GREEN        ))      ;}
+                                        else                            {printf("%s", center(dbstatus, COL_NODE, RED          ))      ;}
+                                }
+                                printf("\n")                                                                    ;
+                        }
+                        # a "---" line under the header
+                        print_a_line(COL_SVC+COL_NODE*n+n+1)                                                    ;
                         printf("\n")                                                                            ;
 
                         # A header for the databases
