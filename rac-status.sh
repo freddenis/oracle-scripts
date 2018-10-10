@@ -13,7 +13,7 @@
 # History :
 #
 # 20181010 - Fred Denis - Added the services
-#                         Added default value and options to show and hide some resources (./rac-status.sh -h for more information)
+#                         Added default values and options to show and hide some resources (./rac-status.sh -h for more information)
 # 20181009 - Fred Denis - Show the usual blue "-" when a target is offline on purpose instead of a red "Offline" which was confusing
 # 20180921 - Fred Denis - Added the listeners
 # 20180227 - Fred Denis - Make the the size of the DB column dynamic to handle very long database names (Thanks Michael)
@@ -94,7 +94,7 @@ SHOW_LSNR="YES"                 # Listeners
  SHOW_SVC="NO"
 
 # Options
-while getopts "andsl" OPT; do
+while getopts "andslh" OPT; do
         case ${OPT} in
         a)         SHOW_DB="YES"        ; SHOW_LSNR="YES"       ; SHOW_SVC="YES"                ;;
         n)         SHOW_DB="NO"         ; SHOW_LSNR="NO"        ; SHOW_SVC="NO"                 ;;
