@@ -1,255 +1,441 @@
 #!/bin/bash
-# Fred Denis -- Jun 2016 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
-#
-# This scripts shows a clear and colored status of the ASM used and free space
-# Please have a look at the usage function or $0 -h for the available options and their description
-# More information and screenshots : https://unknowndba.blogspot.ca/2018/03/asmdush-far-better-du-for-asmcmd.html
-#
-# A note on the --nocp option
-# Note that the --nocp asmcmd option (it disables the connection pooling) has been originaly implemented
-# as a workaround of a bug that appeared with the April 2016 PSU
-# It resolves error messages like this one :
-# sh: -c: line 0: unexpected EOF while looking for matching `''
-# sh: -c: line 1: syntax error: unexpected end of file
+# Fred Denis -- Jan 2016 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
 #
 #
+# Quickly shows a status of all running instances accross a 12c cluster
+# The script just need to have a working oraenv
 #
-# The current version of the script is 20180827
+# Please have a look at https://unknowndba.blogspot.com/2018/04/rac-statussh-overview-of-your-rac-gi.html for some details and screenshots
+# The script last version can be downloaded here : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/rac-status.sh
 #
-# 20180827 - A better regexp to list the instances running
-# 20180503 - GI 12c introduces a "Logical_Sector" column, took this into account (Thanks Leon !)
-# 20180327 - "Raw Used " label for the subdirectories "Mirror_used_MB" column, adjustments in the help
-# 20180318 - Shows only mirrored sizes by default and the total non mirrored size only shown with the -v option
-# 20180211 - Many improvements :
-#               - -d options to list the subdirectories of a directory
-#               - -v option to show the Raw Free and Reserverd size
-#               - -m -g and -t to choose the Unit you want the report to be in
-#               - Default values and verbosity can be changed using the DEFAULT_UNIT and the DEFAULT_VERBOSE variables
-#               - A nice usage function
-# 20170719 - Remove the --nocp option as default
+# The current script version is 20181010
+#
+# History :
+#
+# 20181010 - Fred Denis - Added the services
+#                         Added default value and options to show and hide some resources (./rac-status.sh -h for more information)
+# 20181009 - Fred Denis - Show the usual blue "-" when a target is offline on purpose instead of a red "Offline" which was confusing
+# 20180921 - Fred Denis - Added the listeners
+# 20180227 - Fred Denis - Make the the size of the DB column dynamic to handle very long database names (Thanks Michael)
+#                       - Added a (P) for Primary databases and a (S) for Stanby for color blind people who
+#                         may not see the difference between white and red (Thanks Michael)
+# 20180225 - Fred Denis - Make the multi status like "Mounted (Closed),Readonly,Open Initiated" clear in the table by showing only the first one
+# 20180205 - Fred Denis - There was a version alignement issue with more than 10 different ORACLE_HOMEs
+#                       - Better colors for the label "White for PRIMARY, Red for STANBY"
+# 20171218 - Fred Denis - Modify the regexp to better accomodate how the version can be in the path (cannot get it from crsctl)
+# 20170620 - Fred Denis - Parameters for the size of the columns and some formatting
+# 20170619 - Fred Denis - Add a column type (RAC / RacOneNode / Single Instance) and color it depending on the role of the database
+#                         (WHITE for a PRIMARY database and RED for a STANDBY database)
+# 20170616 - Fred Denis - Shows an ORACLE_HOME reference in the Version column and an ORACLE_HOME list below the table
+# 20170606 - Fred Denis - A new 12cR2 GI feature now shows the ORACLE_HOME in the STATE_DETAILS column from "crsctl -v"
+#                       - Example :     STATE_DETAILS=Open,HOME=/u01/app/oracle/product/11.2.0.3/dbdev_1 instead of STATE_DETAILS=Open in 12cR1
+# 20170518 - Fred Denis - Add  a readable check on the ${DBMACHINE} file - it happens that it exists but is only root readable
+# 20170501 - Fred Denis - First release
 #
 
-#
-# Default values (when no option is specified in the command line)
-# The last uncommented value wins
-#
+      TMP=/tmp/status$$.tmp                                             # A tempfile
+DBMACHINE=/opt/oracle.SupportTools/onecommand/databasemachine.xml       # File where we should find the Exadata model as oracle user
 
-DEFAULT_UNIT="MB"       # asmcmd default
-DEFAULT_UNIT="GB"
-DEFAULT_UNIT="TB"
-
-DEFAULT_VERBOSE="Yes"
-DEFAULT_VERBOSE="No"
-
-#
-# Colored thresholds (Red, Yellow, Green)
-#
-            CRITICAL=90
-             WARNING=75
-
-#
 # An usage function
-#
 usage()
 {
 printf "\n\033[1;37m%-8s\033[m\n" "NAME"                ;
 cat << END
-        asmdu.sh - Shows a nice summary of the ASM diskgroups sizes
+        `basename $0` - A nice overview of databases, listeners and services running across a GI 12c
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
 cat << END
-        $0 [-d] [-m -g -t] [-v] [-h]
+        $0 [-a] [-n] [-d] [-l] [-s] [-h]
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
 cat << END
-        $0 needs to be executed as the GI owner user to be able to use asmcmd
-        With no option $0 will be showing what instances are running and a size summary for each DiskGroup
+        `basename $0` needs to be executed with a user allowed to query GI using crsctl; oraenv also has to be working
+        `basename $0` will show what is running or not running accross all the nodes of a GI 12c :
+                - The databases instances (and the ORACLE_HOME they are running against)
+                - The type of database : Primary, Standby, RAC One node, Single
+                - The listeners (SCAN Listener and regular listeners)
+                - The services
+        With no option, `basename $0` will show what is defined by the variables :
+                - SHOW_DB       # To show the databases instances
+                - SHOW_LSNR     # To show the listeners
+                - SHOW_SVC      # To show the services
+                These variables can be modified in the script itself or you can use command line option to revert their value (see below)
+
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"             ;
 cat << END
-        -d        The directory you want the size details
-
-        -v        Verbose -- show the "Total Raw", "Raw Free" and "Reserved" size
-                  You can change the default behavior with the DEFAULT_VERBOSE variable
-
-        -m        Shows the output in MB
-        -g        Shows the output in GB
-        -t        Shows the output in TB
-        -m -g -t  The default Unit can be specified using the DEFAULT_UNIT variable
-                  If more than one of these options is specified, the last one wins
-
+        -a        Show everything regardless of the default behavior defined with SHOW_DB, SHOW_LSNR and SHOW_SVC
+        -n        Show nothing    regardless of the default behavior defined with SHOW_DB, SHOW_LSNR and SHOW_SVC
+        -d        Revert the behavior defined by SHOW_DB  ; if SHOW_DB   is set to YES to show the databases by default, then the -d option will hide the databases
+        -l        Revert the behavior defined by SHOW_LSNR; if SHOW_LSNR is set to YES to show the listeners by default, then the -l option will hide the listeners
+        -s        Revert the behavior defined by SHOW_SVC ; if SHOW_SVC  is set to YES to show the services  by default, then the -s option will hide the services
         -h        Shows this help
+
+        Note : the options are cumulative and can be combined with a "the last one wins" behavior :
+                $ $0 -a -l              # Show everything but the listeners (-a will force show everything then -l will hide the listeners)
+                $ $0 -n -d              # Show only the databases           (-n will force hide everything then -d with show the databases)
+
+                Experiment and enjoy  !
 
 END
 exit 123
 }
 
-#
-# Parameters management
-#
+# Choose the information what you want to see -- the last uncommented value wins
+# ./rac-status.sh -h for more information
+  SHOW_DB="YES"                 # Databases
+ #SHOW_DB="NO"
+SHOW_LSNR="YES"                 # Listeners
+#SHOW_LSNR="NO"
+ SHOW_SVC="YES"                 # Services
+ SHOW_SVC="NO"
 
-    PARAM_UNIT=""
- PARAM_VERBOSE=""
-
-while getopts "d:mgtvh" OPT; do
+# Options
+while getopts "andsl" OPT; do
         case ${OPT} in
-        d)                  D=${OPTARG}                         ;;
-        m)         PARAM_UNIT="MB"                              ;;
-        g)         PARAM_UNIT="GB"                              ;;
-        t)         PARAM_UNIT="TB"                              ;;
-        v)      PARAM_VERBOSE="Yes"                             ;;
-        h)      usage                                           ;;
-        \?) echo "Invalid option: -$OPTARG" >&2; usage          ;;
+        a)         SHOW_DB="YES"        ; SHOW_LSNR="YES"       ; SHOW_SVC="YES"                ;;
+        n)         SHOW_DB="NO"         ; SHOW_LSNR="NO"        ; SHOW_SVC="NO"                 ;;
+        d)         if [ "$SHOW_DB"   = "YES" ]; then   SHOW_DB="NO"; else   SHOW_DB="YES"; fi   ;;
+        s)         if [ "$SHOW_SVC"  = "YES" ]; then  SHOW_SVC="NO"; else  SHOW_SVC="YES"; fi   ;;
+        l)         if [ "$SHOW_LSNR" = "YES" ]; then SHOW_LSNR="NO"; else SHOW_LSNR="YES"; fi   ;;
+        h)         usage                                                                        ;;
+        \?)        echo "Invalid option: -$OPTARG" >&2; usage                                   ;;
         esac
 done
-
-if [[ -z ${PARAM_UNIT} ]]
-then    # No parameter specified, we use the default
-        UNIT=${DEFAULT_UNIT}
-else
-        UNIT=${PARAM_UNIT}
-fi
-if [[ -z ${PARAM_VERBOSE} ]]
-then    # No parameter specified, we use the default
-        VERBOSE=${DEFAULT_VERBOSE}
-else
-        VERBOSE=${PARAM_VERBOSE}
-fi
-
 #
-# Set the ASM env
+# Set the ASM env to be able to use crsctl commands
 #
-OLD_SID=${ORACLE_SID}
 ORACLE_SID=`ps -ef | grep pmon | grep asm | awk '{print $NF}' | sed s'/asm_pmon_//' | egrep "^[+]"`
+
 export ORAENV_ASK=NO
 . oraenv > /dev/null 2>&1
 
+#
+# List of the nodes of the cluster
+#
+NODES=`olsnodes | awk '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}'`
 
 #
-# A quick list of the instances that are running on the server
+# Show the Exadata model if possible (if this cluster is an Exadata)
 #
-ps -ef | grep pmon | grep -v grep | awk '{print $NF}' | sed s'/.*_//g' | sort | awk -v H="`hostname -s`" 'BEGIN {printf("\n%s", "Instances running on " H " : ")} { printf("%s, ", $0)} END{printf("\n")}' | sed s'/, $//'
+if [ -f ${DBMACHINE} ] && [ -r ${DBMACHINE} ]
+then
+        cat << !
 
+                Cluster is a `grep -i MACHINETYPES ${DBMACHINE} | sed -e s':</*MACHINETYPES>::g' -e s'/^ *//' -e s'/ *$//'`
 
-#
-# Manage parameters
-#
-if [[ -z $D ]]
-then        # No directory provided, will check all the DG
-            DG=`asmcmd lsdg | grep -v State | awk '{print $NF}' | sed s'/\///'`
-        SUBDIR="No"                 # Do not show the subdirectories details if no directory is specified
+!
 else
-            DG=`echo $D | sed s'/\/.*$//g'`
+        printf "\n"
 fi
 
-
-#
-# A header
-#
-
-printf "\n%25s%16s\033[1;37m%16s\033[m"   "DiskGroup" "Redundancy" "Total ${UNIT}"      # "Raw Free ${UNIT}" "Reserved ${UNIT}"  "Usable ${UNIT}" "% Free"
-if [[ ${VERBOSE} == "Yes" ]]
+# Get the info we want
+cat /dev/null                                                   >  $TMP
+if [ "$SHOW_DB" = "YES" ]
 then
-        printf "%16s%16s%16s" "Raw Total ${UNIT}" "Raw Free ${UNIT}" "Reserved ${UNIT}"
+        crsctl stat res -p -w "TYPE = ora.database.type"        >> $TMP
+        crsctl stat res -v -w "TYPE = ora.database.type"        >> $TMP
 fi
-printf "\033[1;37m%16s\033[m\033[1;37m%14s\033[m\n" "Usable ${UNIT}" "% Free"
-
-printf "%25s%16s\033[1;37m%16s\033[m"   "---------"     "-----------" "--------"
-if [[ ${VERBOSE} == "Yes" ]]
+if [ "$SHOW_LSNR" = "YES" ]
 then
-        printf "%16s%16s%16s"           "------------"  "-----------" "-----------"
+        crsctl stat res -v -w "TYPE = ora.listener.type"        >> $TMP
+        crsctl stat res -p -w "TYPE = ora.listener.type"        >> $TMP
+        crsctl stat res -v -w "TYPE = ora.scan_listener.type"   >> $TMP
+        crsctl stat res -p -w "TYPE = ora.scan_listener.type"   >> $TMP
 fi
-printf "\033[1;37m%16s\033[m%14s\n"     "---------"     "------"
+if [ "$SHOW_SVC" = "YES" ]
+then
+        crsctl stat res -v -w "TYPE = ora.service.type"         >> $TMP
+        #crsctl stat res -p -w "TYPE = ora.service.type"        >> $TMP         # not used, in case we need it one day
+fi
 
+        awk  -v NODES="$NODES" 'BEGIN\
+        {             FS = "="                          ;
+                      split(NODES, nodes, ",")          ;       # Make a table with the nodes of the cluster
+                # some colors
+             COLOR_BEGIN =       "\033[1;"              ;
+               COLOR_END =       "\033[m"               ;
+                     RED =       "31m"                  ;
+                   GREEN =       "32m"                  ;
+                  YELLOW =       "33m"                  ;
+                    BLUE =       "34m"                  ;
+                    TEAL =       "36m"                  ;
+                   WHITE =       "37m"                  ;
 
-#
-# Show DG info
-#
-for X in ${DG}
-do
-            asmcmd lsdg ${X} | tail -1 |\
-                awk -v DG="$X"  -v W="$WARNING" -v C="$CRITICAL" -v UNIT="$UNIT" -v VERBOSE="$VERBOSE" '\
-                BEGIN \
-                {COLOR_BEGIN =           "\033[1;"                                      ;
-                   COLOR_END =           "\033[m"                                       ;
-                         RED =           COLOR_BEGIN"31m"                               ;
-                       GREEN =           COLOR_BEGIN"32m"                               ;
-                      YELLOW =           COLOR_BEGIN"33m"                               ;
-                       WHITE =           COLOR_BEGIN"37m"                               ;
-                       COLOR =           GREEN                                          ;
-                     DIVIDER =           1                                              ;       # Unit divider
-                     RED_DIV =           1                                              ;       # Redundancy divider
+                 UNKNOWN = "-"                          ;       # Something to print when the status is unknown
 
-                        if (UNIT == "GB")       { DIVIDER="1024"}                       ;
-                        if (UNIT == "TB")       { DIVIDER="1048576"}                    ;       # 1024 * 1024
+                # Default columns size
+                COL_NODE = 18                           ;
+                  COL_DB = 12                           ;
+                 COL_VER = 15                           ;
+                COL_TYPE = 14                           ;
+        }
+
+        #
+        # A function to center the outputs with colors
+        #
+        function center( str, n, color)
+        {       right = int((n - length(str)) / 2)                                                              ;
+                left  = n - length(str) - right                                                                 ;
+                return sprintf(COLOR_BEGIN color "%" left "s%s%" right "s" COLOR_END "|", "", str, "" )         ;
+        }
+
+        #
+        # A function that just print a "---" white line
+        #
+        function print_a_line(size)
+        {
+                if ( ! size)
+                {       size = COL_DB+COL_VER+(COL_NODE*n)+COL_TYPE+n+3                                         ;
                 }
-                {       if ($2 == "HIGH")           {RED_DIV=3                          ;}      # Redundancy divider
-                        if ($2 == "NORMAL")         {RED_DIV=2                          ;}      # Redundancy divider
+                printf("%s", COLOR_BEGIN WHITE)                                                                 ;
+                for (k=1; k<=size; k++) {printf("%s", "-");}                                                    ;       # n = number of nodes
+                printf("%s", COLOR_END"\n")                                                                     ;
+        }
+        {
+               # Fill 2 tables with the OH and the version from "crsctl stat res -p -w "TYPE = ora.database.type""
+               if ($1 ~ /^NAME/)
+               {
+                        sub("^ora.", "", $2)                                                                    ;
+                        sub(".db$", "", $2)                                                                     ;
+                        if ($2 ~ ".lsnr"){sub(".lsnr$", "", $2); tab_lsnr[$2] = $2}                             ;       # Listeners
+                        if ($2 ~ ".svc"){sub(".svc$", "", $2); tab_svc[$2] = $2}                                ;       # Services
+                        DB=$2                                                                                   ;
+                        if (length(DB)+2 > COL_DB)              # Adjust the size of the DB column in case of very long DB name
+                        {                                       # +2 is to have 1 blank character before and after the DB name
+                                COL_DB = length(DB)+2                                                           ;
+                        }
 
-                       TOTAL = sprintf("%16.2f", $(NF-6)/DIVIDER/RED_DIV)               ;       # Total mirrored in Unit
-                      USABLE = sprintf("%16.2f", $(NF-3)/DIVIDER)                       ;       # Usable space in Unit
-                        FREE = sprintf("%12d"  , USABLE/TOTAL*100)                      ;       # % Free calculated using the Usable size
+                        getline; getline                                                                        ;
+                        if ($1 == "ACL")                        # crsctl stat res -p output
+                        {
+                                if ((DB in version == 0) && (DB in tab_lsnr == 0) && (DB in tab_svc == 0))
+                                {
+                                        while (getline)
+                                        {
+                                                if ($1 == "ORACLE_HOME")
+                                                {                    OH = $2                                    ;
+                                                        match($2, /1[0-9]\.[0-9]\.?[0-9]?\.?[0-9]?/)            ;       # Grab the version from the OH path)
+                                                                VERSION = substr($2,RSTART,RLENGTH)             ;
+                                                }
+                                                if ($1 == "DATABASE_TYPE")                                              # RAC / RACOneNode / Single Instance are expected here
+                                                {
+                                                             dbtype[DB] = $2                                    ;
+                                                }
+                                                if ($1 == "ROLE")                                                       # Primary / Standby expected here
+                                                {              role[DB] = $2                                    ;
+                                                }
+                                                if ($0 ~ /^$/)
+                                                {           version[DB] = VERSION                               ;
+                                                                 oh[DB] = OH                                    ;
 
-                        if ((100-FREE) > W)     { COLOR=YELLOW                          ;}      # Colored %Free thresholds
-                        if ((100-FREE) > C)     { COLOR=RED                             ;}      # Colored %Free thresholds
+                                                        if (!(OH in oh_list))
+                                                        {
+                                                                oh_ref++                                        ;
+                                                            oh_list[OH] = oh_ref                                ;
+                                                        }
+                                                        break                                                   ;
+                                                }
+                                        }
+                                }
+                                if (DB in tab_lsnr == 1)
+                                {
+                                        while(getline)
+                                        {
+                                                if ($1 == "ENDPOINTS")
+                                                {
+                                                        port[DB] = $2                                           ;
+                                                        break                                                   ;
+                                                }
+                                        }
+                                }
+                        }
+                        if ($1 == "LAST_SERVER")        # crsctl stat res -v output
+                        {           NB = 0      ;       # Number of instance as CARDINALITY_ID is sometimes irrelevant
+                                SERVER = $2     ;
+                                while (getline)
+                                {
+                                        if ($1 == "LAST_SERVER")        {       SERVER = $2                             ;}
+                                        if ($1 == "STATE")              {       gsub(" on .*$", "", $2)                 ;
+                                                                                if ($2 ~ /ONLINE/ ) {STATE="Online"     ;}
+                                                                                if ($2 ~ /OFFLINE/) {STATE=""           ;}
+                                                                        }
+                                        if ($1 == "TARGET")             {       TARGET = $2                             ;}
+                                        if ($1 == "STATE_DETAILS")      {       NB++                                    ;       # Number of instances we came through
+                                                                                sub("STATE_DETAILS=", "", $0)           ;
+                                                                                if ($0 == "")
+                                                                                {       status[DB,SERVER] = STATE       ;}
+                                                                                else {
+                                                                                        status[DB,SERVER] = $0          ;}
+                                                                                }
+                                        if ($1 == "INSTANCE_COUNT")     {       if (NB == $2) { break                   ;}}
+                                }
+                        }
+                }       # End of if ($1 ~ /^NAME/)
+            }
+            END {       if (length(tab_lsnr) > 0)                # We print only if we have something to show
+                        {
+                                # A header for the listeners
+                                printf("%s", center("Listener" ,  COL_DB, WHITE))                               ;
+                                printf("%s", center("Port"     , COL_VER, WHITE))                               ;
+                                n=asort(nodes)                                                                  ;       # sort array nodes
+                                for (i = 1; i <= n; i++) {
+                                        printf("%s", center(nodes[i], COL_NODE, WHITE))                         ;
+                                }
+                                printf("%s", center("Type"    , COL_TYPE, WHITE))                               ;
+                                printf("\n")                                                                    ;
 
-                    printf("%25s%16s%16s", DG, $2, WHITE TOTAL COLOR_END)               ;       # DG Redundancy and Total
+                                # a "---" line under the header
+                                print_a_line()                                                                  ;
 
-                    if (VERBOSE == "Yes")
-                    {
-                            printf("%16.2f%16.2f%16.2f", $(NF-6)/DIVIDER, $(NF-5)/DIVIDER, $(NF-4)/DIVIDER);       # Total Raw, Raw Free and reserved if Verbose
-                    }
-                    printf("%16s%14s\n", WHITE USABLE COLOR_END, COLOR FREE COLOR_END)  ;       # Usable and Free %
-                }'
-done
-printf "\n"
+                                # print the listeners
+                                x=asorti(tab_lsnr, lsnr_sorted)                                                 ;
+                                for (j = 1; j <= x; j++)
+                                {
+                                        printf("%s", center(lsnr_sorted[j]   , COL_DB, WHITE))                  ;       # Listener name
+                                        printf(COLOR_BEGIN WHITE " %-8s" COLOR_END, port[lsnr_sorted[j]], COL_VER, WHITE);      # Port
+                                        printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|","")                         ;       # Nothing
 
-#
-# Subdirs info
-#
-if [ -z ${SUBDIR} ]
+                                        for (i = 1; i <= n; i++)
+                                        {
+                                                dbstatus = status[lsnr_sorted[j],nodes[i]]                      ;
+
+                                                if (dbstatus == "")             {printf("%s", center(UNKNOWN , COL_NODE, BLUE         ))      ;}      else
+                                                if (dbstatus == "Online")       {printf("%s", center(dbstatus, COL_NODE, GREEN        ))      ;}
+                                                else                            {printf("%s", center(dbstatus, COL_NODE, RED          ))      ;}
+                                        }
+                                        if (toupper(lsnr_sorted[j]) ~ /SCAN/)
+                                        {       LSNR_TYPE = "SCAN Listener"                                     ;
+                                        } else {
+                                                LSNR_TYPE = "Listener"                                          ;
+                                        }
+                                        printf("%s", center(LSNR_TYPE, COL_TYPE, WHITE))                        ;
+                                        printf("\n")                                                            ;
+                                }
+                                # a "---" line under the header
+                                print_a_line()                                                                  ;
+                                printf("\n")                                                                    ;
+                        }
+
+                        if (length(tab_svc) > 0)                # We print only if we have something to show
+                        {
+                                # A header for the services
+                                COL_SVC=COL_DB+COL_VER+1                                                        ;       # We need no second colum
+                                printf("%s", center("Service" ,  COL_SVC, WHITE))                               ;
+                                n=asort(nodes)                                                                  ;       # sort array nodes
+                                for (i = 1; i <= n; i++) {
+                                        printf("%s", center(nodes[i], COL_NODE, WHITE))                         ;
+                                }
+                                printf("\n")
+
+                                # a "---" line under the header
+                                print_a_line(COL_SVC+COL_NODE*n+n+1)                                            ;
+
+
+                                # Print the Services
+                                x=asorti(tab_svc, svc_sorted)                                                   ;
+                                for (j = 1; j <= x; j++)
+                                {
+                                        printf("%s", center(svc_sorted[j]   , COL_SVC, WHITE))                  ;      # Service name
+
+                                        for (i = 1; i <= n; i++)
+                                        {
+                                                dbstatus = status[svc_sorted[j],nodes[i]]                       ;
+
+                                                if (dbstatus == "")             {printf("%s", center(UNKNOWN , COL_NODE, BLUE         ))      ;}      else
+                                                if (dbstatus == "Online")       {printf("%s", center(dbstatus, COL_NODE, GREEN        ))      ;}
+                                                else                            {printf("%s", center(dbstatus, COL_NODE, RED          ))      ;}
+                                        }
+                                        printf("\n")                                                             ;
+                                }
+                                # a "---" line under the header
+                                print_a_line(COL_SVC+COL_NODE*n+n+1)                                             ;
+                                printf("\n")                                                                     ;
+                        }
+
+                        if (length(version) > 0)                # We print only if we have something to show
+                        {
+                                # A header for the databases
+                                printf("%s", center("DB"        , COL_DB, WHITE))                                ;
+                                printf("%s", center("Version"   , COL_VER, WHITE))                               ;
+                                n=asort(nodes)                                                                   ;       # sort array nodes
+                                for (i = 1; i <= n; i++) {
+                                        printf("%s", center(nodes[i], COL_NODE, WHITE))                          ;
+                                }
+                                printf("%s", center("DB Type"    , COL_TYPE, WHITE))                             ;
+                                printf("\n")                                                                     ;
+
+                                # a "---" line under the header
+                                print_a_line()                                                                   ;
+
+                                # Print the databases
+                                m=asorti(version, version_sorted)                                                ;
+                                for (j = 1; j <= m; j++)
+                                {
+                                        printf("%s", center(version_sorted[j]   , COL_DB, WHITE))                ;                       # Database name
+                                        printf(COLOR_BEGIN WHITE " %-8s" COLOR_END, version[version_sorted[j]], COL_VER, WHITE)         ;       # Version
+                                        printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")            ;       # OH id
+
+                                        for (i = 1; i <= n; i++) {
+                                                dbstatus = status[version_sorted[j],nodes[i]]                    ;
+
+                                                sub(",HOME=.*$", "", dbstatus)                                   ;       # Manage the 12cR2 new feature, check 20170606 for more details
+                                                sub("),.*$", ")", dbstatus)                                      ;       # To make clear multi status like "Mounted (Closed),Readonly,Open Initiated"
+
+                                                #
+                                                # Print the status here, all that are not listed in that if ladder will appear in RED
+                                                #
+                                                if (dbstatus == "")                     {printf("%s", center(UNKNOWN , COL_NODE, BLUE         ))      ;}      else
+                                                if (dbstatus == "Open")                 {printf("%s", center(dbstatus, COL_NODE, GREEN        ))      ;}      else
+                                                if (dbstatus == "Open,Readonly")        {printf("%s", center(dbstatus, COL_NODE, WHITE        ))      ;}      else
+                                                if (dbstatus == "Readonly")             {printf("%s", center(dbstatus, COL_NODE, YELLOW       ))      ;}      else
+                                                if (dbstatus == "Instance Shutdown")    {printf("%s", center(dbstatus, COL_NODE, YELLOW       ))      ;}      else
+                                                                                        {printf("%s", center(dbstatus, COL_NODE, RED          ))      ;}
+                                        }
+                                        #
+                                        # Color the DB Type column depending on the ROLE of the database (20170619)
+                                        #
+                                        if (role[version_sorted[j]] == "PRIMARY") { ROLE_COLOR=WHITE ; ROLE_SHORT=" (P)"; } else { ROLE_COLOR=RED ; ROLE_SHORT=" (S)" }
+                                        printf("%s", center(dbtype[version_sorted[j]] ROLE_SHORT, COL_TYPE, ROLE_COLOR))           ;
+
+                                        printf("\n")                                                              ;
+                                }
+
+                                # a "---" line as a footer
+                                print_a_line()                                                                    ;
+
+                                #
+                                # Print the OH list and a legend for the DB Type colors underneath the table
+                                #
+                                printf ("\n\t%s", "ORACLE_HOME references listed in the Version column :")        ;
+
+                                # Print the output in many lines for code visibility
+                                #printf ("\t\t%s\t", "DB Type column =>")                                         ;       # Most likely useless
+                                printf ("\t\t\t\t\t")                                                             ;
+                                printf("%s" COLOR_BEGIN WHITE "%-6s" COLOR_END    , "Primary : ", "White")        ;
+                                printf("%s" COLOR_BEGIN WHITE "%s"   COLOR_END"\n", "and "      , "(P)"  )        ;
+                                printf ("\t\t\t\t\t\t\t\t\t\t\t\t")                                               ;
+                                printf("%s" COLOR_BEGIN RED "%-6s"   COLOR_END    , "Standby : ", "Red"  )        ;
+                                printf("%s" COLOR_BEGIN RED "%s"     COLOR_END"\n", "and "      , "(S)" )         ;
+
+
+                                for (x in oh_list)
+                                {
+                                        printf("\t\t%s\n", oh_list[x] " : " x) | "sort"                           ;
+                                }
+                        }
+        }' $TMP
+
+        printf "\n"
+
+if [ -f ${TMP} ]
 then
-(for DIR in `asmcmd ls ${D}`
-do
-            echo ${DIR} `asmcmd --nocp du ${D}/${DIR} | tail -1`      # Please look at the "About the --nocp option" notes in the header for more information
-#            echo ${DIR} `asmcmd du ${D}/${DIR} | tail -1`
-done) | awk -v D="$D" -v UNIT="$UNIT"\
-         ' BEGIN {      printf("\n\t\t%40s\n\n", D " subdirectories size")                      ;
-                        printf("%25s%16s%16s\n", "Subdir", "Used " UNIT, "Raw Used " UNIT)      ;
-                        printf("%25s%16s%16s\n", "------", "-------", "-----------")            ;
-
-                        DIVIDER=1                                                               ;
-                        if (UNIT == "GB")       { DIVIDER="1024"        }                       ;
-                        if (UNIT == "TB")       { DIVIDER="1048576"     }                       ;   # 1024 * 1024
-                 }
-                 {
-                        use=sprintf("%16.2f", $2/DIVIDER)                                       ;
-                        mir=sprintf("%16.2f", $3/DIVIDER)                                       ;
-
-                        printf("%25s%16s%16s\n", $1, use, mir)                                  ;
-
-                        total_use += $2                                                         ;
-                        total_mir += $3                                                         ;
-                 }
-            END  {      total_use = sprintf("%16.2f", total_use/DIVIDER)                        ;
-                        total_mir = sprintf("%16.2f", total_mir/DIVIDER)                        ;
-                        printf("\n\n%25s%16s%16s\n", "------", "-------", "---------")          ;
-                        printf("%25s%16s%16s\n\n", "Total", total_use, total_mir)               ;
-                 } '
+        rm -f ${TMP}
 fi
 
-
-#
-# For information
-#
-if [[ ${VERBOSE} == "Yes" ]]
-then
-        printf "\t\t%40s\n\n" "Note : Usable = (Raw Free - Reserved)/Redundancy"                ;
-fi
-
-#****************************************************************************************#
-#*                          E N D          O F          S O U R C E                     *#
-#****************************************************************************************#
+#*********************************************************************************************************
+#                               E N D     O F      S O U R C E
+#*********************************************************************************************************
