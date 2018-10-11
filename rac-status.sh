@@ -165,7 +165,7 @@ then
         NB_NODES=`olsnodes | wc -l`
         if [ "$NB_NODES" -eq "2" ]; then COL_NODE_OFFSET=6      ;       fi      ;
         if [ "$NB_NODES" -eq "4" ]; then COL_NODE_OFFSET=5      ;       fi      ;
-        if [ "$NB_NODES" -gt "4" ]; then COL_NODE_OFFSET=3      ;       fi      ;
+        if [ "$NB_NODES" -gt "4" ]; then COL_NODE_OFFSET=2      ;       fi      ;
 fi
 
 # Get the info we want
@@ -211,9 +211,9 @@ fi
                 # Default columns size
                 COL_NODE =  0                           ;
          COL_NODE_OFFSET = col_node_offset * 2          ;       # Defined on top the script, have a look for explanations on this
-                  COL_DB = 12                           ;
+                  COL_DB =  0                           ;
                  COL_VER = 15                           ;
-                COL_TYPE = 14                           ;
+                COL_TYPE = 12                           ;
         }
 
         #
@@ -247,7 +247,7 @@ fi
                         if ($2 ~ ".svc") {sub(".svc$", "", $2) ; tab_svc[$2] = $2;
                                           split($2, temp, ".");
                                           if (length(temp[2]) > COL_VER)                                                # To adapt the column size
-                                          {     COL_VER = length(temp[2]) +1                                    ;
+                                          {     COL_VER = length(temp[2]) +2                                    ;
                                           }
                                          }                                                                              # Services
                         DB=$2                                                                                   ;
