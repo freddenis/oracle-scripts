@@ -54,9 +54,9 @@ SHOW_LSNR="YES"                 # Listeners
 # Number of spaces between the status and the "|" of the column - this applies before and after the status
 # A value of 2 would print 2 spaces before and after the status and like |  Open  |
 # A value of 8 would print |        Open         |
-# A value of 0 means that this parameter is dynamically calculated depending on the number of nodes
-# A non 0 value is applied regardless of the number of nodes
-COL_NODE_OFFSET=0
+# A value of 99 means that this parameter is dynamically calculated depending on the number of nodes
+# A non 99 value is applied regardless of the number of nodes
+COL_NODE_OFFSET=99
 
 #
 # An usage function
@@ -160,12 +160,12 @@ printf "\n"
 #
 # Define the offset to apply to the status column depending on the number of nodes to make the tables visible for big implementations
 #
-if [ "$COL_NODE_OFFSET" = "0" ]
+if [ "$COL_NODE_OFFSET" = "99" ]
 then
         NB_NODES=`olsnodes | wc -l`
         if [ "$NB_NODES" -eq "2" ]; then COL_NODE_OFFSET=6      ;       fi      ;
-        if [ "$NB_NODES" -eq "4" ]; then COL_NODE_OFFSET=3      ;       fi      ;
-        if [ "$NB_NODES" -ge "4" ]; then COL_NODE_OFFSET=1      ;       fi      ;
+        if [ "$NB_NODES" -eq "4" ]; then COL_NODE_OFFSET=4      ;       fi      ;
+        if [ "$NB_NODES" -ge "4" ]; then COL_NODE_OFFSET=3      ;       fi      ;
 fi
 
 # Get the info we want
@@ -315,6 +315,8 @@ fi
                                         if ($1 == "TARGET")             {       TARGET = $2                             ;}
                                         if ($1 == "STATE_DETAILS")      {       NB++                                    ;       # Number of instances we came through
                                                                                 sub("STATE_DETAILS=", "", $0)           ;
+                                                                                sub(",HOME=.*$", "", $0)                ;       # Manage the 12cR2 new feature, check 20170606 for more details
+                                                                                sub("),.*$", ")", $0)                   ;       # To make clear multi status like "Mounted (Closed),Readonly,Open Initiated"
                                                                                 if ($0 == "")
                                                                                 {       status[DB,SERVER] = STATE       ;}
                                                                                 else {
@@ -446,9 +448,6 @@ fi
 
                                         for (i = 1; i <= n; i++) {
                                                 dbstatus = status[version_sorted[j],nodes[i]]                    ;
-
-                                                sub(",HOME=.*$", "", dbstatus)                                   ;       # Manage the 12cR2 new feature, check 20170606 for more details
-                                                sub("),.*$", ")", dbstatus)                                      ;       # To make clear multi status like "Mounted (Closed),Readonly,Open Initiated"
 
                                                 #
                                                 # Print the status here, all that are not listed in that if ladder will appear in RED
