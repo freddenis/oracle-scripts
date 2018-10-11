@@ -164,8 +164,8 @@ if [ "$COL_NODE_OFFSET" = "99" ]
 then
         NB_NODES=`olsnodes | wc -l`
         if [ "$NB_NODES" -eq "2" ]; then COL_NODE_OFFSET=6      ;       fi      ;
-        if [ "$NB_NODES" -eq "4" ]; then COL_NODE_OFFSET=4      ;       fi      ;
-        if [ "$NB_NODES" -ge "4" ]; then COL_NODE_OFFSET=3      ;       fi      ;
+        if [ "$NB_NODES" -eq "4" ]; then COL_NODE_OFFSET=5      ;       fi      ;
+        if [ "$NB_NODES" -gt "4" ]; then COL_NODE_OFFSET=3      ;       fi      ;
 fi
 
 # Get the info we want
@@ -354,7 +354,15 @@ fi
                                 for (j = 1; j <= x; j++)
                                 {
                                         printf("%s", center(lsnr_sorted[j]   , COL_DB, WHITE))                  ;       # Listener name
-                                        printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s|" COLOR_END, port[lsnr_sorted[j]], WHITE);      # Port
+                                        # It may happen that listeners listen on many ports then it wont fit this column
+                                        # We then print it outside of the table after the last column
+                                        if (length(port[lsnr_sorted[j]]) > COL_VER)
+                                        {
+                                                printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s|" COLOR_END, "See -->", WHITE);       # "See -->"
+                                                print_port_later = 1                                            ;
+                                        } else {
+                                                printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s|" COLOR_END, port[lsnr_sorted[j]], WHITE);      # Port
+                                        }
 
                                         for (i = 1; i <= n; i++)
                                         {
@@ -370,6 +378,10 @@ fi
                                                 LSNR_TYPE = "Listener"                                          ;
                                         }
                                         printf("%s", center(LSNR_TYPE, COL_TYPE, WHITE))                        ;
+                                        if (print_port_later)
+                                        {       print_port_later = 0                                            ;
+                                                printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s" COLOR_END, port[lsnr_sorted[j]], WHITE);      # Port
+                                        }
                                         printf("\n")                                                            ;
                                 }
                                 # a "---" line under the header
