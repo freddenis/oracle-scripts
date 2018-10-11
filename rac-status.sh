@@ -1,6 +1,4 @@
-#!/bin/bash
 # Fred Denis -- Jan 2016 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
-#
 #
 # Quickly shows a status of all running instances accross a 12c cluster
 # The script just need to have a working oraenv
@@ -8,12 +6,17 @@
 # Please have a look at https://unknowndba.blogspot.com/2018/04/rac-statussh-overview-of-your-rac-gi.html for some details and screenshots
 # The script last version can be downloaded here : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/rac-status.sh
 #
-# The current script version is 20181010
+# The current script version is 20181110
 #
 # History :
 #
+# 20181110 - Fred Denis - Show short names in the tables instead of the whole hostnames if possible for better visibility
+#                       - Col 1 and col 2 now align dynamically depending on the largest element to keep all the tables well aligned
+#                       - Dynamic calculation of an offser for the status column size depending on the number of nodes
+#                       - This can also be fixed by setting a non 0 value to COL_NODE_OFFSET on top of the script
+#                       - Better alignements, centered databases and service were not nice, they are now left aligned which is more clear
 # 20181010 - Fred Denis - Added the services
-#                         Added default values and options to show and hide some resources (./rac-status.sh -h for more information)
+#                         Added default value and options to show and hide some resources (./rac-status.sh -h for more information)
 # 20181009 - Fred Denis - Show the usual blue "-" when a target is offline on purpose instead of a red "Offline" which was confusing
 # 20180921 - Fred Denis - Added the listeners
 # 20180227 - Fred Denis - Make the the size of the DB column dynamic to handle very long database names (Thanks Michael)
@@ -33,10 +36,31 @@
 # 20170501 - Fred Denis - First release
 #
 
+#
+# Variables
+#
       TMP=/tmp/status$$.tmp                                             # A tempfile
 DBMACHINE=/opt/oracle.SupportTools/onecommand/databasemachine.xml       # File where we should find the Exadata model as oracle user
 
+# Choose the information what you want to see -- the last uncommented value wins
+# ./rac-status.sh -h for more information
+  SHOW_DB="YES"                 # Databases
+ #SHOW_DB="NO"
+SHOW_LSNR="YES"                 # Listeners
+#SHOW_LSNR="NO"
+ SHOW_SVC="YES"                 # Services
+ SHOW_SVC="NO"
+
+# Number of spaces between the status and the "|" of the column - this applies before and after the status
+# A value of 2 would print 2 spaces before and after the status and like |  Open  |
+# A value of 8 would print |        Open         |
+# A value of 0 means that this parameter is dynamically calculated depending on the number of nodes
+# A non 0 value is applied regardless of the number of nodes
+COL_NODE_OFFSET=0
+
+#
 # An usage function
+#
 usage()
 {
 printf "\n\033[1;37m%-8s\033[m\n" "NAME"                ;
@@ -84,15 +108,6 @@ END
 exit 123
 }
 
-# Choose the information what you want to see -- the last uncommented value wins
-# ./rac-status.sh -h for more information
-  SHOW_DB="YES"                 # Databases
- #SHOW_DB="NO"
-SHOW_LSNR="YES"                 # Listeners
-#SHOW_LSNR="NO"
- SHOW_SVC="YES"                 # Services
- SHOW_SVC="NO"
-
 # Options
 while getopts "andslh" OPT; do
         case ${OPT} in
@@ -116,20 +131,41 @@ export ORAENV_ASK=NO
 #
 # List of the nodes of the cluster
 #
-NODES=`olsnodes | awk '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}'`
+# Try to find if there is "db" in the hostname, if yes we can delete the common "<clustername>" pattern from the hosts for visibility
+SHORT_NAMES="NO"
+if [[ `olsnodes | head -1 | sed s'/,.*$//g' | tr '[:upper:]' '[:lower:]'` == *"db"* ]]
+then
+               NODES=`olsnodes | sed s'/^.*db/db/g' | awk '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}'`
+        CLUSTER_NAME=`olsnodes | head -1 | sed s'/db.*$//g'`
+        SHORT_NAMES="YES"
+else
+               NODES=`olsnodes | awk '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}'`
+        CLUSTER_NAME=`olsnodes -c`
+fi
+
+printf "\n\t\t%s \033[1;37m%-s\033[m" "Cluster" "$CLUSTER_NAME"
 
 #
 # Show the Exadata model if possible (if this cluster is an Exadata)
 #
 if [ -f ${DBMACHINE} ] && [ -r ${DBMACHINE} ]
 then
-        cat << !
-
-                Cluster is a `grep -i MACHINETYPES ${DBMACHINE} | sed -e s':</*MACHINETYPES>::g' -e s'/^ *//' -e s'/ *$//'`
-
-!
+        MODEL=`grep -i MACHINETYPES ${DBMACHINE} | sed -e s':</*MACHINETYPES>::g' -e s'/^ *//' -e s'/ *$//'`
+        printf "%s \033[1;37m%s\033[m\n" " is a " "$MODEL"
 else
         printf "\n"
+fi
+printf "\n"
+
+#
+# Define the offset to apply to the status column depending on the number of nodes to make the tables visible for big implementations
+#
+if [ "$COL_NODE_OFFSET" = "0" ]
+then
+        NB_NODES=`olsnodes | wc -l`
+        if [ "$NB_NODES" -eq "2" ]; then COL_NODE_OFFSET=6      ;       fi      ;
+        if [ "$NB_NODES" -eq "4" ]; then COL_NODE_OFFSET=3      ;       fi      ;
+        if [ "$NB_NODES" -ge "4" ]; then COL_NODE_OFFSET=1      ;       fi      ;
 fi
 
 # Get the info we want
@@ -152,7 +188,12 @@ then
         #crsctl stat res -p -w "TYPE = ora.service.type"        >> $TMP         # not used, in case we need it one day
 fi
 
-        awk  -v NODES="$NODES" 'BEGIN\
+if [ "$SHORT_NAMES" = "YES" ]
+then
+        sed -i "s/$CLUSTER_NAME//g" $TMP
+fi
+
+        awk  -v NODES="$NODES" -v col_node_offset="$COL_NODE_OFFSET" 'BEGIN\
         {             FS = "="                          ;
                       split(NODES, nodes, ",")          ;       # Make a table with the nodes of the cluster
                 # some colors
@@ -168,7 +209,8 @@ fi
                  UNKNOWN = "-"                          ;       # Something to print when the status is unknown
 
                 # Default columns size
-                COL_NODE = 18                           ;
+                COL_NODE =  0                           ;
+         COL_NODE_OFFSET = col_node_offset * 2          ;       # Defined on top the script, have a look for explanations on this
                   COL_DB = 12                           ;
                  COL_VER = 15                           ;
                 COL_TYPE = 14                           ;
@@ -200,18 +242,18 @@ fi
                if ($1 ~ /^NAME/)
                {
                         sub("^ora.", "", $2)                                                                    ;
-                        sub(".db$", "", $2)                                                                     ;
-                        if ($2 ~ ".lsnr"){sub(".lsnr$", "", $2); tab_lsnr[$2] = $2}                             ;       # Listeners
+                        sub(".db$",  "", $2)                                                                    ;
+                        if ($2 ~ ".lsnr"){sub(".lsnr$", "", $2); tab_lsnr[$2] = $2;}                            ;       # Listeners
                         if ($2 ~ ".svc") {sub(".svc$", "", $2) ; tab_svc[$2] = $2;
                                           split($2, temp, ".");
-                                          if (length(temp[2]) > max_length_svc)                                         # To adapt the column size
-                                          {     max_length_svc = length(temp[2])                                ;
+                                          if (length(temp[2]) > COL_VER)                                                # To adapt the column size
+                                          {     COL_VER = length(temp[2]) +1                                    ;
                                           }
                                          }                                                                              # Services
                         DB=$2                                                                                   ;
-                        if (length(DB)+2 > COL_DB)              # Adjust the size of the DB column in case of very long DB name
-                        {                                       # +2 is to have 1 blank character before and after the DB name
-                                COL_DB = length(DB)+2                                                           ;
+                        split($2, temp, ".")                                                                    ;
+                        if (length(temp[1]) > COL_DB)                                                                   # To adapt the 1st column size
+                        {     COL_DB = length(temp[1]) +2                                                       ;
                         }
 
                         getline; getline                                                                        ;
@@ -265,7 +307,9 @@ fi
                                 {
                                         if ($1 == "LAST_SERVER")        {       SERVER = $2                             ;}
                                         if ($1 == "STATE")              {       gsub(" on .*$", "", $2)                 ;
-                                                                                if ($2 ~ /ONLINE/ ) {STATE="Online"     ;}
+                                                                                if ($2 ~ /ONLINE/ ) {STATE="Online"     ;
+                                                                                                     if (length(STATE) > COL_NODE) { COL_NODE = length(STATE) + COL_NODE_OFFSET;}
+                                                                                                    }
                                                                                 if ($2 ~ /OFFLINE/) {STATE=""           ;}
                                                                         }
                                         if ($1 == "TARGET")             {       TARGET = $2                             ;}
@@ -274,8 +318,15 @@ fi
                                                                                 if ($0 == "")
                                                                                 {       status[DB,SERVER] = STATE       ;}
                                                                                 else {
-                                                                                        status[DB,SERVER] = $0          ;}
+                                                                                        if ($0 == "Instance Shutdown")  {  status[DB,SERVER] = "Shutdown"       ;       } else
+                                                                                        if ($0 ~  "Readonly")           {  status[DB,SERVER] = "Readonly"       ;       } else
+                                                                                        if ($0 ~  /Mount/)              {  status[DB,SERVER] = "Mounted"        ;       } else
+                                                                                                                        {  status[DB,SERVER] = $0               ;       }
+                                                                                        if (length(status[DB,SERVER]) > COL_NODE)
+                                                                                        {       COL_NODE = length(status[DB,SERVER]) + COL_NODE_OFFSET  ;
+                                                                                        }
                                                                                 }
+                                                                        }
                                         if ($1 == "INSTANCE_COUNT")     {       if (NB == $2) { break                   ;}}
                                 }
                         }
@@ -301,8 +352,7 @@ fi
                                 for (j = 1; j <= x; j++)
                                 {
                                         printf("%s", center(lsnr_sorted[j]   , COL_DB, WHITE))                  ;       # Listener name
-                                        printf(COLOR_BEGIN WHITE " %-8s" COLOR_END, port[lsnr_sorted[j]], COL_VER, WHITE);      # Port
-                                        printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|","")                         ;       # Nothing
+                                        printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s|" COLOR_END, port[lsnr_sorted[j]], WHITE);      # Port
 
                                         for (i = 1; i <= n; i++)
                                         {
@@ -313,7 +363,7 @@ fi
                                                 else                            {printf("%s", center(dbstatus, COL_NODE, RED          ))      ;}
                                         }
                                         if (toupper(lsnr_sorted[j]) ~ /SCAN/)
-                                        {       LSNR_TYPE = "SCAN Listener"                                     ;
+                                        {       LSNR_TYPE = "SCAN"                                              ;
                                         } else {
                                                 LSNR_TYPE = "Listener"                                          ;
                                         }
@@ -327,14 +377,9 @@ fi
 
                         if (length(tab_svc) > 0)                # We print only if we have something to show
                         {
-                                if (max_length_svc > COL_VER)
-                                {       COL_SVC = max_length_svc                                                ;
-                                } else {
-                                        COL_SVC = COL_VER                                                       ;
-                                }
                                 # A header for the services
                                 printf("%s", center("DB"      ,  COL_DB, WHITE))                                ;
-                                printf("%s", center("Service" ,  COL_SVC, WHITE))                               ;
+                                printf("%s", center("Service" ,  COL_VER, WHITE))                               ;
                                 n=asort(nodes)                                                                  ;       # sort array nodes
                                 for (i = 1; i <= n; i++) {
                                         printf("%s", center(nodes[i], COL_NODE, WHITE))                         ;
@@ -342,7 +387,7 @@ fi
                                 printf("\n")
 
                                 # a "---" line under the header
-                                print_a_line(COL_DB+COL_NODE*n+COL_SVC+n+2)                                    ;
+                                print_a_line(COL_DB+COL_NODE*n+COL_VER+n+2)                                    ;
 
 
                                 # Print the Services
@@ -352,12 +397,13 @@ fi
                                         split(svc_sorted[j], to_print, ".")                                     ;       # The service we have is <db_name>.<service_name>
                                         if (previous_db != to_print[1])                                                 # Do not duplicate the DB names on the output
                                         {
-                                                printf("%s", center(to_print[1], COL_DB, WHITE))                ;
+                                                printf(COLOR_BEGIN WHITE "  %-"COL_DB-2"s|" COLOR_END, to_print[1], WHITE);     # Database
                                                 previous_db = to_print[1]                                       ;
                                         }else {
                                                 printf("%s", center("",  COL_DB, WHITE))                        ;
                                         }
-                                        printf("%s", center(to_print[2], COL_SVC, WHITE))                       ;
+                                        printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s|" COLOR_END, to_print[2], WHITE);     # Service
+
 
 
                                         for (i = 1; i <= n; i++)
@@ -371,7 +417,7 @@ fi
                                         printf("\n")                                                             ;
                                 }
                                 # a "---" line under the header
-                                print_a_line(COL_DB+COL_NODE*n+COL_SVC+n+2)                                    ;
+                                print_a_line(COL_DB+COL_NODE*n+COL_VER+n+2)                                      ;
                                 printf("\n")                                                                     ;
                         }
 
@@ -394,8 +440,8 @@ fi
                                 m=asorti(version, version_sorted)                                                ;
                                 for (j = 1; j <= m; j++)
                                 {
-                                        printf("%s", center(version_sorted[j]   , COL_DB, WHITE))                ;                       # Database name
-                                        printf(COLOR_BEGIN WHITE " %-8s" COLOR_END, version[version_sorted[j]], COL_VER, WHITE)         ;       # Version
+                                        printf(COLOR_BEGIN WHITE "  %-"COL_DB-2"s|" COLOR_END, version_sorted[j], WHITE);     # Database
+                                        printf(COLOR_BEGIN WHITE " %-"COL_VER-7"s" COLOR_END, version[version_sorted[j]], COL_VER, WHITE)         ;       # Version
                                         printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")            ;       # OH id
 
                                         for (i = 1; i <= n; i++) {
@@ -409,9 +455,8 @@ fi
                                                 #
                                                 if (dbstatus == "")                     {printf("%s", center(UNKNOWN , COL_NODE, BLUE         ))      ;}      else
                                                 if (dbstatus == "Open")                 {printf("%s", center(dbstatus, COL_NODE, GREEN        ))      ;}      else
-                                                if (dbstatus == "Open,Readonly")        {printf("%s", center(dbstatus, COL_NODE, WHITE        ))      ;}      else
-                                                if (dbstatus == "Readonly")             {printf("%s", center(dbstatus, COL_NODE, YELLOW       ))      ;}      else
-                                                if (dbstatus == "Instance Shutdown")    {printf("%s", center(dbstatus, COL_NODE, YELLOW       ))      ;}      else
+                                                if (dbstatus ~  /Readonly/)             {printf("%s", center(dbstatus, COL_NODE, WHITE        ))      ;}      else
+                                                if (dbstatus ~  /Shut/)                 {printf("%s", center(dbstatus, COL_NODE, YELLOW       ))      ;}      else
                                                                                         {printf("%s", center(dbstatus, COL_NODE, RED          ))      ;}
                                         }
                                         #
