@@ -213,7 +213,7 @@ fi
          COL_NODE_OFFSET = col_node_offset * 2          ;       # Defined on top the script, have a look for explanations on this
                   COL_DB =  0                           ;
                  COL_VER = 15                           ;
-                COL_TYPE = 12                           ;
+                COL_TYPE = 14                           ;
         }
 
         #
