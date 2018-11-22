@@ -4,8 +4,10 @@
 # Automatically generates an Exadata patching action plan from a bundle.xml file
 # For more details about the Exadata patching procedure, you can have a look at https://www.pythian.com/blog/patch-exadata-part-1-introduction-prerequisites/
 #
-# The current version of the script is 20180914
+# The current version of the script is 20181122
 #
+# 20181122 - Fred Denis - A -p option to show pre requisites only in the action plan (PREREQ_ONLY variable)
+#                         Output format is now managed by a AP_FORMAT variable and get value from -h and -j parameters
 # 20180914 - Fred Denis - ${EXAVERSIONS} -d was not executed from the good servers during DB servers patching
 # 20180822 - Fred Denis - Fixed a bug with the v$ view that were not appearing properly
 #                         Fixed a mismatch between PATCHMGHR and PATCHMGR_ZIP I introduced yesterday in 20180821
@@ -66,6 +68,8 @@ DEBUG="Yes"
              DIR_IB_PATCHING="/tmp/IB_PATCHING"                         # Directory to copy the IB Switch outside of NFS/ZFS to avoid issues when rebooting the IB Switches
              DIR_DB_PATCHING="/tmp/SAVE"                                # Directory used on cel01 to patch the DB servers
                     GI_OWNER="oracle"                                   # Default Grid Owner -- can be overwritten by the -o option
+                 PREREQ_ONLY="No"                                       # Show pre requisites only ? can be changed by the -p option
+                   AP_FORMAT="TEXT"                                     # Format of the action plan, default is TEXT, can also be HTML or JIRA
 #
 # A usage function
 #
@@ -79,8 +83,10 @@ usage()
                 -g <GI_HOME>                                            (optional)
                 -c <Cel01 name>                                         (optional -- if your cel01 is not named in the form ${CLUSTER_NAME}cel01)
                 -s <DB01 name>                                          (optional -- if your db01  is not named in the form ${CLUSTER_NAME}db01)
-                -h                                                      (generate a HTML action plan, mandatory, default is no HTML)
+                -h                                                      (optional) Generates the action plan in HTML format
+                -j                                                      (optional) Generates the action plan in Jira  / Confluence format
                 -n <NAME_OF_THE_CLUSTER>                                (optional)
+                -p                                                      (optional) Show the pre requisites only, default is ${PREREQ_ONLY}
                 -u                                                      (Unzip and prereqs steps have been done, shows a green "DONE" for the unzip parts, default is unzip has not been done)
                 -v <Cells, IB and DB Server version to install>         (optional -- default is the highest)
                 -w <GI version to install>                              (optional -- same as cells and DB nodes if not specified)
@@ -95,15 +101,17 @@ usage()
 #
 # Parameters management
 #
-while getopts ":d:n:humMg:v:fc:s:w:o:" OPT; do
+while getopts ":d:n:hpujmMg:v:fc:s:w:o:" OPT; do
         case ${OPT} in
         d)          PATCH_DIR=`echo ${OPTARG} | sed s'/\/ *$//'`    ;;      # Remove any trailing /
         f)   ALLOW_ACTIVE_NFS="No"                                  ;;
         g)            GI_HOME=`echo ${OPTARG} | sed s'/\/ *$//'`    ;;      # Remove any trailing /
         c)             CEL01=${OPTARG}                              ;;
         s)              DB01=${OPTARG}                              ;;
-        h)               HTML="Yes"                                 ;;
+        h)            AP_FORMAT="HTML"                              ;;
+        j)            AP_FORMAT="JIRA"                              ;;
         n)       CLUSTER_NAME=${OPTARG}                             ;;
+        p)        PREREQ_ONLY="Yes"                                 ;;
         u)         UNZIP_DONE="Yes"                                 ;;
         o)           GI_OWNER=${OPTARG}                             ;;
         v)     VER_TO_INSTALL=${OPTARG}                                     # Cells, IB and DB Server version to install
@@ -383,6 +391,8 @@ CELL_AND_IB_ZIP="p"$CELL_AND_IB_ZIP"_*_Linux-x86-64.zip"        ;
                 GI_BUNDLE       :       ${GI_BUNDLE}
                 GRID_HOME       :       ${GI_HOME}
                 UNZIP_DONE      :       ${UNZIP_DONE}
+                PREREQ_ONLY     :       ${PREREQ_ONLY}
+                AP_FORMAT       :       ${AP_FORMAT}
 !
         fi
 
@@ -390,7 +400,7 @@ CELL_AND_IB_ZIP="p"$CELL_AND_IB_ZIP"_*_Linux-x86-64.zip"        ;
 # Define HTML or shell tags and colors depending on the chosen option
 #
 
-if [ "${HTML}" = "Yes" ]
+if [ "${AP_FORMAT}" = "HTML" ]
 then
          S_H2="<hr style='border-style: dotted;'><h2 style='font-size:18px;text-decoration:underline'>"
          E_H2="</h2>"
@@ -401,6 +411,17 @@ then
           S_B="<b>"
           E_B="</b>"
        U_DONE="<font color='green';><b> ( Done )</b></font>"
+elif [ "${AP_FORMAT}" = "JIRA" ]
+then
+        S_H2="h3."
+        E_H2=""
+        S_H3="h4."
+        E_H3=""
+       S_PRE="{panel}"
+       E_PRE="{panel}"
+        S_B="*"
+        E_B="*"
+     U_DONE="{color:green}* ( Done ) * {color}"
 else
   COLOR_BEGIN="\033[1;"
     COLOR_END="\033[0m"
@@ -432,7 +453,17 @@ fi
 
 echo -e "
 ****************************** START COPYING THE ACTION PLAN BELOW THIS LINE ******************************
+"
+if [ "${PREREQ_ONLY}" = "Yes" ]
+then
+echo -e "
+${TAB} Pre requisites ONLY action plan
+"
+fi
 
+if [ "${PREREQ_ONLY}" != "Yes" ]
+then
+echo -e "
 ${S_H2}0/ Scripts used in this action plan ${E_H2}
 
 ${S_PRE}
@@ -443,118 +474,133 @@ ${TAB}  - ${LSPATCHES}   : Show the installed patches (may be replaced by "opatc
 
 -- They can be found here : https://unknowndba.blogspot.com/2018/04/a-shortcut-to-all-scripts-provided-by.html
 ${E_PRE}
+"
+fi              # End of if [ "${PREREQ_ONLY}" != "Yes" ]
 
-
+echo -e "
 ${S_H2}1/ Cell patching ${E_H2}
 
 ${S_H3}1.1/ First of all, you need to unzip the ${CELL_AND_IB_ZIP} file${U_DONE}:${E_H3}
 
 ${S_PRE}
-${TAB} ${DBROOTPROMPT} ${S_B} cd ${PATCH_DIR}/${CELL_AND_IB}                                                                                    ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} unzip -q `basename ${CELL_AND_IB_ZIP}`                                                                            ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}cd ${PATCH_DIR}/${CELL_AND_IB}${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}unzip -q `basename ${CELL_AND_IB_ZIP}`${E_B}
 
--- This should create a ${S_B} patch_${TARGET_VERSION} ${E_B} directory with the cell patch
+-- This should create a ${S_B}patch_${TARGET_VERSION}${E_B} directory with the cell patch
 ${E_PRE}
 
 ${S_H3}1.2/ Cells pre requisites${U_DONE}:${E_H3}
 ${S_PRE}
-${TAB} ${DBROOTPROMPT} ${S_B} cd ${PATCH_DIR}/${CELL_AND_IB}/patch_${TARGET_VERSION}                                                            ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} ./patchmgr -cells ~/cell_group -patch_check_prereq -rolling                                                       ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}cd ${PATCH_DIR}/${CELL_AND_IB}/patch_${TARGET_VERSION}${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}./patchmgr -cells ~/cell_group -patch_check_prereq -rolling${E_B}
 ${E_PRE}
+"
 
+if [ "${PREREQ_ONLY}" != "Yes" ]
+then
+echo -e "
 ${S_H3}1.3/ Set disk_repair_time to 24h instead of the default 3.6h :${E_H3}
 ${S_PRE}
-${TAB} ${DBORACLEPROMPT} ${S_B} . oraenv <<< `grep "^+ASM" /etc/oratab | awk -F ":" '{print $1}'`                                               ${E_B}
-${TAB} ${DBORACLEPROMPT} ${S_B} sqlplus / as sysasm                                                                                             ${E_B}
-${TAB} ${SQLPROMPT} ${S_B} set lines 200                                                                                                        ${E_B}
-${TAB} ${SQLPROMPT} ${S_B} col attribute for a30                                                                                                ${E_B}
-${TAB} ${SQLPROMPT} ${S_B} col value for a50                                                                                                    ${E_B}
+${TAB} ${DBORACLEPROMPT} ${S_B}. oraenv <<< `grep "^+ASM" /etc/oratab | awk -F ":" '{print $1}'`${E_B}
+${TAB} ${DBORACLEPROMPT} ${S_B}sqlplus / as sysasm${E_B}
+${TAB} ${SQLPROMPT} ${S_B}set lines 200${E_B}
+${TAB} ${SQLPROMPT} ${S_B}col attribute for a30${E_B}
+${TAB} ${SQLPROMPT} ${S_B}col value for a50${E_B}
 
 ${TAB} -- Check the current setting for each diskgroup
-${TAB} ${SQLPROMPT} ${S_B} select dg.name as diskgroup, a.name as attribute, a.value from v\$asm_diskgroup dg, v\$asm_attribute a where dg.group_number=a.group_number and a.name = 'disk_repair_time' ;                                                                                                     ${E_B}
+${TAB} ${SQLPROMPT} ${S_B}select dg.name as diskgroup, a.name as attribute, a.value from v\$asm_diskgroup dg, v\$asm_attribute a where dg.group_number=a.group_number and a.name = 'disk_repair_time' ;${E_B}
 
 ${TAB} -- For each diskgroup set disk_repair_time to 24h
-${TAB} ${SQLPROMPT} ${S_B} alter diskgroup XXXXX SET ATTRIBUTE 'disk_repair_time' = '24h' ;                                                     ${E_B}
+${TAB} ${SQLPROMPT} ${S_B}alter diskgroup XXXXX SET ATTRIBUTE 'disk_repair_time' = '24h' ;${E_B}
 
 ${TAB} -- Verify the new setting for each diskgroup
-${TAB} ${SQLPROMPT} ${S_B} select dg.name as diskgroup, a.name as attribute, a.value from v$\asm_diskgroup dg, v\$asm_attribute a where dg.group_number=a.group_number and a.name = 'disk_repair_time' ;                                                                                                     ${E_B}
+${TAB} ${SQLPROMPT} ${S_B}select dg.name as diskgroup, a.name as attribute, a.value from v$\asm_diskgroup dg, v\$asm_attribute a where dg.group_number=a.group_number and a.name = 'disk_repair_time' ;${E_B}
 ${E_PRE}
 
 ${S_H3}1.4/ Apply the patch on the cells :${E_H3}
 
 ${S_PRE}
 ${TAB} -- Check the cells versions before proceeding
-${TAB} ${DBROOTPROMPT} ${S_B} ${EXAVERSIONS} -c                                                                                                 ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}${EXAVERSIONS} -c${E_B}
 
 ${TAB} -- Check that ~/cell_group contains the same cells as those from the ${EXAVERSIONS} script
-${TAB} ${DBROOTPROMPT} ${S_B} cat ~/cell_group                                                                                                  ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}cat ~/cell_group${E_B}
 
 ${TAB} -- Apply the patch
-${TAB} ${DBROOTPROMPT} ${S_B} cd ${PATCH_DIR}/${CELL_AND_IB}/patch_${TARGET_VERSION}                                                            ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} ./patchmgr -cells ~/cell_group -reset_force                                                                       ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} ./patchmgr -cells ~/cell_group -cleanup                                                                           ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} ./patchmgr -cells ~/cell_group -patch_check_prereq -rolling                                                       ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} nohup ./patchmgr -cells ~/cell_group -patch -rolling &                                                            ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} ./patchmgr -cells ~/cell_group -cleanup                                                                           ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}cd ${PATCH_DIR}/${CELL_AND_IB}/patch_${TARGET_VERSION}${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}./patchmgr -cells ~/cell_group -reset_force${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}./patchmgr -cells ~/cell_group -cleanup${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}./patchmgr -cells ~/cell_group -patch_check_prereq -rolling${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}nohup ./patchmgr -cells ~/cell_group -patch -rolling &${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}./patchmgr -cells ~/cell_group -cleanup${E_B}
 
 ${TAB} -- Verify that all the cells versions are as expected : ${TARGET_VERSION}
-${TAB} ${DBROOTPROMPT} ${S_B} ${EXAVERSIONS} -c                                                                                                 ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}${EXAVERSIONS} -c${E_B}
 ${E_PRE}
 
 ${S_H3}1.5/ Set disk_repair_time back to the default 3.6h :${E_H3}
 ${S_PRE}
-${TAB} ${DBORACLEPROMPT} ${S_B} . oraenv <<< `grep "^+ASM" /etc/oratab | awk -F ":" '{print $1}'`                                               ${E_B}
-${TAB} ${DBORACLEPROMPT} ${S_B} sqlplus / as sysasm                                                                                             ${E_B}
-${TAB} ${SQLPROMPT} ${S_B} set lines 200                                                                                                        ${E_B}
-${TAB} ${SQLPROMPT} ${S_B} col attribute for a30                                                                                                ${E_B}
-${TAB} ${SQLPROMPT} ${S_B} col value for a50                                                                                                    ${E_B}
+${TAB} ${DBORACLEPROMPT} ${S_B}. oraenv <<< `grep "^+ASM" /etc/oratab | awk -F ":" '{print $1}'`${E_B}
+${TAB} ${DBORACLEPROMPT} ${S_B}sqlplus / as sysasm${E_B}
+${TAB} ${SQLPROMPT} ${S_B}set lines 200${E_B}
+${TAB} ${SQLPROMPT} ${S_B}col attribute for a30${E_B}
+${TAB} ${SQLPROMPT} ${S_B}col value for a50${E_B}
 
 ${TAB} -- Check the current setting for each diskgroup
-${TAB} ${SQLPROMPT} ${S_B} select dg.name as diskgroup, a.name as attribute, a.value from v\$asm_diskgroup dg, v\$asm_attribute a where dg.group_number=a.group_number and a.name = 'disk_repair_time' ;                                                                                                     ${E_B}
+${TAB} ${SQLPROMPT} ${S_B}select dg.name as diskgroup, a.name as attribute, a.value from v\$asm_diskgroup dg, v\$asm_attribute a where dg.group_number=a.group_number and a.name = 'disk_repair_time' ;${E_B}
 
 ${TAB} -- For each diskgroup set disk_repair_time back to to 3.6h
-${TAB} ${SQLPROMPT} ${S_B} alter diskgroup XXXXX SET ATTRIBUTE 'disk_repair_time' = '3.6h' ;                                                    ${E_B}
+${TAB} ${SQLPROMPT} ${S_B}alter diskgroup XXXXX SET ATTRIBUTE 'disk_repair_time' = '3.6h' ;${E_B}
 
 ${TAB} -- Verify the new setting for each diskgroup
-${TAB} ${SQLPROMPT} ${S_B} select dg.name as diskgroup, a.name as attribute, a.value from v\$asm_diskgroup dg, v\$asm_attribute a where dg.group_number=a.group_number and a.name = 'disk_repair_time' ;                                                                                                     ${E_B}
+${TAB} ${SQLPROMPT} ${S_B}select dg.name as diskgroup, a.name as attribute, a.value from v\$asm_diskgroup dg, v\$asm_attribute a where dg.group_number=a.group_number and a.name = 'disk_repair_time' ;${E_B}
 ${E_PRE}
+"
+fi      # End of if [ "${PREREQ_ONLY}" != "Yes" ]
 
-
+echo -e "
 ${S_H2}2/ InfiniBand Switches patching ${E_H2}
 
 ${S_H3}2.1 / IB Switches prerequisites${U_DONE}:${E_H3}
 - To avoid issues with NFS/ZFS when rebooting the IB Switches, I recommend copying the patch outside of any NFS/ZFS
 - This patch is ~ 2.5 GB so be careful not to fill / if you copy it into /tmp, if not choose another local FS
 ${S_PRE}
-${TAB} ${DBROOTPROMPT} ${S_B} du -sh ${DIR_IB_PATCHING}                                                                                          ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} rm -fr ${DIR_IB_PATCHING}                                                                                          ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} mkdir ${DIR_IB_PATCHING}                                                                                          ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} unzip -q ${PATCH_DIR}/${CELL_AND_IB}/${CELL_AND_IB_ZIP} -d /tmp/IB_PATCHING                                       ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} cd ${DIR_IB_PATCHING}/patch_${TARGET_VERSION}                                                                     ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} ./patchmgr -ibswitches ~/ib_group -ibswitch_precheck -upgrade                                                     ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}du -sh ${DIR_IB_PATCHING}${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}rm -fr ${DIR_IB_PATCHING}${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}mkdir ${DIR_IB_PATCHING}${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}unzip -q ${PATCH_DIR}/${CELL_AND_IB}/${CELL_AND_IB_ZIP} -d /tmp/IB_PATCHING${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}cd ${DIR_IB_PATCHING}/patch_${TARGET_VERSION}${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}./patchmgr -ibswitches ~/ib_group -ibswitch_precheck -upgrade${E_B}
 ${E_PRE}
+"
 
+if [ "${PREREQ_ONLY}" != "Yes" ]
+then
+echo -e "
 ${S_H3}2.2 / Apply the patch on the IB Switches:${E_H3}
 
 ${S_PRE}
 ${TAB} -- Check the Switches versions before proceeding
-${TAB} ${DBROOTPROMPT} ${S_B} ${EXAVERSIONS} -i                                                                                                 ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}${EXAVERSIONS} -i${E_B}
 
 ${TAB} -- Verify that the ib_group file contains the same switches as those shown by the ${EXAVERSIONS} script
-${TAB} ${DBROOTPROMPT} ${S_B} cat ~/ib_group                                                                                                    ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}cat ~/ib_group${E_B}
 
 ${TAB} -- Apply the patch
-${TAB} ${DBROOTPROMPT} ${S_B} cd ${DIR_IB_PATCHING}/patch_${TARGET_VERSION}                                                                     ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} ./patchmgr -ibswitches ~/ib_group -ibswitch_precheck -upgrade                                                     ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} nohup ./patchmgr -ibswitches ~/ib_group -upgrade &                                                                ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}cd ${DIR_IB_PATCHING}/patch_${TARGET_VERSION}${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}./patchmgr -ibswitches ~/ib_group -ibswitch_precheck -upgrade${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}nohup ./patchmgr -ibswitches ~/ib_group -upgrade &${E_B}
 
 ${TAB} -- Verify that the Switches are now running with the new version
-${TAB} ${DBROOTPROMPT} ${S_B} ${EXAVERSIONS} -i                                                                                                 ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}${EXAVERSIONS} -i${E_B}
 
 ${TAB} -- Delete the temporary directory used for patching
-${TAB} ${DBROOTPROMPT} ${S_B} rm -fr ${DIR_IB_PATCHING}                                                                                          ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}rm -fr ${DIR_IB_PATCHING}${E_B}
 ${E_PRE}
+"
+fi      # End of if [ "${PREREQ_ONLY}" != "Yes" ]
 
+echo -e "
 ${S_H2}3/ Database Servers patching ${E_H2}
 
 - As we cannot patch a node we are connected to, we will start the patch from a cell server (${CEL01}). To be able to do that, we need to copy patchmgr and the ISO file on this cell server. Do NOT unzip the ISO file, patchmgr will take care of it.
@@ -565,16 +611,16 @@ ${S_H3}3.1/ Copy what is needed to ${CEL01}:${E_H3}
 -- Create a ${S_B}${DIR_DB_PATCHING}${E_B} directory to patch the database servers. Having a "SAVE" directory in /tmp is a good idea to avoid the automatic maintenance jobs that purge /tmp every day (directories > 5 MB and older than 1 day). If not, these maintenance jobs will delete the dbnodeupdate.zip file that is mandatory to apply the patch -- this won't survive a reboot though
 
 ${S_PRE}
-${TAB} ${DBROOTPROMPT} ${S_B} ssh root@${CEL01} rm -fr ${DIR_DB_PATCHING}                                                                        ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} ssh root@${CEL01} mkdir ${DIR_DB_PATCHING}                                                                        ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} scp ${PATCH_DIR}/${PATCHMGR}/${PATCHMGR_ZIP} root@${CEL01}:${DIR_DB_PATCHING}/.                                   ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} scp ${PATCH_DIR}/${OL6_DIR}/${ISO} root@${CEL01}:${DIR_DB_PATCHING}/.                                             ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} scp ~/dbs_group root@${CEL01}:~/.                                                                                 ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} ssh root@${CEL01}                                                                                                 ${E_B}
-${TAB} ${CELROOTPROMPT} ${S_B} cd ${DIR_DB_PATCHING}                                                                                            ${E_B}
-${TAB} ${CELROOTPROMPT} ${S_B} unzip -q ${PATCHMGR_ZIP}                                                                                         ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}ssh root@${CEL01} rm -fr ${DIR_DB_PATCHING}${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}ssh root@${CEL01} mkdir ${DIR_DB_PATCHING}${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}scp ${PATCH_DIR}/${PATCHMGR}/${PATCHMGR_ZIP} root@${CEL01}:${DIR_DB_PATCHING}/.${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}scp ${PATCH_DIR}/${OL6_DIR}/${ISO} root@${CEL01}:${DIR_DB_PATCHING}/.${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}scp ~/dbs_group root@${CEL01}:~/.${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}ssh root@${CEL01}${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B}cd ${DIR_DB_PATCHING}${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B}unzip -q ${PATCHMGR_ZIP}${E_B}
 
-${TAB} This should create a ${S_B} dbserver_patch_`basename ${PATCHMGR}` ${E_B} directory (the name may be slightly different if you use a different patchmgr than the one shipped with the Bundle)
+${TAB} This should create a ${S_B}dbserver_patch_`basename ${PATCHMGR}`${E_B} directory (the name may be slightly different if you use a different patchmgr than the one shipped with the Bundle)
 ${E_PRE}
 
 ${S_H3}3.2/ Do the prerequisites${U_DONE}:${E_H3}
@@ -582,15 +628,19 @@ ${S_H3}3.2/ Do the prerequisites${U_DONE}:${E_H3}
 -- Consider using the ${S_B}-modify_at_prereq${E_B} option ${S_B}with extra caution${E_B} if you face some dependencies issues (-m or -M option of the action plan generator script)
 
 ${S_PRE}
-${TAB} ${CELROOTPROMPT} ${S_B} cd ${DIR_DB_PATCHING}/dbserver_patch_*                                                                           ${E_B}
-${TAB} ${CELROOTPROMPT} ${S_B} ./patchmgr -dbnodes ~/dbs_group -precheck ${MODIFY_AT_PREREQ} -iso_repo ${DIR_DB_PATCHING}/${ISO} -target_version ${TARGET_VERSION} ${ALLOW_ACTIVE_NFS_OPTION} ${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B}cd ${DIR_DB_PATCHING}/dbserver_patch_*${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B}./patchmgr -dbnodes ~/dbs_group -precheck ${MODIFY_AT_PREREQ} -iso_repo ${DIR_DB_PATCHING}/${ISO} -target_version ${TARGET_VERSION} ${ALLOW_ACTIVE_NFS_OPTION}${E_B}
 ${E_PRE}
 
 -- You can safely ignore the below warning (this is a patchmgr bug for a while) if the GI version is > 11.2.0.2 -- which is most likely the case
 ${S_PRE}
 (*) - Yum rolling update requires fix for 11768055 when Grid Infrastructure is below 11.2.0.2 BP12
 ${E_PRE}
+"
 
+if [ "${PREREQ_ONLY}" != "Yes" ]
+then
+echo -e "
 ${S_H3}3.3/ Apply the patch in a roling manner on the database servers:${E_H3}
 
 -- ${S_B}Direct connect to the ${CEL01} server${E_B}, if you go through ${DB01} or another database server, you will lose your connection when it will be rebooted
@@ -603,7 +653,7 @@ echo -e "-- Before applying the patch, we first need to umount the NFS on all th
  - If something prevents a NFS to umount, you can check what it is with \"${S_B}lsof FS_NAME${E_B}\" or \"${S_B}fuser -c -u FS_NAME${E_B}\" and kill it with \"${S_B}fuser -c -k FS_NAME${E_B}\"
  - Nothing should prevent ${S_B}umount -l${E_B} to work
 ${S_PRE}
-${TAB} ${DBROOTPROMPT} ${S_B} df -t nfs | awk '{if (\$NF ~ /^\//){print \"umount -l \" \$NF}}'                                                  ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}df -t nfs | awk '{if (\$NF ~ /^\//){print \"umount -l \" \$NF}}'${E_B}
 ${E_PRE}
 ${TAB} Note : You may consider using the ${S_B}-allow_active_network_mounts${E_B} option if your source version is > 12.1.2.1.1 (default)"
 fi
@@ -614,78 +664,86 @@ echo -e "
 ${S_PRE}
 ${TAB} -- Check the current versions of the DB Servers
 ${TAB} ssh root@${DB01}
-${TAB} ${DBROOTPROMPT} ${S_B} ${EXAVERSIONS} -d                                                                                                ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}${EXAVERSIONS} -d${E_B}
 
 ${TAB} -- Verify that the ~/dbs_group file contains the same DB Servers as those shown by the ${EXAVERSIONS} script
 ${TAB} ssh root@${CEL01}
-${TAB} ${CELROOTPROMPT} ${S_B} cat ~/dbs_group                                                                                                  ${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B}cat ~/dbs_group${E_B}
 
 ${TAB} -- Patch the Database Servers
-${TAB} ${CELROOTPROMPT} ${S_B} cd ${DIR_DB_PATCHING}/dbserver_patch_*                                                                           ${E_B}
-${TAB} ${CELROOTPROMPT} ${S_B} ./patchmgr -dbnodes ~/dbs_group -precheck ${MODIFY_AT_PREREQ} -iso_repo ${DIR_DB_PATCHING}/${ISO} -target_version ${TARGET_VERSION} ${ALLOW_ACTIVE_NFS_OPTION}    ${E_B}
-${TAB} ${CELROOTPROMPT} ${S_B} nohup ./patchmgr -dbnodes ~/dbs_group -upgrade -iso_repo ${DIR_DB_PATCHING}/${ISO} -target_version ${TARGET_VERSION} ${ALLOW_ACTIVE_NFS_OPTION} -rolling &        ${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B}cd ${DIR_DB_PATCHING}/dbserver_patch_*${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B}./patchmgr -dbnodes ~/dbs_group -precheck ${MODIFY_AT_PREREQ} -iso_repo ${DIR_DB_PATCHING}/${ISO} -target_version ${TARGET_VERSION} ${ALLOW_ACTIVE_NFS_OPTION}${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B}nohup ./patchmgr -dbnodes ~/dbs_group -upgrade -iso_repo ${DIR_DB_PATCHING}/${ISO} -target_version ${TARGET_VERSION} ${ALLOW_ACTIVE_NFS_OPTION} -rolling &${E_B}
 
 ${TAB} Note : the ${S_B}${ALLOW_ACTIVE_NFS_OPTION}${E_B} option is available starting from 12.1.2.1.1, please regenerate the action plan using the ${S_B}-f${E_B} option if you run a version < 12.1.2.1.1
 
 ${TAB} -- You can monitor the patch looking at the nohup.out file (tail -f nohup.out) or the patchmgr.out file
 
 ${TAB} -- Remove the temporary directory used for the patch from the cell
-${TAB} ${CELROOTPROMPT} ${S_B} rm -fr ${DIR_DB_PATCHING}                                                                                         ${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B}rm -fr ${DIR_DB_PATCHING}${E_B}
 
 ${TAB} -- Verify that the DB Servers versions are now ${TARGET_VERSION}
 ${TAB} ssh root@${DB01}
-${TAB} ${DBROOTPROMPT} ${S_B} ${EXAVERSIONS} -d                                                                                                ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}${EXAVERSIONS} -d${E_B}
 
 ${E_PRE}
+"
+fi      # End of if [ "${PREREQ_ONLY}" != "Yes" ]
 
 
+echo -e "
 ${S_H2}4/ Grid Infrastructure patching ${E_H2}
 
 ${S_H3}4.1/ To start with, be sure that the patch has been unzipped (as $GI_OWNER user to avoid any further permission issue)${U_DONE}:${E_H3}
 
 ${S_PRE}
-${TAB} ${DBORACLEPROMPT} ${S_B} cd ${PATCH_DIR}/${GI_DIR}                                                                                       ${E_B}
-${TAB} ${DBORACLEPROMPT} ${S_B} unzip -q p${GI_PATCH}*_Linux-x86-64.zip                                                                         ${E_B}
-${TAB} -- This should create a ${S_B} ${GI_PATCH} ${E_B} directory.
+${TAB} ${DBORACLEPROMPT} ${S_B}cd ${PATCH_DIR}/${GI_DIR}${E_B}
+${TAB} ${DBORACLEPROMPT} ${S_B}unzip -q p${GI_PATCH}*_Linux-x86-64.zip${E_B}
+${TAB} -- This should create a ${S_B}${GI_PATCH}${E_B} directory.
 ${E_PRE}
 
 -- Upgrade opatch if opatch is not already at the latest version: ${U_DONE}
 ${S_PRE}
-${TAB} ${DBORACLEPROMPT} ${S_B}dcli -g ~/dbs_group -l ${GI_OWNER} ${GI_HOME}/OPatch/opatch version | grep Version                                    ${E_B}
-${TAB} ${DBORACLEPROMPT} ${S_B}dcli -g ~/dbs_group -l ${GI_OWNER} -f ${PATCH_DIR}/${OPATCH}/p6880880_12*_Linux-x86-64.zip -d /tmp                    ${E_B}
+${TAB} ${DBORACLEPROMPT} ${S_B}dcli -g ~/dbs_group -l ${GI_OWNER} ${GI_HOME}/OPatch/opatch version | grep Version${E_B}
+${TAB} ${DBORACLEPROMPT} ${S_B}dcli -g ~/dbs_group -l ${GI_OWNER} -f ${PATCH_DIR}/${OPATCH}/p6880880_12*_Linux-x86-64.zip -d /tmp${E_B}
 ${TAB} ${DBORACLEPROMPT} ${S_B}dcli -g ~/dbs_group -l ${GI_OWNER} \"unzip -o /tmp/p6880880_12*_Linux-x86-64.zip -d ${GI_HOME}; ${GI_HOME}/OPatch/opatch version; rm /tmp/p6880880_12*_Linux-x86-64.zip\" | grep Version${E_B}
 ${E_PRE}
 
 -- It is also recommended to execute the prerequisites: ${U_DONE}
 ${S_PRE}
-${TAB} ${DBROOTPROMPT} ${S_B} . oraenv <<< \`grep \"^+ASM\" /etc/oratab | awk -F \":\" '{print \$1}'\`                                          ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} cd ${PATCH_DIR}/${GI_DIR}/${GI_PATCH}                                                                             ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} ${GI_HOME}/OPatch/opatchauto apply -oh ${GI_HOME} -analyze                                                        ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}. oraenv <<< \`grep \"^+ASM\" /etc/oratab | awk -F \":\" '{print \$1}'\`${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}cd ${PATCH_DIR}/${GI_DIR}/${GI_PATCH}${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}${GI_HOME}/OPatch/opatchauto apply -oh ${GI_HOME} -analyze${E_B}
 ${E_PRE}
+"
 
+if [ "${PREREQ_ONLY}" != "Yes" ]
+then
+echo -e "
 ${S_H3}4.2/ Apply the patch ${S_B}on each node one after the other (${DB01} then the next node, etc...)${E_B}:${E_H3}
 
 -- Use the script ${S_B}${STATUS_SCRIPT}${E_B} to monitor the instances during the patch application
 ${S_PRE}
 ${TAB} -- Check the inventory before the patch
-${TAB} ${DBORACLEPROMPT} ${S_B} . oraenv <<< \`grep \"^+ASM\" /etc/oratab | awk -F \":\" '{print \$1}'\`                                        ${E_B}
-${TAB} ${DBORACLEPROMPT} ${S_B} ${LSPATCHES} -g ${GI_HOME}                                                                                      ${E_B}
+${TAB} ${DBORACLEPROMPT} ${S_B}. oraenv <<< \`grep \"^+ASM\" /etc/oratab | awk -F \":\" '{print \$1}'\`${E_B}
+${TAB} ${DBORACLEPROMPT} ${S_B}${LSPATCHES} -g ${GI_HOME}${E_B}
 
 ${TAB} -- Apply the patch on the node
-${TAB} ${DBROOTPROMPT} ${S_B} cd ${PATCH_DIR}/${GI_DIR}/${GI_PATCH}                                                                             ${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B} nohup ${GI_HOME}/OPatch/opatchauto apply -oh ${GI_HOME} &                                                         ${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}cd ${PATCH_DIR}/${GI_DIR}/${GI_PATCH}${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}nohup ${GI_HOME}/OPatch/opatchauto apply -oh ${GI_HOME} &${E_B}
 
 ${TAB} -- Check the inventory after the patch
-${TAB} ${DBORACLEPROMPT} ${S_B} . oraenv <<< \`grep \"^+ASM\" /etc/oratab | awk -F \":\" '{print \$1}'\`                                        ${E_B}
-${TAB} ${DBORACLEPROMPT} ${S_B} ${LSPATCHES} -g ${GI_HOME}                                                                                      ${E_B}
+${TAB} ${DBORACLEPROMPT} ${S_B}. oraenv <<< \`grep \"^+ASM\" /etc/oratab | awk -F \":\" '{print \$1}'\`${E_B}
+${TAB} ${DBORACLEPROMPT} ${S_B}${LSPATCHES} -g ${GI_HOME}${E_B}
 
 ${TAB} -- jump to the next node an re apply 4.2
 ${E_PRE}
+"
+fi      # End of if [ "${PREREQ_ONLY}" != "Yes" ]
 
+echo -e "
 ****************************** STOP COPYING THE ACTION PLAN ABOVE THIS LINE ******************************
 "
-
-
 
 #************************************************************************************************#
 #*                              E N D      O F      S O U R C E                                 *#
