@@ -4,8 +4,11 @@
 # Automatically generates an Exadata patching action plan from a bundle.xml file
 # For more details about the Exadata patching procedure, you can have a look at https://unknowndba.blogspot.com/2018/11/how-to-patch-exadata-upgrade-exadata-18c-part1.html
 #
-# The current version of the script is 20181128
+# The current version of the script is 20181206
 #
+# 20181206 - Fred Denis - Check if ASM is running to find the GI Owner, if different from the -o option, I use what -o specifies and raise a warning
+#                       - Preamble script clarification as well as link to https://goo.gl/jB2esT for DB servers patch OS dependencies issues
+#                       - Moved variable for GI patching prompt from DBORACLEPROMPT to DBGIPROMPT
 # 20181128 - Fred Denis - A word on dbs_group, cell_group and ib_group in a preamble section
 #                         External scripts are now shown with "~" and not the "real" HOME path
 # 20181122 - Fred Denis - A -p option to show pre requisites only in the action plan (PREREQ_ONLY variable)
@@ -69,7 +72,7 @@ DEBUG="Yes"
                         DB01=""                                         # Name of the DB Server 01 we will be using to patch the DB Nodes (can be modify using the -s option)
              DIR_IB_PATCHING="/tmp/IB_PATCHING"                         # Directory to copy the IB Switch outside of NFS/ZFS to avoid issues when rebooting the IB Switches
              DIR_DB_PATCHING="/tmp/SAVE"                                # Directory used on cel01 to patch the DB servers
-                    GI_OWNER="oracle"                                   # Default Grid Owner -- can be overwritten by the -o option
+            DEFAULT_GI_OWNER="oracle"                                   # Default Grid Owner -- can be overwritten by the -o option
                  PREREQ_ONLY="No"                                       # Show pre requisites only ? can be changed by the -p option
                    AP_FORMAT="TEXT"                                     # Format of the action plan, default is TEXT, can also be HTML or JIRA
 #
@@ -92,9 +95,9 @@ usage()
                 -u                                                      (Unzip and prereqs steps have been done, shows a green "DONE" for the unzip parts, default is unzip has not been done)
                 -v <Cells, IB and DB Server version to install>         (optional -- default is the highest)
                 -w <GI version to install>                              (optional -- same as cells and DB nodes if not specified)
-                -o <GI_OWNER>                                           (optional -- if different than the default ${GI_OWNER})
+                -o <GI_OWNER>                                           (optional -- if different than the default ${DEFAULT_GI_OWNER})
 
-                # Use the below -[mM] options with caution
+                # Use the below -[mM] options with extra caution -- please read https://goo.gl/jB2esT before any attempt in using -modify_at_prereq
                 -m                                                      (optional -- use the -modify_at_prereq option when patching the DB Servers; default is -modify_at_prereq is not used)
 !
         exit 123
@@ -165,6 +168,26 @@ then
         ALLOW_ACTIVE_NFS_OPTION=""
 else
         ALLOW_ACTIVE_NFS_OPTION="-allow_active_network_mounts"
+fi
+
+# Check if ASM is running (meaning we may generate this from the server itself)
+RUNNING_GI_OWNER=`ps -ef | grep "pmon_+ASM" | grep -v grep | awk '{print $1}'`
+if [[ -n ${RUNNING_GI_OWNER} ]]
+then    # ASM is running here
+        if [[ -z $GI_OWNER ]]   # No GI Owner specified with the -o option
+        then                    # We use the running GI owner
+                GI_OWNER=$RUNNING_GI_OWNER
+        else                    # GI owner specified with the -o option
+                if [ "$GI_OWNER" != "$RUNNING_GI_OWNER" ]
+                then
+                        SHOW_GI_WARNING="Yes"
+                fi
+        fi
+else    # No ASM running here
+        if [[ -z $GI_OWNER ]]   # No GI Owner specified with the -o option, we use the default
+        then
+                GI_OWNER=$DEFAULT_GI_OWNER
+        fi
 fi
 
 
@@ -366,7 +389,7 @@ CELL_AND_IB_ZIP="p"$CELL_AND_IB_ZIP"_*_Linux-x86-64.zip"        ;
 #
          DBROOTPROMPT="[root@${DB01} ~]#"
         CELROOTPROMPT="[root@${CEL01} ~]#"
-       DBORACLEPROMPT="["$GI_OWNER"@${DB01} ~]$"
+           DBGIPROMPT="["$GI_OWNER"@${DB01} ~]$"
             SQLPROMPT="SQL>"
 
 #
@@ -391,6 +414,9 @@ CELL_AND_IB_ZIP="p"$CELL_AND_IB_ZIP"_*_Linux-x86-64.zip"        ;
                 GI_DIR          :       ${GI_DIR}
                 GI_PATCH        :       ${GI_PATCH}
                 GI_BUNDLE       :       ${GI_BUNDLE}
+                GI_OWNER        :       ${GI_OWNER}
+                RUNNING_GI_OWNER:       ${RUNNING_GI_OWNER}
+                SHOW_GI_WARNING :       ${SHOW_GI_WARNING}
                 GRID_HOME       :       ${GI_HOME}
                 UNZIP_DONE      :       ${UNZIP_DONE}
                 PREREQ_ONLY     :       ${PREREQ_ONLY}
@@ -467,13 +493,16 @@ if [ "${PREREQ_ONLY}" != "Yes" ]
 then
 echo -e "
 ${S_H2}0/ Preamble${E_H2}
--- Few scripts are used in this action plan to ease some actions :
+-- Few scripts need to be copied as below as they ease many actions of the patching procedure (they can be found here : https://goo.gl/9DsVxc)
 ${S_PRE}
+${TAB} ${DBROOTPROMPT} ${EXAVERSIONS}
+${TAB} ${DBGIPROMPT} ${LSPATCHES}
+${TAB} ${DBGIPROMPT} ${STATUS_SCRIPT}
+
+-- A quick description of these scripts:
 ${TAB}  - ${STATUS_SCRIPT}     : A GI 12c instances status output (may be replaced by many "ps" or some "crsctl stat res -t" commands)
 ${TAB}  - ${EXAVERSIONS}   : Show the Exadata components versions (may be replaced by "dcli -g ~/[dbs\|cell\|ib]_group -l root [imageinfo -ver\|version]")
-${TAB}  - ${LSPATCHES}   : Show the installed patches (may be replaced by "opatch lsinventory [-all_nodes\|-remote]")
-
--- They can be found here : https://unknowndba.blogspot.com/2018/04/a-shortcut-to-all-scripts-provided-by.html
+${TAB}  - ${LSPATCHES}      : Show the installed patches (may be replaced by "opatch lsinventory [-all_nodes\|-remote]")
 ${E_PRE}
 -- It is important to ensure that the ~/dbs_group, ~/cell_group and ~/ib_group files are up to date to not miss any component when patching
 -- Please find below how to update them if yours are not up to date
@@ -509,8 +538,8 @@ then
 echo -e "
 ${S_H3}1.3/ Set disk_repair_time to 24h instead of the default 3.6h :${E_H3}
 ${S_PRE}
-${TAB} ${DBORACLEPROMPT} ${S_B}. oraenv <<< `grep "^+ASM" /etc/oratab | awk -F ":" '{print $1}'`${E_B}
-${TAB} ${DBORACLEPROMPT} ${S_B}sqlplus / as sysasm${E_B}
+${TAB} ${DBGIPROMPT} ${S_B}. oraenv <<< `grep "^+ASM" /etc/oratab | awk -F ":" '{print $1}'`${E_B}
+${TAB} ${DBGIPROMPT} ${S_B}sqlplus / as sysasm${E_B}
 ${TAB} ${SQLPROMPT} ${S_B}set lines 200${E_B}
 ${TAB} ${SQLPROMPT} ${S_B}col attribute for a30${E_B}
 ${TAB} ${SQLPROMPT} ${S_B}col value for a50${E_B}
@@ -545,8 +574,8 @@ ${E_PRE}
 
 ${S_H3}1.5/ Set disk_repair_time back to the default 3.6h :${E_H3}
 ${S_PRE}
-${TAB} ${DBORACLEPROMPT} ${S_B}. oraenv <<< `grep "^+ASM" /etc/oratab | awk -F ":" '{print $1}'`${E_B}
-${TAB} ${DBORACLEPROMPT} ${S_B}sqlplus / as sysasm${E_B}
+${TAB} ${DBGIPROMPT} ${S_B}. oraenv <<< `grep "^+ASM" /etc/oratab | awk -F ":" '{print $1}'`${E_B}
+${TAB} ${DBGIPROMPT} ${S_B}sqlplus / as sysasm${E_B}
 ${TAB} ${SQLPROMPT} ${S_B}set lines 200${E_B}
 ${TAB} ${SQLPROMPT} ${S_B}col attribute for a30${E_B}
 ${TAB} ${SQLPROMPT} ${S_B}col value for a50${E_B}
@@ -626,13 +655,12 @@ ${TAB} This should create a ${S_B}dbserver_patch_`basename ${PATCHMGR}`${E_B} di
 ${E_PRE}
 
 ${S_H3}3.2/ Do the prerequisites${U_DONE}:${E_H3}
-
--- Consider using the ${S_B}-modify_at_prereq${E_B} option ${S_B}with extra caution${E_B} if you face some dependencies issues (-m or -M option of the action plan generator script)
-
 ${S_PRE}
 ${TAB} ${CELROOTPROMPT} ${S_B}cd ${DIR_DB_PATCHING}/dbserver_patch_*${E_B}
 ${TAB} ${CELROOTPROMPT} ${S_B}./patchmgr -dbnodes ~/dbs_group -precheck ${MODIFY_AT_PREREQ} -iso_repo ${DIR_DB_PATCHING}/${ISO} -target_version ${TARGET_VERSION} ${ALLOW_ACTIVE_NFS_OPTION}${E_B}
+${TAB} ${CELROOTPROMPT} ${S_B} rm -fr ${DIR_DB_PATCHING}${E_B}  -- Remove the ${DIR_DB_PATCHING} directory after use -- indeed, 3 GB are needed on / to patch the cells so the cell patching may fail if you don't
 ${E_PRE}
+-- Please read https://goo.gl/jB2esT about how to resolve the OS dependencies if you face some at this stage, do NOT go with -modify_at_prereq before reading https://goo.gl/jB2esT
 
 -- You can safely ignore the below warning (this is a patchmgr bug for a while) if the GI version is > 11.2.0.2 -- which is most likely the case
 ${S_PRE}
@@ -643,7 +671,7 @@ ${E_PRE}
 if [ "${PREREQ_ONLY}" != "Yes" ]
 then
 echo -e "
-${S_H3}3.3/ Apply the patch in a roling manner on the database servers:${E_H3}
+${S_H3}3.3/ Apply the patch in a rolling manner on the database servers:${E_H3}
 -- ${S_B}Direct connect to the ${CEL01} server${E_B}, if you go through ${DB01} or another database server, you will lose your connection when it will be rebooted
 "
 
@@ -689,20 +717,18 @@ fi      # End of if [ "${PREREQ_ONLY}" != "Yes" ]
 
 echo -e "
 ${S_H2}4/ Grid Infrastructure patching ${E_H2}
-
 ${S_H3}4.1/ To start with, be sure that the patch has been unzipped (as $GI_OWNER user to avoid any further permission issue)${U_DONE}:${E_H3}
-
 ${S_PRE}
-${TAB} ${DBORACLEPROMPT} ${S_B}cd ${PATCH_DIR}/${GI_DIR}${E_B}
-${TAB} ${DBORACLEPROMPT} ${S_B}unzip -q p${GI_PATCH}*_Linux-x86-64.zip${E_B}
+${TAB} ${DBGIPROMPT} ${S_B}cd ${PATCH_DIR}/${GI_DIR}${E_B}
+${TAB} ${DBGIPROMPT} ${S_B}unzip -q p${GI_PATCH}*_Linux-x86-64.zip${E_B}
 ${TAB} -- This should create a ${S_B}${GI_PATCH}${E_B} directory.
 ${E_PRE}
 
 -- Upgrade opatch if opatch is not already at the latest version: ${U_DONE}
 ${S_PRE}
-${TAB} ${DBORACLEPROMPT} ${S_B}dcli -g ~/dbs_group -l ${GI_OWNER} ${GI_HOME}/OPatch/opatch version | grep Version${E_B}
-${TAB} ${DBORACLEPROMPT} ${S_B}dcli -g ~/dbs_group -l ${GI_OWNER} -f ${PATCH_DIR}/${OPATCH}/p6880880_12*_Linux-x86-64.zip -d /tmp${E_B}
-${TAB} ${DBORACLEPROMPT} ${S_B}dcli -g ~/dbs_group -l ${GI_OWNER} \"unzip -o /tmp/p6880880_12*_Linux-x86-64.zip -d ${GI_HOME}; ${GI_HOME}/OPatch/opatch version; rm /tmp/p6880880_12*_Linux-x86-64.zip\" | grep Version${E_B}
+${TAB} ${DBGIPROMPT} ${S_B}dcli -g ~/dbs_group -l ${GI_OWNER} ${GI_HOME}/OPatch/opatch version | grep Version${E_B}
+${TAB} ${DBGIPROMPT} ${S_B}dcli -g ~/dbs_group -l ${GI_OWNER} -f ${PATCH_DIR}/${OPATCH}/p6880880_12*_Linux-x86-64.zip -d /tmp${E_B}
+${TAB} ${DBGIPROMPT} ${S_B}dcli -g ~/dbs_group -l ${GI_OWNER} \"unzip -o /tmp/p6880880_12*_Linux-x86-64.zip -d ${GI_HOME}; ${GI_HOME}/OPatch/opatch version; rm /tmp/p6880880_12*_Linux-x86-64.zip\" | grep Version${E_B}
 ${E_PRE}
 
 -- It is also recommended to execute the prerequisites on each node: ${U_DONE}
@@ -726,16 +752,16 @@ ${S_H3}4.2/ Apply the patch ${S_B}on each node one after the other (${DB01} then
 -- Use the script ${S_B}${STATUS_SCRIPT}${E_B} to monitor the instances during the patch application
 ${S_PRE}
 ${TAB} -- Check the inventory before the patch
-${TAB} ${DBORACLEPROMPT} ${S_B}. oraenv <<< \`grep \"^+ASM\" /etc/oratab | awk -F \":\" '{print \$1}'\`${E_B}
-${TAB} ${DBORACLEPROMPT} ${S_B}${LSPATCHES} -g ${GI_HOME}${E_B}
+${TAB} ${DBGIPROMPT} ${S_B}. oraenv <<< \`grep \"^+ASM\" /etc/oratab | awk -F \":\" '{print \$1}'\`${E_B}
+${TAB} ${DBGIPROMPT} ${S_B}${LSPATCHES} -g ${GI_HOME}${E_B}
 
 ${TAB} -- Apply the patch on the node
 ${TAB} ${DBROOTPROMPT} ${S_B}cd ${PATCH_DIR}/${GI_DIR}/${GI_PATCH}${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B}nohup ${GI_HOME}/OPatch/opatchauto apply -oh ${GI_HOME} &${E_B}
 
 ${TAB} -- Check the inventory after the patch
-${TAB} ${DBORACLEPROMPT} ${S_B}. oraenv <<< \`grep \"^+ASM\" /etc/oratab | awk -F \":\" '{print \$1}'\`${E_B}
-${TAB} ${DBORACLEPROMPT} ${S_B}${LSPATCHES} -g ${GI_HOME}${E_B}
+${TAB} ${DBGIPROMPT} ${S_B}. oraenv <<< \`grep \"^+ASM\" /etc/oratab | awk -F \":\" '{print \$1}'\`${E_B}
+${TAB} ${DBGIPROMPT} ${S_B}${LSPATCHES} -g ${GI_HOME}${E_B}
 
 ${TAB} -- jump to the next node an re apply 4.2
 ${E_PRE}
@@ -745,6 +771,13 @@ fi      # End of if [ "${PREREQ_ONLY}" != "Yes" ]
 echo -e "
 ****************************** STOP COPYING THE ACTION PLAN ABOVE THIS LINE ******************************
 "
+if [ "${SHOW_GI_WARNING}" = "Yes" ]
+then
+echo -e "
+Warning : a running ASM using the $RUNNING_GI_OWNER user has been detected but the -o option specified the ${GI_OWNER} user as Grid owner
+          please double check that ${GI_OWNER} is the GI Owner
+"
+fi
 
 #************************************************************************************************#
 #*                              E N D      O F      S O U R C E                                 *#
