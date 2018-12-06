@@ -733,7 +733,6 @@ ${E_PRE}
 
 -- It is also recommended to execute the prerequisites on each node: ${U_DONE}
 ${S_PRE}
-${TAB} ${DBROOTPROMPT} ${S_B}. oraenv <<< \`grep \"^+ASM\" /etc/oratab | awk -F \":\" '{print \$1}'\`${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B}cd ${PATCH_DIR}/${GI_DIR}/${GI_PATCH}${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B}${GI_HOME}/OPatch/opatchauto apply -oh ${GI_HOME} -analyze${E_B}
 ${E_PRE}
@@ -752,7 +751,6 @@ ${S_H3}4.2/ Apply the patch ${S_B}on each node one after the other (${DB01} then
 -- Use the script ${S_B}${STATUS_SCRIPT}${E_B} to monitor the instances during the patch application
 ${S_PRE}
 ${TAB} -- Check the inventory before the patch
-${TAB} ${DBGIPROMPT} ${S_B}. oraenv <<< \`grep \"^+ASM\" /etc/oratab | awk -F \":\" '{print \$1}'\`${E_B}
 ${TAB} ${DBGIPROMPT} ${S_B}${LSPATCHES} -g ${GI_HOME}${E_B}
 
 ${TAB} -- Apply the patch on the node
@@ -760,7 +758,6 @@ ${TAB} ${DBROOTPROMPT} ${S_B}cd ${PATCH_DIR}/${GI_DIR}/${GI_PATCH}${E_B}
 ${TAB} ${DBROOTPROMPT} ${S_B}nohup ${GI_HOME}/OPatch/opatchauto apply -oh ${GI_HOME} &${E_B}
 
 ${TAB} -- Check the inventory after the patch
-${TAB} ${DBGIPROMPT} ${S_B}. oraenv <<< \`grep \"^+ASM\" /etc/oratab | awk -F \":\" '{print \$1}'\`${E_B}
 ${TAB} ${DBGIPROMPT} ${S_B}${LSPATCHES} -g ${GI_HOME}${E_B}
 
 ${TAB} -- jump to the next node an re apply 4.2
