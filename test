@@ -4,8 +4,9 @@
 # Automatically generates an Exadata patching action plan from a bundle.xml file
 # For more details about the Exadata patching procedure, you can have a look at https://unknowndba.blogspot.com/2018/11/how-to-patch-exadata-upgrade-exadata-18c-part1.html
 #
-# The current version of the script is 20181206
+# The current version of the script is 20181211
 #
+# 20181211 - Fred Denis - A new -b option to be able to use a bundle.xml in another location than the bundle itself
 # 20181206 - Fred Denis - Check if ASM is running to find the GI Owner, if different from the -o option, I use what -o specifies and raise a warning
 #                       - Preamble script clarification as well as link to https://goo.gl/jB2esT for DB servers patch OS dependencies issues
 #                       - Moved variable for GI patching prompt from DBORACLEPROMPT to DBGIPROMPT
@@ -75,6 +76,7 @@ DEBUG="Yes"
             DEFAULT_GI_OWNER="oracle"                                   # Default Grid Owner -- can be overwritten by the -o option
                  PREREQ_ONLY="No"                                       # Show pre requisites only ? can be changed by the -p option
                    AP_FORMAT="TEXT"                                     # Format of the action plan, default is TEXT, can also be HTML or JIRA
+                  BUNDLE_XML=""                                         # Location of the bundle.xml file (if different from $PATCH_DIR/bundle.xml)
 #
 # A usage function
 #
@@ -84,6 +86,7 @@ usage()
 
         $0
                 -d <DIRECTORY_OF_THE_BUNDLE_PATCH>                      (mandatory)
+                -b <bundle.xml location>                                (optional) If the bundle.xml file is not in $PATCH_DIR (provided with the -d option)
                 -f                                                      (optional) Generate the commands to force umount the NFS before patching (for versions < 12.1.2.1.1)
                 -g <GI_HOME>                                            (optional)
                 -c <Cel01 name>                                         (optional -- if your cel01 is not named in the form ${CLUSTER_NAME}cel01)
@@ -106,9 +109,10 @@ usage()
 #
 # Parameters management
 #
-while getopts ":d:n:hpujmMg:v:fc:s:w:o:" OPT; do
+while getopts ":d:b:n:hpujmMg:v:fc:s:w:o:" OPT; do
         case ${OPT} in
         d)          PATCH_DIR=`echo ${OPTARG} | sed s'/\/ *$//'`    ;;      # Remove any trailing /
+        b)         BUNDLE_XML=${OPTARG}                             ;;
         f)   ALLOW_ACTIVE_NFS="No"                                  ;;
         g)            GI_HOME=`echo ${OPTARG} | sed s'/\/ *$//'`    ;;      # Remove any trailing /
         c)             CEL01=${OPTARG}                              ;;
@@ -130,12 +134,35 @@ while getopts ":d:n:hpujmMg:v:fc:s:w:o:" OPT; do
         esac
 done
 
-if [ -z ${PATCH_DIR} ]
+if [ -z ${PATCH_DIR} ]          # Option -d
 then
         cat << !
+
         A patch directory is needed, cannot continue without.
 !
         usage
+fi
+if [ -n ${BUNDLE_XML} ]         # Option -b
+then
+        if [ ! -f ${BUNDLE_XML} ]
+        then
+        cat << !
+
+        Cannot find the ${BUNDLE_XML} file specified by the -b option, cannot continue . . .
+!
+        usage
+        fi
+else    # No bundle.xml specified, we then use the one in $PATCH_DIR
+        BUNDLE_XML="${PATCH_DIR}/bundle.xml"
+
+        if [ ! -f ${BUNDLE_XML} ]
+        then
+                cat << !
+
+        Cannot find the bundle.xml file in ${PATCH_DIR}, this does not look like to be the good directory. Cannot conitnue . . .
+!
+        usage
+        fi
 fi
 if [ -z ${CLUSTER_NAME} ]       # If cluster_name is not specified, we try to guess it or we put a default value
 then
@@ -195,15 +222,6 @@ fi
 # Grep and format the information we need from the bundle.xml file
 # I choose to put everything in a temporary config file in case of we would need to only keep config files instead of bundle.xml file later on
 #
-            BUNDLE_XML="${PATCH_DIR}/bundle.xml"
-
-        if [ ! -f ${BUNDLE_XML} ]
-        then
-                cat << !
-        Cannot find the bundle.xml file in ${PATCH_DIR}, this does not look like to be the good directory.
-!
-        usage
-        fi
                VERSION=`grep patch_abstract ${BUNDLE_XML} | sed 's/.*- //; s/)"//'`             # Better way I found to get the target version
 
                 awk -v VERSION="$VERSION" '
