@@ -14,8 +14,9 @@
 #
 #
 #
-# The current version of the script is 20180827
+# The current version of the script is 20181218
 #
+# 20181218 - Fixed the regexp to list the instances running
 # 20180827 - A better regexp to list the instances running
 # 20180503 - GI 12c introduces a "Logical_Sector" column, took this into account (Thanks Leon !)
 # 20180327 - "Raw Used " label for the subdirectories "Mirror_used_MB" column, adjustments in the help
@@ -131,7 +132,7 @@ export ORAENV_ASK=NO
 #
 # A quick list of the instances that are running on the server
 #
-ps -ef | grep pmon | grep -v grep | awk '{print $NF}' | sed s'/.*_//g' | sort | awk -v H="`hostname -s`" 'BEGIN {printf("\n%s", "Instances running on " H " : ")} { printf("%s, ", $0)} END{printf("\n")}' | sed s'/, $//'
+ps -ef | grep pmon | grep -v grep | awk '{print $NF}' | sed s'/.*_pmon_//' | egrep "^([+]|[Aa-Zz])" | sort | awk -v H="`hostname -s`" 'BEGIN {printf("\n%s", "Instances running on " H " : ")} { printf("%s, ", $0)} END{printf("\n")}' | sed s'/, $//'
 
 
 #
