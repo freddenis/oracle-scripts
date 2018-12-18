@@ -16,7 +16,8 @@
 #
 # The current version of the script is 20181218
 #
-# 20181218 - Fixed the regexp to list the instances running
+# 20181218 - A new -n option to print with no color -- DEFAULT_NOCOLOR can be used to modify the default behavior
+#            Fixed the regexp to list the instances running
 # 20180827 - A better regexp to list the instances running
 # 20180503 - GI 12c introduces a "Logical_Sector" column, took this into account (Thanks Leon !)
 # 20180327 - "Raw Used " label for the subdirectories "Mirror_used_MB" column, adjustments in the help
@@ -34,7 +35,6 @@
 # Default values (when no option is specified in the command line)
 # The last uncommented value wins
 #
-
 DEFAULT_UNIT="MB"       # asmcmd default
 DEFAULT_UNIT="GB"
 DEFAULT_UNIT="TB"
@@ -42,11 +42,20 @@ DEFAULT_UNIT="TB"
 DEFAULT_VERBOSE="Yes"
 DEFAULT_VERBOSE="No"
 
+DEFAULT_NOCOLOR="Yes"   # Print with no color
+DEFAULT_NOCOLOR="No"    # Print with colors
+
 #
 # Colored thresholds (Red, Yellow, Green)
 #
             CRITICAL=90
              WARNING=75
+
+#
+# A color for a nice header
+#
+    WHITE="\033[1;37m"
+END_COLOR="\033[m"
 
 #
 # An usage function
@@ -82,6 +91,8 @@ cat << END
         -m -g -t  The default Unit can be specified using the DEFAULT_UNIT variable
                   If more than one of these options is specified, the last one wins
 
+        -n        Shows the output with no color (handy to send it by email)
+
         -h        Shows this help
 
 END
@@ -95,12 +106,13 @@ exit 123
     PARAM_UNIT=""
  PARAM_VERBOSE=""
 
-while getopts "d:mgtvh" OPT; do
+while getopts "d:mgtnvh" OPT; do
         case ${OPT} in
         d)                  D=${OPTARG}                         ;;
         m)         PARAM_UNIT="MB"                              ;;
         g)         PARAM_UNIT="GB"                              ;;
         t)         PARAM_UNIT="TB"                              ;;
+        n)      PARAM_NOCOLOR="Yes"                             ;;
         v)      PARAM_VERBOSE="Yes"                             ;;
         h)      usage                                           ;;
         \?) echo "Invalid option: -$OPTARG" >&2; usage          ;;
@@ -118,6 +130,17 @@ then    # No parameter specified, we use the default
         VERBOSE=${DEFAULT_VERBOSE}
 else
         VERBOSE=${PARAM_VERBOSE}
+fi
+if [[ -z ${PARAM_NOCOLOR} ]]
+then    # No parameter specified, we use the default
+        NOCOLOR=${DEFAULT_NOCOLOR}
+else
+        NOCOLOR=${PARAM_NOCOLOR}
+fi
+if [[ ${NOCOLOR} == "Yes" ]]
+then
+            WHITE=""
+        END_COLOR=""
 fi
 
 #
@@ -150,20 +173,19 @@ fi
 #
 # A header
 #
-
-printf "\n%25s%16s\033[1;37m%16s\033[m"   "DiskGroup" "Redundancy" "Total ${UNIT}"      # "Raw Free ${UNIT}" "Reserved ${UNIT}"  "Usable ${UNIT}" "% Free"
+printf "\n%25s%16s${WHITE}%16s${END_COLOR}"   "DiskGroup" "Redundancy" "Total ${UNIT}"  # "Raw Free ${UNIT}" "Reserved ${UNIT}"  "Usable ${UNIT}" "% Free"
 if [[ ${VERBOSE} == "Yes" ]]
 then
         printf "%16s%16s%16s" "Raw Total ${UNIT}" "Raw Free ${UNIT}" "Reserved ${UNIT}"
 fi
-printf "\033[1;37m%16s\033[m\033[1;37m%14s\033[m\n" "Usable ${UNIT}" "% Free"
+printf "${WHITE}%16s%14s${END_COLOR}\n" "Usable ${UNIT}" "% Free"
 
-printf "%25s%16s\033[1;37m%16s\033[m"   "---------"     "-----------" "--------"
+printf "%25s%16s${WHITE}%16s${END_COLOR}"   "---------"     "-----------" "--------"
 if [[ ${VERBOSE} == "Yes" ]]
 then
         printf "%16s%16s%16s"           "------------"  "-----------" "-----------"
 fi
-printf "\033[1;37m%16s\033[m%14s\n"     "---------"     "------"
+printf "${WHITE}%16s${END_COLOR}%14s\n"     "---------"     "------"
 
 
 #
@@ -172,15 +194,27 @@ printf "\033[1;37m%16s\033[m%14s\n"     "---------"     "------"
 for X in ${DG}
 do
             asmcmd lsdg ${X} | tail -1 |\
-                awk -v DG="$X"  -v W="$WARNING" -v C="$CRITICAL" -v UNIT="$UNIT" -v VERBOSE="$VERBOSE" '\
+                awk -v DG="$X" -v W="$WARNING" -v C="$CRITICAL" -v UNIT="$UNIT" -v VERBOSE="$VERBOSE" -v NOCOLOR="$NOCOLOR" '\
                 BEGIN \
-                {COLOR_BEGIN =           "\033[1;"                                      ;
+                {
+                if (NOCOLOR == "Yes")
+                {
+                 COLOR_BEGIN =           ""                                             ;
+                   COLOR_END =           ""                                             ;
+                         RED =           ""                                             ;
+                       GREEN =           ""                                             ;
+                      YELLOW =           ""                                             ;
+                       WHITE =           ""                                             ;
+                       COLOR =           ""                                             ;
+                } else {
+                 COLOR_BEGIN =           "\033[1;"                                      ;
                    COLOR_END =           "\033[m"                                       ;
                          RED =           COLOR_BEGIN"31m"                               ;
                        GREEN =           COLOR_BEGIN"32m"                               ;
                       YELLOW =           COLOR_BEGIN"33m"                               ;
                        WHITE =           COLOR_BEGIN"37m"                               ;
                        COLOR =           GREEN                                          ;
+                }
                      DIVIDER =           1                                              ;       # Unit divider
                      RED_DIV =           1                                              ;       # Redundancy divider
 
