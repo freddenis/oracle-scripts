@@ -69,7 +69,7 @@ END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
 cat << END
-        $0 [-d] [-m -g -t] [-v] [-h]
+        $0 [-d] [-m -g -t] [-n] [-v] [-h]
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
