@@ -6,18 +6,16 @@
 # Provide information on the installed and missing patches on ORACLE_HOMEs
 #       $0 -h for more information
 #
-# The version of the script is 20180809
+# The version of the script is 20190401
 #
+# 20190401 - Fred Denis - Implement opatchauto report instead of lsinventory -all_nodes for versions > 1220112 or  for 11g
 # 20180809 - Fred Denis - Add the desription of a patch if available
-#
 # 20180704 - Fred Denis - GREP and UNGREP now works when a file is specified
 #                                                 A new -o option to only get the opatch output on a file
 #                                                 The -s option is now compatible with the -f one
-#
 # 20180626 - Fred Denis - Started the opatch version management by showing a warning when the special 12.2.0.1.13 and 11.2.0.3.18 versions are used
 #                            see https://unknowndba.blogspot.com/2018/06/deprecation-of-opatch-command-option.html for more information
 #                         Shows an error when opatch raises an error (when another user owns the ORACLE_HOME for example)
-#
 # 20180625 - Fred Denis - Different OS support : (the script is developed under Linux)
 #                       --- Solaris :
 #                         -  grep "^[Aa-Zz|+]" does not work on Solaris so I moved to grep -v "^#" | grep -v "^$" when reading oratab
@@ -25,7 +23,6 @@
 #                            gawk is installed by default with Solaris 11 and is available for Solaris < 11, the script then expects gawk to be here for Solaris and if not it cannot continue
 #                       --- HP-UX and AIX :
 #                         - The "case" to support other OS is also HP-UX and AIX ready but I have not tested it as I have no such OS handy
-#
 # 20180622 - Fred Denis - Initial release
 #
 
@@ -33,7 +30,7 @@
 # Default values
 #
 
- ALL_NODES=" -all_nodes "                                # We do lsinventory -all_nodes
+ ALL_NODES="Yes"                                         # RAC system
       GREP="."                                           # What we grep                  -- default is everything
     UNGREP="nothing_to_ungrep_unless_v_option_is_used$$" # What we don't grep (grep -v)  -- default is nothing
       FILE=""                                            # No input file
@@ -110,7 +107,7 @@ exit 123
 while getopts "lg:v:f:o:hs" OPT; do
         case ${OPT} in
                 f)               FILE=${OPTARG}                                 ;;
-                o)                            OUT=${OPTARG}                                                                     ;;
+                o)                OUT=${OPTARG}                                 ;;
                 g)               GREP=${OPTARG}                                 ;;
                 l)          ALL_NODES=""                                        ;;
                 v)             UNGREP=${OPTARG}                                 ;;
@@ -237,21 +234,70 @@ then
                 printf "%-80s" "Proceeding with ${OH} . . ."
                 if [ -f $OH/OPatch/opatch ] && [ -x $OH/OPatch/opatch ]
                 then
-                                $OH/OPatch/opatch lsinventory ${ALL_NODES} -oh ${OH}  >> ${TMP} 2>${TMP2}
-                                ERR=$?
+                        OPATCH_DOTTED_VERSION=`$OH/OPatch/opatch version | grep Version | awk '{print $NF}'`
+                        ERR=$?
+                        if [ ${ERR} -eq 0 ]
+                        then
+                                OPATCH_VERSION=`echo ${OPATCH_DOTTED_VERSION} | sed s'/\.//g'`
+                                if [[ "${OPATCH_VERSION:0:2}" -eq "12" && "${OPATCH_VERSION}" -gt 1220112 ]] ||
+                                   [[ "${OPATCH_VERSION:0:2}" -eq "11" && "${OPATCH_VERSION}" -gt 1120318 ]]
+                                then    # remote
+                                        if [ "${ALL_NODES}" = "Yes" ]
+                                        then
+                                                ALL_NODES_OPTION=" -remote "
+                                        else
+                                                ALL_NODES_OPTION=""
+                                        fi
+                                        echo "Oracle Interim Patch Installer version "$OPATCH_DOTTED_VERSION               >> ${TMP}
+                                        $OH/OPatch/opatchauto report -type patches -format xml -remote ${ALL_NODES_OPTION} >> ${TMP} 2>${TMP2}
+                                        ERR=$?
+                                else    # lsinventory
+                                        if [ "${ALL_NODES}" = "Yes" ]
+                                        then
+                                                ALL_NODES_OPTION=" -all_nodes "
+                                        else
+                                                ALL_NODES_OPTION=""
+                                        fi
+
+                                        $OH/OPatch/opatch lsinventory ${ALL_NODES_OPTION} -oh ${OH}  >> ${TMP} 2>${TMP2}
+                                        ERR=$?
+                                fi
                                 if [ ${ERR} -eq 0 ]
                                 then
-                                                printf "\t\033[1;32m%-8s\033[m\n" "OK"          ;
+                                       printf "\t\033[1;32m%-8s\033[m\n" "OK"          ;
                                 else
-                                                printf "\t\033[1;31m%-8s" "Error "              ;
-                                                cat ${TMP2}                                     ;
-                                                printf "\033[m\n" ""                            ;
+                                       printf "\t\033[1;31m%-8s" "Error $ERR"          ;
+                                       cat ${TMP2}                                     ;
+                                       printf "\033[m\n" ""                            ;
                                 fi
+                        else
+                                printf "\t\033[1;31m%-8s" "Error "              ;
+
+                        fi
+                                #if (((substr(OPATCH_VERSION_NUMERIC,1,2) == 12) && (OPATCH_VERSION_NUMERIC > 1220112)) ||
+                                #       ((substr(OPATCH_VERSION_NUMERIC,1,2) == 11) && (OPATCH_VERSION_NUMERIC > 1120318)))
+
+                        #$OH/OPatch/opatch lsinventory ${ALL_NODES} -oh ${OH}  >> ${TMP} 2>${TMP2}
+                        #ERR=$?
+                        #if [ ${ERR} -eq 0 ]
+                        #then
+                        #               printf "\t\033[1;32m%-8s\033[m\n" "OK"          ;
+                        #else
+                        #               printf "\t\033[1;31m%-8s" "Error "              ;
+                        #               cat ${TMP2}                                     ;
+                        #               printf "\033[m\n" ""                            ;
+                        #fi
+                else            #if [ -f $OH/OPatch/opatch ] && [ -x $OH/OPatch/opatch ]
+                        printf "\t\033[1;31m%-8s" "Cannot find $OH/OPatch/opatch "      ;
+                        printf "\033[m\n" ""                                            ;
                 fi
         done
 else
         cp ${FILE} ${TMP}
 fi
+
+#echo $TMP
+#exit
 
 #
 # An output file is specified, we just want the opatch output so we exit before analyzing the opatch output
@@ -275,7 +321,7 @@ fi
 
 printf "\n"                                                     ;
 
-${AWK}  -v GREP="$GREP" -v UNGREP="$UNGREP"\
+${AWK}  -v GREP="$GREP" -v UNGREP="$UNGREP" -v OPATCH_DOTTED_VERSION="$OPATCH_DOTTED_VERSION"\
         'BEGIN {              FS =       ":"                    ;
                         # some colors
                      COLOR_BEGIN =       "\033[1;"              ;
@@ -313,24 +359,69 @@ function print_a_line()
         for (k=1; k<=WIDTH; k++) {printf("%s", "-");}                                                           ;       # n = number of nodes
         printf("%s", COLOR_END"\n")                                                                             ;
 }
+#
+# The function that prints the output in nice tables
+#
+function print_output()
+{
+        WIDTH = COL_PATCH+COL_NODE*n+n+1                                                ;
+        printf(COLOR_BEGIN BLUE"  %s"COLOR_END, OH)                                     ;       # OH as a title
+        if (OPATCH_VERSION == "")
+        {       OPATCH_VERSION="unknown; opatchauto report does not provide the opatch version";
+        }
+        printf("  %s\n", "(opatch version " OPATCH_VERSION")")                          ;       # Opatch version
+        # A header
+        print_a_line()                                                                  ;
+        printf("%s", center("Patch ID", COL_PATCH, WHITE, "|"))                         ;
+        for (i = 1; i <= n; i++)
+        {
+               printf("%s", center(nodes[i], COL_NODE, WHITE, "|"))                     ;       # Hostname / nodes
+        }
+        printf("\n")                                                                    ;
+        print_a_line()                                                                  ;
+
+        some_patches=0                                                                  ;
+        p=asort(all_patches)                                                            ;
+        for (i = 1; i <= p; i++)
+        {
+                some_patches=1                                                          ;
+                printf("%s", center(all_patches[i], COL_PATCH, WHITE, "|"))             ;
+
+                for (j = 1; j <= n; j++)                # for each node
+                {
+                        if (patch_tab[nodes[j], all_patches[i]] == all_patches[i])      # Patch is here
+                        {       printf("%s", center("-", COL_NODE, GREEN, "|"))         ;
+                        }
+                        else                                                            # Patch is missing
+                        {
+                                printf("%s", center("Missing", COL_NODE, RED, "|"))     ;
+                        }
+                }
+                printf ("%s", descr[all_patches[i]])                                    ;       # Patch description
+                printf "\n"                                                             ;
+        }
+        if (some_patches == 0)
+        {       printf("%s\n", center("No patch installed ", WIDTH-1, TEAL, "|"))       ;
+        }
+
+        delete all_patches                                                              ;
+        delete patch_tab                                                                ;
+        delete nodes                                                                    ;
+        delete descr                                                                    ;
+        NB_PATCHES_INSTALLED=0                                                          ;
+        print_a_line()                                                                  ;
+        printf "\n"                                                                     ;
+}
+#
+# Main awk
+#
 {       if ($0 ~ /^Oracle Interim Patch Installer version/)
         {       gsub(/([aA-zZ])| /, "", $0)                                                                     ;
                 OPATCH_VERSION=$0                                                                               ;
                 gsub(/\./, "", $0)                                                                              ;
                 OPATCH_VERSION_NUMERIC=$0                                                                       ;
-                #
-                # See https://unknowndba.blogspot.com/2018/06/deprecation-of-opatch-command-option.html
-                # about versions 11.2.0.3.18 and 12.2.0.1.13 not having the -all_nodes option
-                #
-                if ((OPATCH_VERSION_NUMERIC == 1220113) || (OPATCH_VERSION_NUMERIC == 1120318))
-                {       WARNING_NO_ALL_NODES = "YES"                                                            ;
-                }
-                if (((substr(OPATCH_VERSION_NUMERIC,1,2) == 12) && (OPATCH_VERSION_NUMERIC > 1220112)) ||
-                    ((substr(OPATCH_VERSION_NUMERIC,1,2) == 11) && (OPATCH_VERSION_NUMERIC > 1120318)))
-                {       NON_SUPPORTED_OPATCH="YES"                                                              ;
-                }
         }
-        if ($1 ~ /^Oracle Home/)
+        if ($1 ~ /^Oracle Home/)        # opatch lsinventory output
         {
                 gsub(" ", "", $2)                                                                               ;
                 OH=$2                                                                                           ;
@@ -414,7 +505,7 @@ function print_a_line()
                                                         all_patches[patch_id] = patch_id                        ;       # All patches accross all nodes
                                                 }
                                                 getline; getline ;
-                                                if ($1 ~ /^Patch description/)                                          # Get the patch descr is available
+                                                if ($1 ~ /^Patch description/)                                          # Get the patch descr if available
                                                 {
                                                         sub("Patch description: ", "", $0)                      ;
                                                         gsub("\"", "", $0)                                      ;
@@ -428,62 +519,47 @@ function print_a_line()
                         }
                         if (($1 ~ /^OPatch succeeded/) || ($1 ~ /^OPatch completed with warnings/))
                         {
-
-                                WIDTH = COL_PATCH+COL_NODE*n+n+1                                                ;
-                                printf(COLOR_BEGIN BLUE"  %s"COLOR_END, OH)                                     ;       # OH as a title
-                                printf("  %s\n", "(opatch version " OPATCH_VERSION")")                          ;       # Opatch version
-                                # A header
-                                print_a_line()                                                                  ;
-                                printf("%s", center("Patch ID", COL_PATCH, WHITE, "|"))                         ;
-                                for (i = 1; i <= n; i++)
-                                {
-                                       printf("%s", center(nodes[i], COL_NODE, WHITE, "|"))                     ;       # Hostname / nodes
-                                }
-                                printf("\n")                                                                    ;
-                                print_a_line()                                                                  ;
-
-                                some_patches=0                                                                  ;
-                                           p=asort(all_patches)                                                 ;
-                                for (i = 1; i <= p; i++)
-                                {
-                                        some_patches=1                                                          ;
-                                        printf("%s", center(all_patches[i], COL_PATCH, WHITE, "|"))             ;
-
-                                        for (j = 1; j <= n; j++)                # for each node
-                                        {
-                                                if (patch_tab[nodes[j], all_patches[i]] == all_patches[i])      # Patch is here
-                                                {       printf("%s", center("-", COL_NODE, GREEN, "|"))         ;
-                                                }
-                                                else                                                            # Patch is missing
-                                                {
-                                                        printf("%s", center("Missing", COL_NODE, RED, "|"))     ;
-                                                }
-                                        }
-                                        printf ("%s", descr[all_patches[i]])                                    ;       # Patch description
-                                        printf "\n"                                                             ;
-                                }
-                                if (some_patches == 0)
-                                {       printf("%s\n", center("No patch installed ", WIDTH-1, TEAL, "|"))       ;
-                                }
-
-                                delete all_patches                                                              ;
-                                delete patch_tab                                                                ;
-                                delete nodes                                                                    ;
-                                delete descr                                                                    ;
-                                NB_PATCHES_INSTALLED=0                                                          ;
-                                print_a_line()                                                                  ;
-                                printf "\n"                                                                     ;
+                                print_output()  ;
                                 break                                                                           ;
                         }
                 }
 
         }                       # End if ($1 ~ /^Oracle Home/)
-} END {         if (WARNING_NO_ALL_NODES == "YES")
-                {
-                        printf("%s\n",   "Warning : Versions 12.2.0.1.13 and 11.2.0.3.1[89] have no -all_nodes options then cannot get any remote patch information")                      ;
-                        printf("%s\n\n", "          Please have a look at https://unknowndba.blogspot.com/2018/06/deprecation-of-opatch-command-option.html for more information")      ;
+        if ($0 ~ /OPatchAuto report result/)            # opatchauto report output
+        {
+                n=0                                     ;       # Number of nodes
+                while (getline)
+                {       if ($0 ~ /host name=/)
+                        {       sub(/^.*name="/, "", $0);
+                                sub(/".*$/, "", $0)     ;
+                                SERVER=$0               ;
+                                n++                     ;
+                                nodes[n]=SERVER         ;
+                        }
+                        if ($0 ~ /homes path/)
+                        {       sub(/^.*path="/, "", $0);
+                                sub(/".*$/, "", $0)     ;
+                                OH=$0                   ;
+                        }
+                        if($0 ~ /patch id/)
+                        {
+                                patch_id = $0                                   ;
+                                sub(/^.*id="/, "", patch_id)                    ;
+                                sub(/".*$/, "", patch_id)                       ;
+                                patch_tab[SERVER, patch_id]=patch_id            ;       # Patches per server
+                                if (patch_id in all_patches)
+                                { cpt++; } else {
+                                        all_patches[patch_id] = patch_id        ;       # All patches accross all nodes
+                                }
+
+                        }
+                        if ($0 ~ /OPatchAuto report end of result/)
+                        {       print_output()                                  ;
+                                break                                           ;
+                        }
                 }
-}' ${TMP}
+        }
+} ' ${TMP}
 
 
 for F in ${TMP} ${TMP2}
