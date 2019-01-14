@@ -6,8 +6,10 @@
 # Provide information on the installed and missing patches on ORACLE_HOMEs
 #       $0 -h for more information
 #
-# The version of the script is 20190401
+# The version of the script is 20191401
 #
+# 20191401 - Fred Denis - opatchauto report: show Homes with -s option properly, fixed GREP/UNGREP
+#                       - Fixed issue with GI HOMe with no olsnodes (non-RAC)
 # 20190401 - Fred Denis - Implement opatchauto report instead of lsinventory -all_nodes for versions > 1220112 or  for 11g
 # 20180809 - Fred Denis - Add the desription of a patch if available
 # 20180704 - Fred Denis - GREP and UNGREP now works when a file is specified
@@ -65,13 +67,13 @@ END
 
 printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"                     ;
 cat << END
-        -f      A file containing one or more opatch outputs (no opatch command is performed in this mode
-                                        - not compatible with the -o option
-                                        - compatible with the -g and -v options
+        -f      A file containing one or more opatch outputs (no opatch command is performed in this mode)
+                        - not compatible with the -o option
+                        - compatible with the -g and -v options
 
-                -o              An output file if you just want to generate the opatch output (no patch analysis shown)
-                                        - not compatible with the -f option
-                                        - compatible with the -g and -v options
+        -o      An output file if you just want to generate the opatch output (no patch analysis shown)
+                        - not compatible with the -f option
+                        - compatible with the -g and -v options
 
         -l      Run opatch as Local only (default is opatch is run using the -all_nodes option)
 
@@ -173,6 +175,7 @@ then
                 then
                         printf "\n\033[1;37m%-8s\033[m\n\n" "ORACLE_HOMEs that would be considered (${FILE}) :"                    ;
                         cat ${FILE} | grep "^Oracle Home" | awk 'BEGIN {FS=":"} { printf("\t%s\n", $NF)}' | grep ${GREP} | grep -v ${UNGREP} | sort | uniq
+                        cat ${FILE} | grep "homes path=" | uniq | sed s'/" .*$//' | sed s'/.*"//' | sort | grep ${GREP} | grep -v ${UNGREP}
                 else
                         printf "\n\033[1;37m%-8s\033[m\n\n" "ORACLE_HOMEs that would be considered (${ORATAB}) :"                    ;
                         cat ${ORATAB} | grep -v "^#" | grep -v "^$" | grep -v agent | awk 'BEGIN {FS=":"} { printf("\t%s\n", $2)}' | grep ${GREP} | grep -v ${UNGREP} | sort | uniq
@@ -219,9 +222,14 @@ else
         #
         # Check if it is a RAC installtion, if not we go Local with opatch
         #
-        if [[ $(olsnodes | wc -l) -eq "0" ]]    # No RAC installed so we go local only
+        if [ ! -f ${ORACLE_HOME}/bin/olsnodes ]
         then
                 ALL_NODES=""
+        else
+                if [[ $(olsnodes | wc -l) -eq "0" ]]    # No RAC installed so we go local only
+                then
+                        ALL_NODES=""
+                fi
         fi
 fi
 
@@ -249,7 +257,7 @@ then
                                                 ALL_NODES_OPTION=""
                                         fi
                                         echo "Oracle Interim Patch Installer version "$OPATCH_DOTTED_VERSION               >> ${TMP}
-                                        $OH/OPatch/opatchauto report -type patches -format xml -remote ${ALL_NODES_OPTION} >> ${TMP} 2>${TMP2}
+                                        $OH/OPatch/opatchauto report -type patches -format xml ${ALL_NODES_OPTION}         >> ${TMP} 2>${TMP2}
                                         ERR=$?
                                 else    # lsinventory
                                         if [ "${ALL_NODES}" = "Yes" ]
@@ -259,7 +267,7 @@ then
                                                 ALL_NODES_OPTION=""
                                         fi
 
-                                        $OH/OPatch/opatch lsinventory ${ALL_NODES_OPTION} -oh ${OH}  >> ${TMP} 2>${TMP2}
+                                        $OH/OPatch/opatch lsinventory ${ALL_NODES_OPTION} -oh ${OH}                        >> ${TMP} 2>${TMP2}
                                         ERR=$?
                                 fi
                                 if [ ${ERR} -eq 0 ]
@@ -527,24 +535,28 @@ function print_output()
         }                       # End if ($1 ~ /^Oracle Home/)
         if ($0 ~ /OPatchAuto report result/)            # opatchauto report output
         {
-                n=0                                     ;       # Number of nodes
+                n=0                                                             ;       # Number of nodes
                 while (getline)
                 {       if ($0 ~ /host name=/)
-                        {       sub(/^.*name="/, "", $0);
-                                sub(/".*$/, "", $0)     ;
-                                SERVER=$0               ;
-                                n++                     ;
-                                nodes[n]=SERVER         ;
+                        {       sub(/^.*name="/, "", $0)                        ;
+                                sub(/".*$/, "", $0)                             ;
+                                SERVER=$0                                       ;
+                                n++                                             ;
+                                nodes[n]=SERVER                                 ;
                         }
                         if ($0 ~ /homes path/)
-                        {       sub(/^.*path="/, "", $0);
-                                sub(/".*$/, "", $0)     ;
-                                OH=$0                   ;
+                        {       sub(/^.*path="/, "", $0)                        ;
+                                sub(/".*$/, "", $0)                             ;
+                                OH=$0                                           ;
+                                if ((OH !~ GREP) || (OH ~ UNGREP))
+                                {
+                                        next                                    ;
+                                }
                         }
                         if($0 ~ /patch id/)
                         {
                                 patch_id = $0                                   ;
-                                sub(/^.*id="/, "", patch_id)                    ;
+                                sub(/^ *<patch id="/, "", patch_id)             ;
                                 sub(/".*$/, "", patch_id)                       ;
                                 patch_tab[SERVER, patch_id]=patch_id            ;       # Patches per server
                                 if (patch_id in all_patches)
