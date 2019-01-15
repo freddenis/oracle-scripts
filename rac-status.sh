@@ -4,12 +4,14 @@
 # The script just need to have a working oraenv
 #
 # Please have a look at https://unknowndba.blogspot.com/2018/04/rac-statussh-overview-of-your-rac-gi.html for some details and screenshots
-# The script last version can be downloaded here : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/rac-status.sh
+# The script latest version can be downloaded here : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/rac-status.sh
 #
-# The current script version is 20181110
+# The current script version is 20190115
 #
 # History :
 #
+# 20190115 - Fred Denis - Fixed minor alignement issues
+#                         Add grep (-g) and ungrep (-v) feature
 # 20181110 - Fred Denis - Show short names in the tables instead of the whole hostnames if possible for better visibility
 #                       - Col 1 and col 2 now align dynamically depending on the largest element to keep all the tables well aligned
 #                       - Dynamic calculation of an offser for the status column size depending on the number of nodes
@@ -41,6 +43,8 @@
 #
       TMP=/tmp/status$$.tmp                                             # A tempfile
 DBMACHINE=/opt/oracle.SupportTools/onecommand/databasemachine.xml       # File where we should find the Exadata model as oracle user
+     GREP="."                                                           # What we grep                  -- default is everything
+   UNGREP="nothing_to_ungrep_unless_v_option_is_used$$"                 # What we don't grep (grep -v)  -- default is nothing
 
 # Choose the information what you want to see -- the last uncommented value wins
 # ./rac-status.sh -h for more information
@@ -92,10 +96,24 @@ END
 printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"             ;
 cat << END
         -a        Show everything regardless of the default behavior defined with SHOW_DB, SHOW_LSNR and SHOW_SVC
-        -n        Show nothing    regardless of the default behavior defined with SHOW_DB, SHOW_LSNR and SHOW_SVC
+        -n        Show nothing  regardless of the default behavior defined with SHOW_DB, SHOW_LSNR and SHOW_SVC
+        -a and -n are handy to erase the defaults values:
+                        $ ./rac-status.sh -n -d                         # Show the databases output only
+                        $ ./rac-status.sh -a -s                         # Show everything but the services (then the listeners and the databases)
+
         -d        Revert the behavior defined by SHOW_DB  ; if SHOW_DB   is set to YES to show the databases by default, then the -d option will hide the databases
         -l        Revert the behavior defined by SHOW_LSNR; if SHOW_LSNR is set to YES to show the listeners by default, then the -l option will hide the listeners
         -s        Revert the behavior defined by SHOW_SVC ; if SHOW_SVC  is set to YES to show the services  by default, then the -s option will hide the services
+
+        -g        Act as a grep command to grep a pattern from the output (key sensitive)
+        -v        Act as "grep -v" to ungrep from the output
+        -g and -v examples :
+                        $ ./rac-status.sh -g Open                       # Show only the lines with "Open" on it
+                        $ ./rac-status.sh -g Open                       # Show only the lines with "Open" on it
+                        $ ./rac-status.sh -g "Open|Online"              # Show only the lines with "Open" or "Online" on it
+                        $ ./rac-status.sh -g "Open|Online" -v 12        # Show only the lines with "Open" or "Online" on it but no those containing 12
+
+
         -h        Shows this help
 
         Note : the options are cumulative and can be combined with a "the last one wins" behavior :
@@ -109,13 +127,15 @@ exit 123
 }
 
 # Options
-while getopts "andslh" OPT; do
+while getopts "andslhg:v:" OPT; do
         case ${OPT} in
         a)         SHOW_DB="YES"        ; SHOW_LSNR="YES"       ; SHOW_SVC="YES"                ;;
         n)         SHOW_DB="NO"         ; SHOW_LSNR="NO"        ; SHOW_SVC="NO"                 ;;
         d)         if [ "$SHOW_DB"   = "YES" ]; then   SHOW_DB="NO"; else   SHOW_DB="YES"; fi   ;;
         s)         if [ "$SHOW_SVC"  = "YES" ]; then  SHOW_SVC="NO"; else  SHOW_SVC="YES"; fi   ;;
         l)         if [ "$SHOW_LSNR" = "YES" ]; then SHOW_LSNR="NO"; else SHOW_LSNR="YES"; fi   ;;
+        g)           GREP=${OPTARG}                                                             ;;
+        v)         UNGREP=${OPTARG}                                                             ;;
         h)         usage                                                                        ;;
         \?)        echo "Invalid option: -$OPTARG" >&2; usage                                   ;;
         esac
@@ -246,14 +266,14 @@ fi
                         if ($2 ~ ".lsnr"){sub(".lsnr$", "", $2); tab_lsnr[$2] = $2;}                            ;       # Listeners
                         if ($2 ~ ".svc") {sub(".svc$", "", $2) ; tab_svc[$2] = $2;
                                           split($2, temp, ".");
-                                          if (length(temp[2]) > COL_VER)                                                # To adapt the column size
+                                          if (length(temp[2]) > COL_VER-1)                                               # To adapt the column size
                                           {     COL_VER = length(temp[2]) +1                                    ;
                                           }
                                          }                                                                              # Services
                         DB=$2                                                                                   ;
                         split($2, temp, ".")                                                                    ;
-                        if (length(temp[1]) > COL_DB)                                                                   # To adapt the 1st column size
-                        {     COL_DB = length(temp[1]) +2                                                       ;
+                        if (length(temp[1]) > COL_DB-1)                                                                   # To adapt the 1st column size
+                        {     COL_DB = length(temp[1]) +1                                                       ;
                         }
 
                         getline; getline                                                                        ;
@@ -353,7 +373,7 @@ fi
                                 x=asorti(tab_lsnr, lsnr_sorted)                                                 ;
                                 for (j = 1; j <= x; j++)
                                 {
-                                        printf("%s", center(lsnr_sorted[j]   , COL_DB, WHITE))                  ;       # Listener name
+                                        printf(COLOR_BEGIN WHITE " %-"COL_DB-1"s|" COLOR_END, lsnr_sorted[j], WHITE);     # Listener name
                                         # It may happen that listeners listen on many ports then it wont fit this column
                                         # We then print it outside of the table after the last column
                                         if (length(port[lsnr_sorted[j]]) > COL_VER)
@@ -411,7 +431,7 @@ fi
                                         split(svc_sorted[j], to_print, ".")                                     ;       # The service we have is <db_name>.<service_name>
                                         if (previous_db != to_print[1])                                                 # Do not duplicate the DB names on the output
                                         {
-                                                printf(COLOR_BEGIN WHITE "  %-"COL_DB-2"s|" COLOR_END, to_print[1], WHITE);     # Database
+                                                printf(COLOR_BEGIN WHITE " %-"COL_DB-1"s|" COLOR_END, to_print[1], WHITE);     # Database
                                                 previous_db = to_print[1]                                       ;
                                         }else {
                                                 printf("%s", center("",  COL_DB, WHITE))                        ;
@@ -454,7 +474,7 @@ fi
                                 m=asorti(version, version_sorted)                                                ;
                                 for (j = 1; j <= m; j++)
                                 {
-                                        printf(COLOR_BEGIN WHITE "  %-"COL_DB-2"s|" COLOR_END, version_sorted[j], WHITE);     # Database
+                                        printf(COLOR_BEGIN WHITE " %-"COL_DB-1"s|" COLOR_END, version_sorted[j], WHITE);     # Database
                                         printf(COLOR_BEGIN WHITE " %-"COL_VER-7"s" COLOR_END, version[version_sorted[j]], COL_VER, WHITE)         ;       # Version
                                         printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")            ;       # OH id
 
@@ -502,7 +522,16 @@ fi
                                         printf("\t\t%s\n", oh_list[x] " : " x) | "sort"                           ;
                                 }
                         }
-        }' $TMP
+        }' $TMP | awk -v GREP="$GREP" -v UNGREP="$UNGREP" ' BEGIN {FS="|"}                                              # AWK used to grep and ungrep
+                      {         if ((NF >= 3) && ($(NF-1) !~ /Type/) && ($2 !~ /Service/))
+                                {       if (($0 ~ GREP) && ($0 !~ UNGREP))
+                                        {
+                                                print $0                                                          ;
+                                        }
+                                } else {
+                                        print  $0                                                                 ;
+                                }
+                        }'
 
         printf "\n"
 
