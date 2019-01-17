@@ -1,3 +1,4 @@
+#!/bin/bash
 # Fred Denis -- Jan 2016 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
 #
 # Quickly shows a status of all running instances accross a 12c cluster
