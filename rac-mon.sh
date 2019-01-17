@@ -1,5 +1,5 @@
 #!/bin/bash
-# Fred Denis -- fred.denis3@gmail.com --  January 18 2019
+# Fred Denis -- Jan 2019 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
 # A script to monitore a RAC / GI 12c using rac-status.sh (https://goo.gl/LwQC1N)
 #
 
