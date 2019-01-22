@@ -70,7 +70,7 @@ COL_NODE_OFFSET=99
 OS=`uname`
 case ${OS} in
         SunOS)
-                       AWK=/usr/gnu/bin/awk                     ;
+                       AWK=`which gawk`
                         if [ ! -f ${AWK} ]
                         then
                                 printf "\t%s\n" "Cannot find ${AWK}, cannot continue".
