@@ -7,10 +7,11 @@
 # Please have a look at https://unknowndba.blogspot.com/2018/04/rac-statussh-overview-of-your-rac-gi.html for some details and screenshots
 # The script latest version can be downloaded here : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/rac-status.sh
 #
-# The current script version is 20190115
+# The current script version is 2019012
 #
 # History :
 #
+# 20190122 - Fred Denis - Multi OS support for AWK (especially for Solaris)
 # 20190115 - Fred Denis - Fixed minor alignement issues
 #                         Add grep (-g) and ungrep (-v) feature
 # 20181110 - Fred Denis - Show short names in the tables instead of the whole hostnames if possible for better visibility
@@ -62,6 +63,28 @@ SHOW_LSNR="YES"                 # Listeners
 # A value of 99 means that this parameter is dynamically calculated depending on the number of nodes
 # A non 99 value is applied regardless of the number of nodes
 COL_NODE_OFFSET=99
+
+#
+# Different OS support
+#
+OS=`uname`
+case ${OS} in
+        SunOS)
+                       AWK=`which gawk`
+                        if [ ! -f ${AWK} ]
+                        then
+                                printf "\t%s\n" "Cannot find ${AWK}, cannot continue".
+                                exit 678
+                        fi                                      ;;
+        Linux)
+                       AWK=`which awk`                          ;;
+        HP-UX)
+                       AWK=`which awk`                          ;;
+        AIX)
+                       AWK=`which awk`                          ;;
+        *)          echo "Unsupported OS, cannot continue."
+                    exit 666                                    ;;
+esac
 
 #
 # An usage function
@@ -144,7 +167,7 @@ done
 #
 # Set the ASM env to be able to use crsctl commands
 #
-ORACLE_SID=`ps -ef | grep pmon | grep asm | awk '{print $NF}' | sed s'/asm_pmon_//' | egrep "^[+]"`
+ORACLE_SID=`ps -ef | grep pmon | grep asm | ${AWK} '{print $NF}' | sed s'/asm_pmon_//' | egrep "^[+]"`
 
 export ORAENV_ASK=NO
 . oraenv > /dev/null 2>&1
@@ -156,11 +179,11 @@ export ORAENV_ASK=NO
 SHORT_NAMES="NO"
 if [[ `olsnodes | head -1 | sed s'/,.*$//g' | tr '[:upper:]' '[:lower:]'` == *"db"* ]]
 then
-               NODES=`olsnodes | sed s'/^.*db/db/g' | awk '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}'`
+               NODES=`olsnodes | sed s'/^.*db/db/g' | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}'`
         CLUSTER_NAME=`olsnodes | head -1 | sed s'/db.*$//g'`
         SHORT_NAMES="YES"
 else
-               NODES=`olsnodes | awk '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}'`
+               NODES=`olsnodes | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}'`
         CLUSTER_NAME=`olsnodes -c`
 fi
 
@@ -214,7 +237,7 @@ then
         sed -i "s/$CLUSTER_NAME//g" $TMP
 fi
 
-        awk  -v NODES="$NODES" -v col_node_offset="$COL_NODE_OFFSET" 'BEGIN\
+        ${AWK} -v NODES="$NODES" -v col_node_offset="$COL_NODE_OFFSET" 'BEGIN\
         {             FS = "="                          ;
                       split(NODES, nodes, ",")          ;       # Make a table with the nodes of the cluster
                 # some colors
@@ -523,7 +546,7 @@ fi
                                         printf("\t\t%s\n", oh_list[x] " : " x) | "sort"                           ;
                                 }
                         }
-        }' $TMP | awk -v GREP="$GREP" -v UNGREP="$UNGREP" ' BEGIN {FS="|"}                                              # AWK used to grep and ungrep
+        }' $TMP | ${AWK} -v GREP="$GREP" -v UNGREP="$UNGREP" ' BEGIN {FS="|"}                                              # AWK used to grep and ungrep
                       {         if ((NF >= 3) && ($(NF-1) !~ /Type/) && ($2 !~ /Service/))
                                 {       if (($0 ~ GREP) && ($0 !~ UNGREP))
                                         {
