@@ -4,7 +4,7 @@
 # Show what's on an Exadata based on the /opt/oracle.SupportTools/onecommand/databasemachine.xml file
 # The output shows each Exadata component, their IP, ILOM and ILOM IP on the form of an Exadata Rack layout
 #
-# More information on
+# Please have a look at https://goo.gl/wv2z5m for more information on this script
 #
 # The current version of the script is 20190124
 #
