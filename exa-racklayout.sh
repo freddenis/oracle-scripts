@@ -6,8 +6,9 @@
 #
 # Please have a look at https://goo.gl/wv2z5m for more information on this script
 #
-# The current version of the script is 20190125
+# The current version of the script is 20190126
 #
+# 20190126 - Fred Denis - Some dbmachine files may not have the info in teh same order -- fixed this
 # 20190125 - Fred Denis - Moved Blue to Lightblue and Red to Lightred to have a more pastel output
 # 20190124 - Fred Denis - Initial Release
 #
@@ -72,16 +73,15 @@ awk 'BEGIN\
                         }
                 }
                 if ($2 ~ /ITEM ID/)
-                {       info="" ;
+                {       ADMINNAME=""; ADMINIP=""; ILOMNAME=""; ILOMIP=""        ;
                         while (getline)
                         {       if ($2 == "TYPE")               {TYPE=$3        ;}
-                                if (info == "") {info=$3;}      else {info=info";"$3    ;}
-                                if ($2 == "ADMINNAME")          {if (length($3) > MAX_COL1) {MAX_COL1 = length($3)}}
-                                if ($2 == "ADMINIP")            {if (length($3) > MAX_COL2) {MAX_COL2 = length($3)}}
-                                if ($2 == "ILOMNAME")           {if (length($3) > MAX_COL3) {MAX_COL3 = length($3)}}
-                                if ($2 == "ILOMIP")             {if (length($3) > MAX_COL4) {MAX_COL4 = length($3)}}
+                                if ($2 == "ADMINNAME")          { ADMINNAME=$3  ; if (length($3) > MAX_COL1) {MAX_COL1 = length($3)}}
+                                if ($2 == "ADMINIP")            {   ADMINIP=$3  ; if (length($3) > MAX_COL2) {MAX_COL2 = length($3)}}
+                                if ($2 == "ILOMNAME")           {  ILOMNAME=$3  ; if (length($3) > MAX_COL3) {MAX_COL3 = length($3)}}
+                                if ($2 == "ILOMIP")             {    ILOMIP=$3  ; if (length($3) > MAX_COL4) {MAX_COL4 = length($3)}}
                                 if ($2 == "ULOCATION")          {ULOC=$3        ;}
-                                if ($2 == "/ITEM")              {tab[ULOC]=info ;break  ;       }
+                                if ($2 == "/ITEM")              {tab[ULOC]=TYPE";"ADMINNAME";"ADMINIP";"ILOMNAME";"ILOMIP ;break  ;       }
                         }
                 }
         }
