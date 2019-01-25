@@ -8,7 +8,7 @@
 #
 # The current version of the script is 20190126
 #
-# 20190126 - Fred Denis - Some dbmachine files may not have the info in teh same order -- fixed this
+# 20190126 - Fred Denis - Some dbmachine files may not have the info in the same order -- fixed this
 # 20190125 - Fred Denis - Moved Blue to Lightblue and Red to Lightred to have a more pastel output
 # 20190124 - Fred Denis - Initial Release
 #
