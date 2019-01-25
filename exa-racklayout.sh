@@ -6,8 +6,9 @@
 #
 # Please have a look at https://goo.gl/wv2z5m for more information on this script
 #
-# The current version of the script is 20190124
+# The current version of the script is 20190125
 #
+# 20190125 - Fred Denis - Moved Blue to Lightblue and Red to Lightred to have a more pastel output
 # 20190124 - Fred Denis - Initial Release
 #
 
@@ -35,9 +36,11 @@ awk 'BEGIN\
                   NORMAL =       "0m"                                                   ;
                 # Background colors code
                     BLUE =       "44m"                                                  ;
+                    BLUE =       "104m"                                                 ;       # Lightblue
                    GREEN =       "42m"                                                  ;
                   YELLOW =       "43m"                                                  ;
                      RED =       "41m"                                                  ;
+                     RED =       "101m"                                                 ;       # Lightred
 
                    COL_U =       3                                                      ;       # Size of the "U" column
         }
