@@ -157,7 +157,7 @@ awk 'BEGIN\
                 printf(COLOR_BEGIN GREEN"%s"COLOR_END, "Cisco Switch")                  ;
                 printf "\n\n"                                                           ;
         }
-' ${DBMACHINE}
+' ${DBMACHINE} ' ${DBMACHINE} | sed s'/^/  /'
 
 #*********************************************************************************************************
 #                               E N D     O F      S O U R C E
