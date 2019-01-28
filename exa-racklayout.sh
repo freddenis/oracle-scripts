@@ -6,8 +6,9 @@
 #
 # Please have a look at https://goo.gl/wv2z5m for more information on this script
 #
-# The current version of the script is 20190126
+# The current version of the script is 20190128
 #
+# 20190128 - Fred Denis - Added PDUs
 # 20190126 - Fred Denis - Some dbmachine files may not have the info in the same order -- fixed this
 # 20190125 - Fred Denis - Moved Blue to Lightblue and Red to Lightred to have a more pastel output
 # 20190124 - Fred Denis - Initial Release
@@ -40,6 +41,7 @@ awk 'BEGIN\
                     BLUE =       "104m"                                                 ;       # Lightblue
                    GREEN =       "42m"                                                  ;
                   YELLOW =       "43m"                                                  ;
+                    GREY =       "100m"
                      RED =       "41m"                                                  ;
                      RED =       "101m"                                                 ;       # Lightred
 
@@ -81,7 +83,15 @@ awk 'BEGIN\
                                 if ($2 == "ILOMNAME")           {  ILOMNAME=$3  ; if (length($3) > MAX_COL3) {MAX_COL3 = length($3)}}
                                 if ($2 == "ILOMIP")             {    ILOMIP=$3  ; if (length($3) > MAX_COL4) {MAX_COL4 = length($3)}}
                                 if ($2 == "ULOCATION")          {ULOC=$3        ;}
-                                if ($2 == "/ITEM")              {tab[ULOC]=TYPE";"ADMINNAME";"ADMINIP";"ILOMNAME";"ILOMIP ;break  ;       }
+                                #if ($2 == "/ITEM")              {tab[ULOC]=TYPE";"ADMINNAME";"ADMINIP";"ILOMNAME";"ILOMIP ;break  ;       }
+                                if ($2 == "/ITEM")              {       if (TYPE == "pdu")
+                                                                        {       if (tab[ULOC] == "")
+                                                                                {       tab[ULOC]=TYPE";"ADMINNAME";"ADMINIP;
+                                                                                } else {tab[ULOC]=tab[ULOC]";"ADMINNAME";"ADMINIP;
+                                                                                }
+                                                                        } else {        tab[ULOC]=TYPE";"ADMINNAME";"ADMINIP";"ILOMNAME";"ILOMIP ;   }
+                                                                        break   ;
+                                                                }
                         }
                 }
         }
@@ -105,7 +115,7 @@ awk 'BEGIN\
                 printf "\n"     ;
                 print_a_line(line_size)                                                 ;
 
-                for (i=NB_U; i>=1; i--)
+                for (i=NB_U; i>=0; i--)
                 {
                         split (tab[i], to_print, ";")                                   ;
                         ui="U"i ;
@@ -117,6 +127,7 @@ awk 'BEGIN\
                                 if (to_print[1] == "cellnode")    {color=RED}           ;
                                 if (to_print[1] == "ib")          {color=YELLOW}        ;
                                 if (to_print[1] == "cisco")       {color=GREEN}         ;
+                                if (to_print[1] == "pdu")         {color=GREY}          ;
                         }
                         if (to_print[1] == "")
                         {
@@ -130,7 +141,7 @@ awk 'BEGIN\
                         printf(" %-"COL_U"s|", ui);                                     ;       # U
                         printf(" %-"MAX_COL1"s|", to_print[2])                          ;       # Hostname
                         printf(" %-"MAX_COL2"s|", to_print[3])                          ;       # Host IP
-                        if (to_print[1] ~ /node/)
+                        if ((to_print[1] ~ /node/) || (to_print[1] == "pdu"))
                         {
                                 to_print_col3 = to_print[4]                             ;
                                 to_print_col4 = to_print[5]                             ;
