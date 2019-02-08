@@ -4,8 +4,9 @@
 # Automatically generates an Exadata patching action plan from a bundle.xml file
 # For more details about the Exadata patching procedure, you can have a look at https://unknowndba.blogspot.com/2018/11/how-to-patch-exadata-upgrade-exadata-18c-part1.html
 #
-# The current version of the script is 20181211
+# The current version of the script is 20190208
 #
+# 20190208 - Fred Denis - Fixed an issue with -b and -d option
 # 20181211 - Fred Denis - A new -b option to be able to use a bundle.xml in another location than the bundle itself
 # 20181206 - Fred Denis - Check if ASM is running to find the GI Owner, if different from the -o option, I use what -o specifies and raise a warning
 #                       - Preamble script clarification as well as link to https://goo.gl/jB2esT for DB servers patch OS dependencies issues
@@ -134,15 +135,7 @@ while getopts ":d:b:n:hpujmMg:v:fc:s:w:o:" OPT; do
         esac
 done
 
-if [ -z ${PATCH_DIR} ]          # Option -d
-then
-        cat << !
-
-        A patch directory is needed, cannot continue without.
-!
-        usage
-fi
-if [ -n ${BUNDLE_XML} ]         # Option -b
+if [[ -n ${BUNDLE_XML} ]]         # Option -b
 then
         if [ ! -f ${BUNDLE_XML} ]
         then
@@ -154,12 +147,13 @@ then
         fi
 else    # No bundle.xml specified, we then use the one in $PATCH_DIR
         BUNDLE_XML="${PATCH_DIR}/bundle.xml"
+        echo "ici" $BUNDLE_XML
 
         if [ ! -f ${BUNDLE_XML} ]
         then
                 cat << !
 
-        Cannot find the bundle.xml file in ${PATCH_DIR}, this does not look like to be the good directory. Cannot conitnue . . .
+        Cannot find the bundle.xml file in ${PATCH_DIR}, this does not look like to be the good directory. Cannot continue . . .
 !
         usage
         fi
