@@ -13,22 +13,22 @@
 # sh: -c: line 1: syntax error: unexpected end of file
 #
 #
+# The current version of the script is 20190219
 #
-# The current version of the script is 20181218
-#
-# 20181218 - A new -n option to print with no color -- DEFAULT_NOCOLOR can be used to modify the default behavior
-#            Fixed the regexp to list the instances running
-# 20180827 - A better regexp to list the instances running
-# 20180503 - GI 12c introduces a "Logical_Sector" column, took this into account (Thanks Leon !)
-# 20180327 - "Raw Used " label for the subdirectories "Mirror_used_MB" column, adjustments in the help
-# 20180318 - Shows only mirrored sizes by default and the total non mirrored size only shown with the -v option
-# 20180211 - Many improvements :
-#               - -d options to list the subdirectories of a directory
-#               - -v option to show the Raw Free and Reserverd size
-#               - -m -g and -t to choose the Unit you want the report to be in
-#               - Default values and verbosity can be changed using the DEFAULT_UNIT and the DEFAULT_VERBOSE variables
-#               - A nice usage function
-# 20170719 - Remove the --nocp option as default
+# 20190219 - Fred Denis - Some had issues with the instance list, I then moved from sed to cut to fix it -- Thanks Jakub !
+# 20181218 - Fred Denis - A new -n option to print with no color -- DEFAULT_NOCOLOR can be used to modify the default behavior
+#                         Fixed the regexp to list the instances running
+# 20180827 - Fred Denis - A better regexp to list the instances running
+# 20180503 - Fred Denis - GI 12c introduces a "Logical_Sector" column, took this into account (Thanks Leon !)
+# 20180327 - Fred Denis - "Raw Used " label for the subdirectories "Mirror_used_MB" column, adjustments in the help
+# 20180318 - Fred Denis - Shows only mirrored sizes by default and the total non mirrored size only shown with the -v option
+# 20180211 - Fred Denis -  Many improvements :
+#                       - -d options to list the subdirectories of a directory
+#                       - -v option to show the Raw Free and Reserverd size
+#                       - -m -g and -t to choose the Unit you want the report to be in
+#                       - Default values and verbosity can be changed using the DEFAULT_UNIT and the DEFAULT_VERBOSE variables
+#                       - A nice usage function
+# 20170719 - Fred Denis - Remove the --nocp option as default
 #
 
 #
@@ -155,7 +155,7 @@ export ORAENV_ASK=NO
 #
 # A quick list of the instances that are running on the server
 #
-ps -ef | grep pmon | grep -v grep | awk '{print $NF}' | sed s'/.*_pmon_//' | egrep "^([+]|[Aa-Zz])" | sort | awk -v H="`hostname -s`" 'BEGIN {printf("\n%s", "Instances running on " H " : ")} { printf("%s, ", $0)} END{printf("\n")}' | sed s'/, $//'
+ps -ef | grep pmon | grep -v grep | awk '{print $NF}' | cut -d_ -f3,4 | sort | awk -v H="`hostname -s`" 'BEGIN {printf("\n%s", "Instances running on " H " : ")} { printf("%s, ", $0)} END{printf("\n")}' | sed s'/, $//'
 
 
 #
