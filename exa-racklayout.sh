@@ -9,6 +9,7 @@
 # The current version of the script is 20190222
 #
 # 20190222 - Fred Denis - Option -s to not show the empty U slots
+#			  Option -f to specify a non default databasemachine.xml file
 # 20190128 - Fred Denis - Added PDUs
 # 20190126 - Fred Denis - Some dbmachine files may not have the info in the same order -- fixed this
 # 20190125 - Fred Denis - Moved Blue to Lightblue and Red to Lightred to have a more pastel output
@@ -19,20 +20,8 @@
 # Variables
 #
 SHOW_EMPTY_U="YES"              # Set SHOW_EMPTY_U="NO" here to always not show the empty U by default
+          IN=""			# If a file is specified with the -f option
 
-#
-# The databasemachine.xml file we base our report on
-#
-DBMACHINE=/opt/oracle.SupportTools/onecommand/databasemachine.xml
-
-if [ ! -f ${DBMACHINE} ] || [ ! -r ${DBMACHINE} ]
-then
-        cat << !
-        The ${DBMACHINE} cannot be found or is not readable, cannot continue.
-!
-        exit 123
-fi
-printf "\n"
 
 #
 # Function usage
@@ -46,27 +35,51 @@ END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
 cat << END
-        $0 [-s] [-h]
+        $0 [-f] [-s] [-h]
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"             ;
 cat << END
-        -s              Show a short form of the Rack Layout by hiding the empty U slots
-                        Set SHOW_EMPTY_U="NO" on top of the script to always show the short form
-        -h              Show this help
+	-f	Specify a non default databasemachine.xml file
+			$0 -f /tmp/mydatabasemachine.xml
+        -s      Show a short form of the Rack Layout by hiding the empty U slots
+                You can set SHOW_EMPTY_U="NO" on top of the script to always show the short form
+        -h      Show this help
 END
 printf "\n"
 exit 123
 }
 
-
-while getopts "sh" OPT; do
+#
+# Options management
+#
+while getopts "shf:" OPT; do
         case ${OPT} in
-        s)         SHOW_EMPTY_U="NO"                                                                                               ;;
+        s)         SHOW_EMPTY_U="NO"                                                   ;;
+	f)	             IN=${OPTARG}					       ;;
         h)         usage                                                               ;;
         \?)        echo "Invalid option: -$OPTARG" >&2; usage                          ;;
         esac
 done
+
+#
+# The databasemachine.xml file we base our report on
+#
+if [[ -z "${IN}" ]]
+then
+	DBMACHINE=/opt/oracle.SupportTools/onecommand/databasemachine.xml
+else
+	DBMACHINE=${IN}
+fi
+
+if [ ! -f ${DBMACHINE} ] || [ ! -r ${DBMACHINE} ]
+then
+        cat << !
+        The ${DBMACHINE} cannot be found or is not readable, cannot continue.
+!
+        exit 123
+fi
+printf "\n"
 
 awk -v SHOW_EMPTY_U="$SHOW_EMPTY_U" 'BEGIN\
         {       FS="<|>"                                                                ;
