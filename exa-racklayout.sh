@@ -188,8 +188,9 @@ awk -v SHOW_EMPTY_U="$SHOW_EMPTY_U" 'BEGIN\
                                         if (temp[2] != "") {color=RED}                  ;
                                 }
                         }
-                                                if ((to_print[2] != "") || (toupper(SHOW_EMPTY_U) == "YES"))
-                                        {
+			#if ((to_print[2] != "") || (toupper(SHOW_EMPTY_U) == "YES"))
+                        if ((to_print[2] != "") || (toupper(SHOW_EMPTY_U) == "YES") || ((temp[2] != "") && (tab[i-1] ~ /cellnode/)))
+			{
                            printf(COLOR_BEGIN color "%s", "")                           ;
                            printf(" %-"COL_U"s|", ui);                                  ;       # U
                            printf(" %-"MAX_COL1"s|", to_print[2])                       ;       # Hostname
@@ -206,7 +207,7 @@ awk -v SHOW_EMPTY_U="$SHOW_EMPTY_U" 'BEGIN\
                            printf(" %-"MAX_COL4"s|", to_print_col4)                     ;       # ILOM IP
                            printf(COLOR_END "%s", "")                                   ;
                            printf "\n"                                                  ;
-                                                }
+			}
                 }
                 print_a_line(line_size)                                                 ;
                 printf "\n"                                                             ;
