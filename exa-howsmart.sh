@@ -23,8 +23,8 @@
 
 TMP=/tmp/exastats$$.tmp
 
-. oraenv <<< floltp1 > /dev/null 2>&1
->  ${TMP}
+#. oraenv <<< floltp1 > /dev/null 2>&1
+cat /dev/null >  ${TMP}
 sqlplus -S / as sysdba << END           | tee -a ${TMP}
 set lines 200                                           ;
 set head off                                            ;
@@ -49,13 +49,14 @@ awk     ' BEGIN {FS="|"}
                   BACK_LIGHTBLUE =      "104m"                  ;
 
                         # Size columns
-                        COL_EVENT=      48                      ;
+                        COL_EVENT=      60                      ;
                         COL_NODE=       12                      ;
 
                         # Save info in arrays
                         if (NF == 3)
                         {
                                 instances[$1] = $1      ;
+					gsub(/ *$/, "", $2)			;
                                         sub("cell physical IO",    "CPIO", $2)  ;
                                         sub("physical read total", "PRT",  $2)  ;
                                         sub("cell physical write", "CPW",  $2)  ;
@@ -65,12 +66,13 @@ awk     ' BEGIN {FS="|"}
                         }
 
                         # Events
-                        PRTB="PRT bytes"   ;
+                         PRTB="PRT bytes"   ;
                         PRTBO="PRT bytes optimized"     ;
                         CPIOP="CPIO bytes eligible for predicate offload"       ;
                        CPIOSI="CPIO bytes saved by storage index"
                        CPIOSC="CPIO interconnect bytes returned by smart scan"
                         CPIOI="CPIO interconnect bytes"
+		     CPIOBCPU="CPIO bytes sent directly to DB node to balance CPU"
                           UNC="cell IO uncompressed bytes"
                           PWT="PWT bytes"
                          PWTO="PWT bytes optimized"
@@ -159,6 +161,7 @@ awk     ' BEGIN {FS="|"}
                         print_ratio(events[UNC])                        ;
                         print_ratio(events[CPIOSC], events[UNC])        ;
                         print_ratio(events[CPIOI], events[UNC])         ;
+                        print_ratio(events[CPIOBCPU], events[UNC])      ;
                         print_ratio(events[PWT])                        ;
                         print_ratio(events[PWTO], events[PWT])          ;
                         print_ratio(events[CWFC], events[PWT])          ;
