@@ -1,4 +1,3 @@
-$ cat exa-howsmart.sh 
 #!/bin/bash
 
 TMP=/tmp/exastats$$.tmp
