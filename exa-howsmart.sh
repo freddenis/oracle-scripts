@@ -56,6 +56,7 @@ awk     ' BEGIN {FS="|"}
                       CPIOSCC="CPIO bytes saved by columnar cache"                      ;CPIOSCC_descr="% saved by Columnar Cache"
                        CPIOSC="CPIO interconnect bytes returned by smart scan"          ; CPIOSC_descr="% returned by Smart Scans"
                         CPIOI="CPIO interconnect bytes"                                 ;       # IN + OUT Traffic + count ASM mirrorring
+                       CPIOFC="CPIO bytes saved during optimized file creation"         ; CPIOFC_descr="% saved during file creation"
                      CPIOBCPU="CPIO bytes sent directly to DB node to balance CPU"      ;CPIOBCPU_descr="When cells are overloaded"
                           UNC="cell IO uncompressed bytes"                              ;
                           PWT="PWT bytes"                                               ;    PWT_descr="Physical writes"
@@ -152,8 +153,9 @@ awk     ' BEGIN {FS="|"}
                         print_ratio(events[PRTBO], PRTBO_descr, events[PRTB])        ;
                         print_ratio(events[CPIOP], "% eligible for Smart Scans", events[PRTB])        ;
                         print_ratio(events[CPIOP], CPIOP_descr)                      ;
-                        print_ratio(events[CPIOSI], CPIOSI_descr, events[CPIOP])      ;
                         print_ratio(events[CPIOSC], CPIOSC_descr, events[CPIOP])        ;
+                        print_ratio(events[CPIOSI], CPIOSI_descr, events[CPIOP])      ;
+                        print_ratio(events[CPIOFC], CPIOFC_descr, events[CPIOP])      ;
                         print_ratio(events[CPIOSCC], CPIOSCC_descr, events[CPIOP])        ;
                         print_ratio(events[CPIOBCPU], CPIOBCPU_descr, events[CPIOP])      ;
                         print_ratio(events[PWT], PWT_descr)                        ;
