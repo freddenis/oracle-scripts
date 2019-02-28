@@ -25,20 +25,20 @@ awk     ' BEGIN {FS="|"}
                             BLUE =       "34m"                  ;
                             TEAL =       "36m"                  ;
                            WHITE =       "37m"                  ;
-			  NORMAL =	  "0m"			;
+                          NORMAL =        "0m"                  ;
                   BACK_LIGHTBLUE =      "104m"                  ;
 
                         # Size columns
                         COL_EVENT=      35                      ;
                         COL_NODE =      12                      ;
-			# Misc
-			   FIRST = 1				;
+                        # Misc
+                           FIRST = 1                            ;
 
                         # Save info in arrays
                         if (NF == 3)
                         {
                                 instances[$1] = $1      ;
-					gsub(/ *$/, "", $2)			;
+                                        gsub(/ *$/, "", $2)                     ;
                                         sub("cell physical IO",    "CPIO", $2)  ;
                                         sub("physical read total", "PRT",  $2)  ;
                                         sub("cell physical write", "CPW",  $2)  ;
@@ -48,22 +48,22 @@ awk     ' BEGIN {FS="|"}
                         }
 
                         # Events
-			 LRFC="logical read bytes from cache"				;   LRFC_descr="logical read from cache"
-                         PRTB="PRT bytes"   						;   PRTB_descr="Physical read"
-                        PRTBO="PRT bytes optimized"     				;  PRTBO_descr="Physical read optimized"
-                        CPIOP="CPIO bytes eligible for predicate offload"       	;  CPIOP_descr="Bytes eligible for Smart Scans"
-                       CPIOSI="CPIO bytes saved by storage index"			; CPIOSI_descr="% saved by Storage Index"
-		      CPIOSCC="CPIO bytes saved by columnar cache"			;CPIOSCC_descr="% saved by Columnar Cache"
-                       CPIOSC="CPIO interconnect bytes returned by smart scan"		; CPIOSC_descr="% returned by Smart Scans"
-                        CPIOI="CPIO interconnect bytes"					;	# IN + OUT Traffic + count ASM mirrorring
-		     CPIOBCPU="CPIO bytes sent directly to DB node to balance CPU"	;CPIOBCPU_descr="When cells are overloaded"	
-                          UNC="cell IO uncompressed bytes"				;
-                          PWT="PWT bytes"						;    PWT_descr="Physical writes"
-                         PWTO="PWT bytes optimized"					;   PWTO_descr="Physical writes_optimized"
-                         CWFC="cell writes to flash cache"				;   CWFC_descr="Writes to Flash Cache"
-		      HCCCUNC="HCC scan cell bytes decompressed"			;HCCCUNC_descr="HCC decompressed on cell"
-	              HCCBUNC="HCC scan rdbms bytes decompressed"			;HCCBUNC_descr="HCC decompressed on rdbms"
-			}
+                         LRFC="logical read bytes from cache"                           ;   LRFC_descr="logical read from cache"
+                         PRTB="PRT bytes"                                               ;   PRTB_descr="Physical read"
+                        PRTBO="PRT bytes optimized"                                     ;  PRTBO_descr="Physical read optimized"
+                        CPIOP="CPIO bytes eligible for predicate offload"               ;  CPIOP_descr="Bytes eligible for Smart Scans"
+                       CPIOSI="CPIO bytes saved by storage index"                       ; CPIOSI_descr="% saved by Storage Index"
+                      CPIOSCC="CPIO bytes saved by columnar cache"                      ;CPIOSCC_descr="% saved by Columnar Cache"
+                       CPIOSC="CPIO interconnect bytes returned by smart scan"          ; CPIOSC_descr="% returned by Smart Scans"
+                        CPIOI="CPIO interconnect bytes"                                 ;       # IN + OUT Traffic + count ASM mirrorring
+                     CPIOBCPU="CPIO bytes sent directly to DB node to balance CPU"      ;CPIOBCPU_descr="When cells are overloaded"
+                          UNC="cell IO uncompressed bytes"                              ;
+                          PWT="PWT bytes"                                               ;    PWT_descr="Physical writes"
+                         PWTO="PWT bytes optimized"                                     ;   PWTO_descr="Physical writes_optimized"
+                         CWFC="cell writes to flash cache"                              ;   CWFC_descr="Writes to Flash Cache"
+                      HCCCUNC="HCC scan cell bytes decompressed"                        ;HCCCUNC_descr="HCC decompressed on cell"
+                      HCCBUNC="HCC scan rdbms bytes decompressed"                       ;HCCBUNC_descr="HCC decompressed on rdbms"
+                        }
           #
           # A function to center the outputs with colors
           #
@@ -90,16 +90,16 @@ awk     ' BEGIN {FS="|"}
          function print_ratio(event, event_descr, eventtodivideby, threshold)
          {
                 if (! threshold)                { threshold  = "80|95"  ;}
-		if (event_descr)	# If there io a description, we print it as it is usually more friendly
-		{	to_print=event_descr	;
-		} else {to_print=event		;
-		}
+                if (event_descr)        # If there is a description, we print it as it is usually more friendly
+                {       to_print=event_descr    ;
+                } else {to_print=event          ;
+                }
                 if (! eventtodivideby)
                 {       if (! FIRST) { printf ("%s\n", center("", line_size, WHITE, "|"))   ;}
-			printf (COLOR_BEGIN BACK_LIGHTBLUE"%-" COL_EVENT"s"COLOR_END"|", to_print) ;
-			FIRST=0	;
+                        printf (COLOR_BEGIN BACK_LIGHTBLUE"%-" COL_EVENT"s"COLOR_END"|", to_print) ;
+                        FIRST=0 ;
                 } else {
-                        printf ("  %-"COL_EVENT-2"s|", to_print)       ;		# -2 as I put 2 spaces before to "indent"
+                        printf ("  %-"COL_EVENT-2"s|", to_print)       ;                # -2 as I put 2 spaces before to "indent"
                 }
 
                 for(i=1; i<=nb_inst; i++)
@@ -122,8 +122,8 @@ awk     ' BEGIN {FS="|"}
                 } else {
                         printf ("%s", center(sprintf("%.2e", sum_event), COL_NODE, WHITE, "|"))   ;
                 }
-#		# Print the description outside on the right of the table
-#		printf ("%s", event_descr)	;
+#               # Print the description outside on the right of the table
+#               printf ("%s", event_descr)      ;
                 eventtodivideby = ""    ;
                       sum_event = 0     ;
                     sum_divider = 0     ;
@@ -133,7 +133,7 @@ awk     ' BEGIN {FS="|"}
                         line_size=COL_EVENT+COL_NODE*(nb_inst+1)+nb_inst+1
 
                         # Header
-			printf("\n");
+                        printf("\n");
                         print_a_line(line_size)                                         ;
                         printf ("%s", center("Event" , COL_EVENT, BLUE, "|"))        ;
                         for(i=1; i<=nb_inst; i++)
@@ -159,8 +159,13 @@ awk     ' BEGIN {FS="|"}
                         print_ratio(events[PWT], PWT_descr)                        ;
                         print_ratio(events[PWTO], PWTO_descr, events[PWT])          ;
                         print_ratio(events[CWFC], CWFC_descr, events[PWT])          ;
-                        print_ratio(events[HCCCUNC], HCCCUNC_descr)          ;
-                        print_ratio(events[HCCBUNC], "% decompressd on DB Server", events[HCCCUNC])          ;
+                        # HCC events have all changed in 12.2
+                        if (events[HCCCUNC])
+                        {
+                                print_ratio(events[HCCCUNC], HCCCUNC_descr)          ;
+                                print "A"events[HCCCUNC]"B"     ;
+                                print_ratio(events[HCCBUNC], "% decompressd on DB Server", events[HCCCUNC])          ;
+                        }
                         print_a_line(line_size)                         ;
                         printf ("\n");
                 }
@@ -170,7 +175,7 @@ awk     ' BEGIN {FS="|"}
 
 
 printf "  %s\n\n" "All non % numbers are bytes."
-			
+
 if [[ -f ${TMP} ]]
 then
         rm -f ${TMP}
