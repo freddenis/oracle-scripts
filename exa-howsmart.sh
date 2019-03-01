@@ -113,7 +113,7 @@ awk     ' BEGIN {FS="|"}
                         sum_event += value_event                                        # For the overall value
                         if (eventtodivideby)                                            # If an event to divide, we calculate a %
                         {
-                                divider = tab[instances[i],events[eventtodivideby]]     # value of the event to dovide by to get a %
+                                divider = tab[instances[i],events[eventtodivideby]]     # Value of the event to divide by to get a %
                                 sum_divider += divider                          ;       # For the overall value
                                   value = (value_event/divider*100)             ;
                                 printf ("%s", center(sprintf("%.2f%%", value), COL_NODE, NORMAL, "|"))   ;
@@ -153,11 +153,13 @@ awk     ' BEGIN {FS="|"}
                         print_ratio(events[LRFC], LRFC_descr)                                   ;
                         print_ratio(events[PRTB], "% Physical read", events[LRFC])              ;
                         print_ratio(events[PWT], "% Physical write", events[LRFC])              ;
+
                         print_ratio(events[PRTB], PRTB_descr)                                   ;
                         print_ratio(events[PRTBO], PRTBO_descr, events[PRTB])                   ;
                         print_ratio(events[CPIOP], "% eligible for Smart Scans", events[PRTB])  ;
+
                         print_ratio(events[CPIOP], CPIOP_descr)                                 ;
-                        print_ratio(events[CPIOSC], CPIOSC_descr, events[CPIOP])                ;
+                        print_ratio(events[CPIOSC], CPIOSC_descr, events[UNC])                  ;
                         print_ratio(events[CPIOSI], CPIOSI_descr, events[CPIOP])                ;
                         print_ratio(events[CPIOFC], CPIOFC_descr, events[CPIOP])                ;
                         print_ratio(events[CPIOSCC], CPIOSCC_descr, events[CPIOP])              ;
