@@ -60,7 +60,7 @@ awk     ' BEGIN {FS="|"}
                         CPIOI="CPIO interconnect bytes"                                 ;                                                               # IN + OUT Traffic + count ASM mirrorring
                        CPIOFC="CPIO bytes saved during optimized file creation"         ; CPIOFC_descr="% saved during file creation"           ;
                      CPIOBCPU="CPIO bytes sent directly to DB node to balance CPU"      ;CPIOBCPU_descr="When cells are overloaded"             ;
-                          UNC="cell IO uncompressed bytes"                              ;
+                          UNC="cell IO uncompressed bytes"                              ;    UNC_descr="cell IO uncompressed (bytes)"           ;
                           PWT="PWT bytes"                                               ;    PWT_descr="Physical writes"                        ;
                          PWTO="PWT bytes optimized"                                     ;   PWTO_descr="Physical writes optimized"              ;
                          CWFC="cell writes to flash cache"                              ;   CWFC_descr="Writes to Flash Cache"                  ;
@@ -159,11 +159,13 @@ awk     ' BEGIN {FS="|"}
                         print_ratio(events[CPIOP], "% eligible for Smart Scans", events[PRTB])  ;
 
                         print_ratio(events[CPIOP], CPIOP_descr)                                 ;
-                        print_ratio(events[CPIOSC], CPIOSC_descr, events[UNC])                  ;
                         print_ratio(events[CPIOSI], CPIOSI_descr, events[CPIOP])                ;
                         print_ratio(events[CPIOFC], CPIOFC_descr, events[CPIOP])                ;
                         print_ratio(events[CPIOSCC], CPIOSCC_descr, events[CPIOP])              ;
                         print_ratio(events[CPIOBCPU], CPIOBCPU_descr, events[CPIOP])            ;
+
+                        print_ratio(events[UNC], UNC_descr)                                     ;
+                        print_ratio(events[CPIOSC], CPIOSC_descr, events[UNC])                  ;
                         # Physical writes includes ASM mirorring so useless here
                         #print_ratio(events[PW], PW_descr)                                      ;
                         #print_ratio(events[CWFC], CWFC_descr, events[PW])                      ;
