@@ -171,7 +171,6 @@ awk     ' BEGIN {FS="|"}
                         if (events[HCCCUNC])
                         {
                                 print_ratio(events[HCCCUNC], HCCCUNC_descr)                     ;
-                                print "A"events[HCCCUNC]"B"                                     ;
                                 print_ratio(events[HCCBUNC], "% decompressd on DB Server", events[HCCCUNC])          ;
                         }
                         print_a_line(line_size)                                                 ;
