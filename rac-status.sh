@@ -1,3 +1,1636 @@
+login as: fdenis
+fdenis@10.32.37.20's password:
+Last login: Tue Mar  5 21:02:44 2019 from 192.168.32.12
+[fdenis@flccssdbadm01 ~]$ sudo su - oracle
+[sudo] password for fdenis:
+grid      57548      1  0 Feb02 ?        00:05:03 asm_pmon_+ASM1
+oradev    96234      1  0 Feb02 ?        00:04:49 ora_pmon_EBSE21
+oraprod   96381      1  0 Feb02 ?        00:06:58 ora_pmon_EBSPROD1
+oracle    97965      1  0 Feb02 ?        00:25:51 ora_pmon_flhistdb1
+oracle    97967      1  0 Feb02 ?        00:08:10 ora_pmon_flschddb1
+oracle    97968      1  0 Feb02 ?        00:08:45 ora_pmon_fldwhdb1
+oracle    97969      1  0 Feb02 ?        00:09:34 ora_pmon_flcdwh241
+oracle    97975      1  0 Feb02 ?        00:11:43 ora_pmon_flstage1
+oracle    97976      1  0 Feb02 ?        00:56:20 ora_pmon_floltp1
+oradev   109091      1  0 Feb02 ?        00:04:42 ora_pmon_EBSE41
+oradev   113479      1  0 Feb11 ?        00:04:28 ora_pmon_E2EBS1
+oracle   257017      1  0 Feb17 ?        00:10:01 ora_pmon_flolap1_1
+grid     368603      1  0 Feb02 ?        00:02:26 mdb_pmon_-MGMTDB
+[oracle@flccssdbadm01 ~]$ cd pythian/
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+[oracle@flccssdbadm01 pythian]$ vi rac-status
+You have new mail in /var/spool/mail/oracle
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+[oracle@flccssdbadm01 pythian]$ crsctl stat res -p -w "TYPE = ora.database.type" > a
+-bash: crsctl: command not found
+[oracle@flccssdbadm01 pythian]$ . oraenv <<< +ASM1
+ORACLE_SID = [floltp1] ? ORACLE_BASE environment variable is not being set since this
+information is not available for the current user ID oracle.
+You can set ORACLE_BASE manually if it is required.
+Resetting ORACLE_BASE to its previous value or ORACLE_HOME
+The Oracle base remains unchanged with value /u01/app/oracle
+[oracle@flccssdbadm01 pythian]$ crsctl stat res -p -w "TYPE = ora.database.type" > a
+[oracle@flccssdbadm01 pythian]$ vi a
+You have mail in /var/spool/mail/oracle
+[oracle@flccssdbadm01 pythian]$ grep ACL q
+grep: q: No such file or directory
+[oracle@flccssdbadm01 pythian]$ grep ACL a
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_4
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_3
+USR_ORA_ENV=TNS_ADMIN=/u01/app/oracle/product/12.1.0.2/dbhome_1/network/admin/dbatest ORACLE_UNQNAME=dbatest
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_4
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_3
+USR_ORA_ENV=TNS_ADMIN=/u01/app/oracle/product/12.1.0.2/dbhome_1/network/admin/dbatest ORACLE_UNQNAME=dbatest
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:asmdba:r-x,group:asmoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/E2EBS/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:asmdba:r-x,group:asmoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/E2EBS/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSE2/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSE2/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSE4/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSE4/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oraprod:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSPROD/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oraprod:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSPROD/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flcdwh24
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flcdwh24
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=fldwhdb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=fldwhdb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flhistdb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flhistdb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=floltp
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=floltp
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flschddb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flschddb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_4
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_4
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=tdetest
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=tdetest
+[oracle@flccssdbadm01 pythian]$
+You have mail in /var/spool/mail/oracle
+[oracle@flccssdbadm01 pythian]$
+[oracle@flccssdbadm01 pythian]$
+[oracle@flccssdbadm01 pythian]$
+[oracle@flccssdbadm01 pythian]$ sql^C
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+    Listener   |      Port     |      dbadm01      |      dbadm02      |     Type     |
+---------------------------------------------------------------------------------------
+ E2EBS1        | TCP:1521      |         -         |         -         |   Listener   |
+ EBSE22        | TCP:1523      |         -         |         -         |   Listener   |
+ LISTENER      | TCP:1521      |       Online      |       Online      |   Listener   |
+ LISTENER_SCAN1| TCP:1521      |         -         |       Online      |     SCAN     |
+ LISTENER_SCAN2| TCP:1521      |       Online      |         -         |     SCAN     |
+ LISTENER_SCAN3| TCP:1521      |       Online      |         -         |     SCAN     |
+---------------------------------------------------------------------------------------
+
+       DB      |    Version    |      dbadm01      |      dbadm02      |    DB Type   |
+---------------------------------------------------------------------------------------
+ dbatest       | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ e2ebs         | 12.1      (2) |        Open       |        Open       |    RAC (P)   |
+ ebse2         | 12.1      (3) |        Open       |        Open       |    RAC (P)   |
+ ebse4         | 12.1      (4) |        Open       |        Open       |    RAC (P)   |
+ ebsprod       | 12.1      (5) |        Open       |        Open       |    RAC (P)   |
+ flcdwh24      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ fldwhdb       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flhistdb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flolap        | 12.1.0.2  (6) |      Readonly     |      Readonly     |    RAC (S)   |
+ floltp        | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flschddb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flstage       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ olde2         | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ tdetest       | 12.1.0.2  (6) |         -         |      Shutdown     |    RAC (P)   |
+---------------------------------------------------------------------------------------
+
+        ORACLE_HOME references listed in the Version column :                                   Primary : White and (P)
+                                                                                                Standby : Red   and (S)
+                1 : /u01/app/oracle/product/12.1.0.2/dbhome_4
+                2 : /u02/oracle/E2EBS/12.1
+                3 : /u02/oracle/EBSE2/12.1
+                4 : /u02/oracle/EBSE4/12.1
+                5 : /u02/oracle/EBSPROD/12.1
+                6 : /u01/app/oracle/product/12.1.0.2/dbhome_3
+
+[oracle@flccssdbadm01 pythian]$ grep ACL a
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_4
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_3
+USR_ORA_ENV=TNS_ADMIN=/u01/app/oracle/product/12.1.0.2/dbhome_1/network/admin/dbatest ORACLE_UNQNAME=dbatest
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_4
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_3
+USR_ORA_ENV=TNS_ADMIN=/u01/app/oracle/product/12.1.0.2/dbhome_1/network/admin/dbatest ORACLE_UNQNAME=dbatest
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:asmdba:r-x,group:asmoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/E2EBS/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:asmdba:r-x,group:asmoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/E2EBS/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSE2/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSE2/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSE4/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSE4/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oraprod:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSPROD/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oraprod:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSPROD/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flcdwh24
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flcdwh24
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=fldwhdb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=fldwhdb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flhistdb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flhistdb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=floltp
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=floltp
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flschddb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flschddb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_4
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_4
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=tdetest
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=tdetest
+You have mail in /var/spool/mail/oracle
+[oracle@flccssdbadm01 pythian]$ grep ^ACL a
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:asmdba:r-x,group:asmoper:r-x,user:grid:r-x
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:asmdba:r-x,group:asmoper:r-x,user:grid:r-x
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,user:grid:r-x
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,user:grid:r-x
+ACL=owner:oraprod:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oraprod:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+[oracle@flccssdbadm01 pythian]$ grep ACL a
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_4
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_3
+USR_ORA_ENV=TNS_ADMIN=/u01/app/oracle/product/12.1.0.2/dbhome_1/network/admin/dbatest ORACLE_UNQNAME=dbatest
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_4
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_3
+USR_ORA_ENV=TNS_ADMIN=/u01/app/oracle/product/12.1.0.2/dbhome_1/network/admin/dbatest ORACLE_UNQNAME=dbatest
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:asmdba:r-x,group:asmoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/E2EBS/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:asmdba:r-x,group:asmoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/E2EBS/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSE2/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSE2/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSE4/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSE4/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oraprod:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSPROD/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oraprod:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSPROD/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flcdwh24
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flcdwh24
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=fldwhdb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=fldwhdb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flhistdb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flhistdb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=floltp
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=floltp
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flschddb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flschddb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_4
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_4
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=tdetest
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=tdetest
+[oracle@flccssdbadm01 pythian]$ grep(^ACL|^ORACLE_HOME) a
+-bash: syntax error near unexpected token `^ACL'
+[oracle@flccssdbadm01 pythian]$ grep([^ACL]|[^ORACLE_HOME]) a
+-bash: syntax error near unexpected token `[^ACL]'
+You have mail in /var/spool/mail/oracle
+[oracle@flccssdbadm01 pythian]$ grep(^[ACL]|^[ORACLE_HOME]) a
+-bash: syntax error near unexpected token `^[ACL]'
+[oracle@flccssdbadm01 pythian]$ grep ACL a
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_4
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_3
+USR_ORA_ENV=TNS_ADMIN=/u01/app/oracle/product/12.1.0.2/dbhome_1/network/admin/dbatest ORACLE_UNQNAME=dbatest
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_4
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_3
+USR_ORA_ENV=TNS_ADMIN=/u01/app/oracle/product/12.1.0.2/dbhome_1/network/admin/dbatest ORACLE_UNQNAME=dbatest
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:asmdba:r-x,group:asmoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/E2EBS/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:asmdba:r-x,group:asmoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/E2EBS/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSE2/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSE2/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSE4/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oradev:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSE4/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oraprod:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSPROD/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oraprod:rwx,pgrp:dba:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u02/oracle/EBSPROD/12.1
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flcdwh24
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flcdwh24
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=fldwhdb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=fldwhdb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flhistdb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flhistdb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=floltp
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=floltp
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flschddb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=flschddb
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_4
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_4
+ORACLE_HOME_OLD=
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=tdetest
+ACL=owner:oracle:rwx,pgrp:oinstall:r--,other::r--,group:dba:r-x,group:racoper:r-x,user:grid:r-x
+ORACLE_HOME=/u01/app/oracle/product/12.1.0.2/dbhome_3
+ORACLE_HOME_OLD=/u01/app/oracle/product/12.1.0.2/dbhome_1
+USR_ORA_ENV=ORACLE_UNQNAME=tdetest
+[oracle@flccssdbadm01 pythian]$ vi rac-status
+You have mail in /var/spool/mail/oracle
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+You have mail in /var/spool/mail/oracle
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+awk: cmd. line:69: (FILENAME=/tmp/status290828.tmp FNR=4) fatal: attempt to use array `OWNER' in a scalar context
+
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+=>
+=>
+=>
+=>
+=>
+=>
+=>
+=>
+=>
+=>
+=>
+=>
+=>
+=>
+    Listener   |      Port     |      dbadm01      |      dbadm02      |     Type     |
+---------------------------------------------------------------------------------------
+ E2EBS1        | TCP:1521      |         -         |         -         |   Listener   |
+ EBSE22        | TCP:1523      |         -         |         -         |   Listener   |
+ LISTENER      | TCP:1521      |       Online      |       Online      |   Listener   |
+ LISTENER_SCAN1| TCP:1521      |         -         |       Online      |     SCAN     |
+ LISTENER_SCAN2| TCP:1521      |       Online      |         -         |     SCAN     |
+ LISTENER_SCAN3| TCP:1521      |       Online      |         -         |     SCAN     |
+---------------------------------------------------------------------------------------
+
+       DB      |    Version    |      dbadm01      |      dbadm02      |    DB Type   |
+---------------------------------------------------------------------------------------
+ dbatest       | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ e2ebs         | 12.1      (2) |        Open       |        Open       |    RAC (P)   |
+ ebse2         | 12.1      (3) |        Open       |        Open       |    RAC (P)   |
+ ebse4         | 12.1      (4) |        Open       |        Open       |    RAC (P)   |
+ ebsprod       | 12.1      (5) |        Open       |        Open       |    RAC (P)   |
+ flcdwh24      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ fldwhdb       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flhistdb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flolap        | 12.1.0.2  (6) |      Readonly     |      Readonly     |    RAC (S)   |
+ floltp        | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flschddb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flstage       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ olde2         | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ tdetest       | 12.1.0.2  (6) |         -         |      Shutdown     |    RAC (P)   |
+---------------------------------------------------------------------------------------
+
+        ORACLE_HOME references listed in the Version column :                                   Primary : White and (P)
+                                                                                                Standby : Red   and (S)
+                1 : /u01/app/oracle/product/12.1.0.2/dbhome_4
+                2 : /u02/oracle/E2EBS/12.1
+                3 : /u02/oracle/EBSE2/12.1
+                4 : /u02/oracle/EBSE4/12.1
+                5 : /u02/oracle/EBSPROD/12.1
+                6 : /u01/app/oracle/product/12.1.0.2/dbhome_3
+
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+You have mail in /var/spool/mail/oracle
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+=>
+=>
+=>
+=>
+=>
+=>
+=>
+=>
+=>
+=>
+=>
+=>
+=>
+=>
+    Listener   |      Port     |      dbadm01      |      dbadm02      |     Type     |
+---------------------------------------------------------------------------------------
+ E2EBS1        | TCP:1521      |         -         |         -         |   Listener   |
+ EBSE22        | TCP:1523      |         -         |         -         |   Listener   |
+ LISTENER      | TCP:1521      |       Online      |       Online      |   Listener   |
+ LISTENER_SCAN1| TCP:1521      |         -         |       Online      |     SCAN     |
+ LISTENER_SCAN2| TCP:1521      |       Online      |         -         |     SCAN     |
+ LISTENER_SCAN3| TCP:1521      |       Online      |         -         |     SCAN     |
+---------------------------------------------------------------------------------------
+
+       DB      |    Version    |      dbadm01      |      dbadm02      |    DB Type   |
+---------------------------------------------------------------------------------------
+ dbatest       | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ e2ebs         | 12.1      (2) |        Open       |        Open       |    RAC (P)   |
+ ebse2         | 12.1      (3) |        Open       |        Open       |    RAC (P)   |
+ ebse4         | 12.1      (4) |        Open       |        Open       |    RAC (P)   |
+ ebsprod       | 12.1      (5) |        Open       |        Open       |    RAC (P)   |
+ flcdwh24      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ fldwhdb       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flhistdb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flolap        | 12.1.0.2  (6) |      Readonly     |      Readonly     |    RAC (S)   |
+ floltp        | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flschddb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flstage       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ olde2         | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ tdetest       | 12.1.0.2  (6) |         -         |      Shutdown     |    RAC (P)   |
+---------------------------------------------------------------------------------------
+
+        ORACLE_HOME references listed in the Version column :                                   Primary : White and (P)
+                                                                                                Standby : Red   and (S)
+                1 : /u01/app/oracle/product/12.1.0.2/dbhome_4
+                2 : /u02/oracle/E2EBS/12.1
+                3 : /u02/oracle/EBSE2/12.1
+                4 : /u02/oracle/EBSE4/12.1
+                5 : /u02/oracle/EBSPROD/12.1
+                6 : /u01/app/oracle/product/12.1.0.2/dbhome_3
+
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+=>ACL
+=>
+=>ACL
+=>
+=>ACL
+=>
+=>ACL
+=>
+=>ACL
+=>
+=>ACL
+=>
+=>ACL
+=>
+=>ACL
+=>
+=>ACL
+=>
+=>ACL
+=>
+=>ACL
+=>
+=>ACL
+=>
+=>ACL
+=>
+=>ACL
+=>
+    Listener   |      Port     |      dbadm01      |      dbadm02      |     Type     |
+---------------------------------------------------------------------------------------
+ E2EBS1        | TCP:1521      |         -         |         -         |   Listener   |
+ EBSE22        | TCP:1523      |         -         |         -         |   Listener   |
+ LISTENER      | TCP:1521      |       Online      |       Online      |   Listener   |
+ LISTENER_SCAN1| TCP:1521      |         -         |       Online      |     SCAN     |
+ LISTENER_SCAN2| TCP:1521      |       Online      |         -         |     SCAN     |
+ LISTENER_SCAN3| TCP:1521      |       Online      |         -         |     SCAN     |
+---------------------------------------------------------------------------------------
+
+       DB      |    Version    |      dbadm01      |      dbadm02      |    DB Type   |
+---------------------------------------------------------------------------------------
+ dbatest       | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ e2ebs         | 12.1      (2) |        Open       |        Open       |    RAC (P)   |
+ ebse2         | 12.1      (3) |        Open       |        Open       |    RAC (P)   |
+ ebse4         | 12.1      (4) |        Open       |        Open       |    RAC (P)   |
+ ebsprod       | 12.1      (5) |        Open       |        Open       |    RAC (P)   |
+ flcdwh24      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ fldwhdb       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flhistdb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flolap        | 12.1.0.2  (6) |      Readonly     |      Readonly     |    RAC (S)   |
+ floltp        | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flschddb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flstage       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ olde2         | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ tdetest       | 12.1.0.2  (6) |         -         |      Shutdown     |    RAC (P)   |
+---------------------------------------------------------------------------------------
+
+        ORACLE_HOME references listed in the Version column :                                   Primary : White and (P)
+                                                                                                Standby : Red   and (S)
+                1 : /u01/app/oracle/product/12.1.0.2/dbhome_4
+                2 : /u02/oracle/E2EBS/12.1
+                3 : /u02/oracle/EBSE2/12.1
+                4 : /u02/oracle/EBSE4/12.1
+                5 : /u02/oracle/EBSPROD/12.1
+                6 : /u01/app/oracle/product/12.1.0.2/dbhome_3
+
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+=>ACL
+=>oracle
+=>ACL
+=>oradev
+=>ACL
+=>oradev
+=>ACL
+=>oradev
+=>ACL
+=>oraprod
+=>ACL
+=>oracle
+=>ACL
+=>oracle
+=>ACL
+=>oracle
+=>ACL
+=>oracle
+=>ACL
+=>oracle
+=>ACL
+=>oracle
+=>ACL
+=>oracle
+=>ACL
+=>oracle
+=>ACL
+=>oracle
+    Listener   |      Port     |      dbadm01      |      dbadm02      |     Type     |
+---------------------------------------------------------------------------------------
+ E2EBS1        | TCP:1521      |         -         |         -         |   Listener   |
+ EBSE22        | TCP:1523      |         -         |         -         |   Listener   |
+ LISTENER      | TCP:1521      |       Online      |       Online      |   Listener   |
+ LISTENER_SCAN1| TCP:1521      |         -         |       Online      |     SCAN     |
+ LISTENER_SCAN2| TCP:1521      |       Online      |         -         |     SCAN     |
+ LISTENER_SCAN3| TCP:1521      |       Online      |         -         |     SCAN     |
+---------------------------------------------------------------------------------------
+
+       DB      |    Version    |      dbadm01      |      dbadm02      |    DB Type   |
+---------------------------------------------------------------------------------------
+ dbatest       | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ e2ebs         | 12.1      (2) |        Open       |        Open       |    RAC (P)   |
+ ebse2         | 12.1      (3) |        Open       |        Open       |    RAC (P)   |
+ ebse4         | 12.1      (4) |        Open       |        Open       |    RAC (P)   |
+ ebsprod       | 12.1      (5) |        Open       |        Open       |    RAC (P)   |
+ flcdwh24      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ fldwhdb       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flhistdb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flolap        | 12.1.0.2  (6) |      Readonly     |      Readonly     |    RAC (S)   |
+ floltp        | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flschddb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flstage       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ olde2         | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ tdetest       | 12.1.0.2  (6) |         -         |      Shutdown     |    RAC (P)   |
+---------------------------------------------------------------------------------------
+
+        ORACLE_HOME references listed in the Version column :                                   Primary : White and (P)
+                                                                                                Standby : Red   and (S)
+                1 : /u01/app/oracle/product/12.1.0.2/dbhome_4
+                2 : /u02/oracle/E2EBS/12.1
+                3 : /u02/oracle/EBSE2/12.1
+                4 : /u02/oracle/EBSE4/12.1
+                5 : /u02/oracle/EBSPROD/12.1
+                6 : /u01/app/oracle/product/12.1.0.2/dbhome_3
+
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+You have mail in /var/spool/mail/oracle
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+=>ACL
+=>oracle
+=>oinstall
+=>ACL
+=>oradev
+=>dba
+=>ACL
+=>oradev
+=>dba
+=>ACL
+=>oradev
+=>dba
+=>ACL
+=>oraprod
+=>dba
+=>ACL
+=>oracle
+=>oinstall
+=>ACL
+=>oracle
+=>oinstall
+=>ACL
+=>oracle
+=>oinstall
+=>ACL
+=>oracle
+=>oinstall
+=>ACL
+=>oracle
+=>oinstall
+=>ACL
+=>oracle
+=>oinstall
+=>ACL
+=>oracle
+=>oinstall
+=>ACL
+=>oracle
+=>oinstall
+=>ACL
+=>oracle
+=>oinstall
+    Listener   |      Port     |      dbadm01      |      dbadm02      |     Type     |
+---------------------------------------------------------------------------------------
+ E2EBS1        | TCP:1521      |         -         |         -         |   Listener   |
+ EBSE22        | TCP:1523      |         -         |         -         |   Listener   |
+ LISTENER      | TCP:1521      |       Online      |       Online      |   Listener   |
+ LISTENER_SCAN1| TCP:1521      |         -         |       Online      |     SCAN     |
+ LISTENER_SCAN2| TCP:1521      |       Online      |         -         |     SCAN     |
+ LISTENER_SCAN3| TCP:1521      |       Online      |         -         |     SCAN     |
+---------------------------------------------------------------------------------------
+
+       DB      |    Version    |      dbadm01      |      dbadm02      |    DB Type   |
+---------------------------------------------------------------------------------------
+ dbatest       | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ e2ebs         | 12.1      (2) |        Open       |        Open       |    RAC (P)   |
+ ebse2         | 12.1      (3) |        Open       |        Open       |    RAC (P)   |
+ ebse4         | 12.1      (4) |        Open       |        Open       |    RAC (P)   |
+ ebsprod       | 12.1      (5) |        Open       |        Open       |    RAC (P)   |
+ flcdwh24      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ fldwhdb       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flhistdb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flolap        | 12.1.0.2  (6) |      Readonly     |      Readonly     |    RAC (S)   |
+ floltp        | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flschddb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flstage       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ olde2         | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ tdetest       | 12.1.0.2  (6) |         -         |      Shutdown     |    RAC (P)   |
+---------------------------------------------------------------------------------------
+
+        ORACLE_HOME references listed in the Version column :                                   Primary : White and (P)
+                                                                                                Standby : Red   and (S)
+                1 : /u01/app/oracle/product/12.1.0.2/dbhome_4
+                2 : /u02/oracle/E2EBS/12.1
+                3 : /u02/oracle/EBSE2/12.1
+                4 : /u02/oracle/EBSE4/12.1
+                5 : /u02/oracle/EBSPROD/12.1
+                6 : /u01/app/oracle/product/12.1.0.2/dbhome_3
+
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+You have mail in /var/spool/mail/oracle
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+awk: cmd. line:93: (FILENAME=/tmp/status324853.tmp FNR=75) fatal: attempt to use array `OWNER' in a scalar context
+
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+    Listener   |      Port     |      dbadm01      |      dbadm02      |     Type     |
+---------------------------------------------------------------------------------------
+ E2EBS1        | TCP:1521      |         -         |         -         |   Listener   |
+ EBSE22        | TCP:1523      |         -         |         -         |   Listener   |
+ LISTENER      | TCP:1521      |       Online      |       Online      |   Listener   |
+ LISTENER_SCAN1| TCP:1521      |         -         |       Online      |     SCAN     |
+ LISTENER_SCAN2| TCP:1521      |       Online      |         -         |     SCAN     |
+ LISTENER_SCAN3| TCP:1521      |       Online      |         -         |     SCAN     |
+---------------------------------------------------------------------------------------
+
+       DB      |    Version    |      dbadm01      |      dbadm02      |    DB Type   |
+---------------------------------------------------------------------------------------
+ dbatest       | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ e2ebs         | 12.1      (2) |        Open       |        Open       |    RAC (P)   |
+ ebse2         | 12.1      (3) |        Open       |        Open       |    RAC (P)   |
+ ebse4         | 12.1      (4) |        Open       |        Open       |    RAC (P)   |
+ ebsprod       | 12.1      (5) |        Open       |        Open       |    RAC (P)   |
+ flcdwh24      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ fldwhdb       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flhistdb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flolap        | 12.1.0.2  (6) |      Readonly     |      Readonly     |    RAC (S)   |
+ floltp        | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flschddb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flstage       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ olde2         | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ tdetest       | 12.1.0.2  (6) |         -         |      Shutdown     |    RAC (P)   |
+---------------------------------------------------------------------------------------
+
+        ORACLE_HOME references listed in the Version column :                                   Primary : White and (P)
+                                                                                                Standby : Red   and (S)
+                1 : /u01/app/oracle/product/12.1.0.2/dbhome_4oracle:oinstall
+                2 : /u02/oracle/E2EBS/12.1oradev:dba
+                3 : /u02/oracle/EBSE2/12.1oradev:dba
+                4 : /u02/oracle/EBSE4/12.1oradev:dba
+                5 : /u02/oracle/EBSPROD/12.1oraprod:dba
+                6 : /u01/app/oracle/product/12.1.0.2/dbhome_3oracle:oinstall
+
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+You have mail in /var/spool/mail/oracle
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+    Listener   |      Port     |      dbadm01      |      dbadm02      |     Type     |
+---------------------------------------------------------------------------------------
+ E2EBS1        | TCP:1521      |         -         |         -         |   Listener   |
+ EBSE22        | TCP:1523      |         -         |         -         |   Listener   |
+ LISTENER      | TCP:1521      |       Online      |       Online      |   Listener   |
+ LISTENER_SCAN1| TCP:1521      |         -         |       Online      |     SCAN     |
+ LISTENER_SCAN2| TCP:1521      |       Online      |         -         |     SCAN     |
+ LISTENER_SCAN3| TCP:1521      |       Online      |         -         |     SCAN     |
+---------------------------------------------------------------------------------------
+
+       DB      |    Version    |      dbadm01      |      dbadm02      |    DB Type   |
+---------------------------------------------------------------------------------------
+ dbatest       | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ e2ebs         | 12.1      (2) |        Open       |        Open       |    RAC (P)   |
+ ebse2         | 12.1      (3) |        Open       |        Open       |    RAC (P)   |
+ ebse4         | 12.1      (4) |        Open       |        Open       |    RAC (P)   |
+ ebsprod       | 12.1      (5) |        Open       |        Open       |    RAC (P)   |
+ flcdwh24      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ fldwhdb       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flhistdb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flolap        | 12.1.0.2  (6) |      Readonly     |      Readonly     |    RAC (S)   |
+ floltp        | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flschddb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flstage       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ olde2         | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ tdetest       | 12.1.0.2  (6) |         -         |      Shutdown     |    RAC (P)   |
+---------------------------------------------------------------------------------------
+
+        ORACLE_HOME references listed in the Version column :                                   Primary : White and (P)
+                                                                                                Standby : Red   and (S)
+                1 : /u01/app/oracle/product/12.1.0.2/dbhome_4oracle:oinstall
+                               2 : /u02/oracle/E2EBS/12.1oradev:dba
+                               3 : /u02/oracle/EBSE2/12.1oradev:dba
+                               4 : /u02/oracle/EBSE4/12.1oradev:dba
+                             5 : /u02/oracle/EBSPROD/12.1oraprod:dba
+                6 : /u01/app/oracle/product/12.1.0.2/dbhome_3oracle:oinstall
+
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+    Listener   |      Port     |      dbadm01      |      dbadm02      |     Type     |
+---------------------------------------------------------------------------------------
+ E2EBS1        | TCP:1521      |         -         |         -         |   Listener   |
+ EBSE22        | TCP:1523      |         -         |         -         |   Listener   |
+ LISTENER      | TCP:1521      |       Online      |       Online      |   Listener   |
+ LISTENER_SCAN1| TCP:1521      |         -         |       Online      |     SCAN     |
+ LISTENER_SCAN2| TCP:1521      |       Online      |         -         |     SCAN     |
+ LISTENER_SCAN3| TCP:1521      |       Online      |         -         |     SCAN     |
+---------------------------------------------------------------------------------------
+
+       DB      |    Version    |      dbadm01      |      dbadm02      |    DB Type   |
+---------------------------------------------------------------------------------------
+ dbatest       | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ e2ebs         | 12.1      (2) |        Open       |        Open       |    RAC (P)   |
+ ebse2         | 12.1      (3) |        Open       |        Open       |    RAC (P)   |
+ ebse4         | 12.1      (4) |        Open       |        Open       |    RAC (P)   |
+ ebsprod       | 12.1      (5) |        Open       |        Open       |    RAC (P)   |
+ flcdwh24      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ fldwhdb       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flhistdb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flolap        | 12.1.0.2  (6) |      Readonly     |      Readonly     |    RAC (S)   |
+ floltp        | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flschddb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flstage       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ olde2         | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ tdetest       | 12.1.0.2  (6) |         -         |      Shutdown     |    RAC (P)   |
+---------------------------------------------------------------------------------------
+
+        ORACLE_HOME references listed in the Version column :                                   Primary : White and (P)
+                                                                                                Standby : Red   and (S)
+                %COL_OHs1 : /u01/app/oracle/product/12.1.0.2/dbhome_4
+                %COL_OHs2 : /u02/oracle/E2EBS/12.1
+                %COL_OHs3 : /u02/oracle/EBSE2/12.1
+                %COL_OHs4 : /u02/oracle/EBSE4/12.1
+                %COL_OHs5 : /u02/oracle/EBSPROD/12.1
+                %COL_OHs6 : /u01/app/oracle/product/12.1.0.2/dbhome_3
+
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+You have mail in /var/spool/mail/oracle
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+    Listener   |      Port     |      dbadm01      |      dbadm02      |     Type     |
+---------------------------------------------------------------------------------------
+ E2EBS1        | TCP:1521      |         -         |         -         |   Listener   |
+ EBSE22        | TCP:1523      |         -         |         -         |   Listener   |
+ LISTENER      | TCP:1521      |       Online      |       Online      |   Listener   |
+ LISTENER_SCAN1| TCP:1521      |         -         |       Online      |     SCAN     |
+ LISTENER_SCAN2| TCP:1521      |       Online      |         -         |     SCAN     |
+ LISTENER_SCAN3| TCP:1521      |       Online      |         -         |     SCAN     |
+---------------------------------------------------------------------------------------
+
+       DB      |    Version    |      dbadm01      |      dbadm02      |    DB Type   |
+---------------------------------------------------------------------------------------
+ dbatest       | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ e2ebs         | 12.1      (2) |        Open       |        Open       |    RAC (P)   |
+ ebse2         | 12.1      (3) |        Open       |        Open       |    RAC (P)   |
+ ebse4         | 12.1      (4) |        Open       |        Open       |    RAC (P)   |
+ ebsprod       | 12.1      (5) |        Open       |        Open       |    RAC (P)   |
+ flcdwh24      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ fldwhdb       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flhistdb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flolap        | 12.1.0.2  (6) |      Readonly     |      Readonly     |    RAC (S)   |
+ floltp        | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flschddb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flstage       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ olde2         | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ tdetest       | 12.1.0.2  (6) |         -         |      Shutdown     |    RAC (P)   |
+---------------------------------------------------------------------------------------
+
+        ORACLE_HOME references listed in the Version column :                                   Primary : White and (P)
+                                                                                                Standby : Red   and (S)
+                1 : %s
+                2 : %s
+                3 : %s
+                4 : %s
+                5 : %s
+                6 : %s
+
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+You have mail in /var/spool/mail/oracle
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+    Listener   |      Port     |      dbadm01      |      dbadm02      |     Type     |
+---------------------------------------------------------------------------------------
+ E2EBS1        | TCP:1521      |         -         |         -         |   Listener   |
+ EBSE22        | TCP:1523      |         -         |         -         |   Listener   |
+ LISTENER      | TCP:1521      |       Online      |       Online      |   Listener   |
+ LISTENER_SCAN1| TCP:1521      |         -         |       Online      |     SCAN     |
+ LISTENER_SCAN2| TCP:1521      |       Online      |         -         |     SCAN     |
+ LISTENER_SCAN3| TCP:1521      |       Online      |         -         |     SCAN     |
+---------------------------------------------------------------------------------------
+
+       DB      |    Version    |      dbadm01      |      dbadm02      |    DB Type   |
+---------------------------------------------------------------------------------------
+ dbatest       | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ e2ebs         | 12.1      (2) |        Open       |        Open       |    RAC (P)   |
+ ebse2         | 12.1      (3) |        Open       |        Open       |    RAC (P)   |
+ ebse4         | 12.1      (4) |        Open       |        Open       |    RAC (P)   |
+ ebsprod       | 12.1      (5) |        Open       |        Open       |    RAC (P)   |
+ flcdwh24      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ fldwhdb       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flhistdb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flolap        | 12.1.0.2  (6) |      Readonly     |      Readonly     |    RAC (S)   |
+ floltp        | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flschddb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flstage       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ olde2         | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ tdetest       | 12.1.0.2  (6) |         -         |      Shutdown     |    RAC (P)   |
+---------------------------------------------------------------------------------------
+
+        ORACLE_HOME references listed in the Version column :                                   Primary : White and (P)
+                                                                                                Standby : Red   and (S)
+                1 : %s
+                2 : %s
+                3 : %s
+                4 : %s
+                5 : %s
+                6 : %s
+
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+    Listener   |      Port     |      dbadm01      |      dbadm02      |     Type     |
+---------------------------------------------------------------------------------------
+ E2EBS1        | TCP:1521      |         -         |         -         |   Listener   |
+ EBSE22        | TCP:1523      |         -         |         -         |   Listener   |
+ LISTENER      | TCP:1521      |       Online      |       Online      |   Listener   |
+ LISTENER_SCAN1| TCP:1521      |         -         |       Online      |     SCAN     |
+ LISTENER_SCAN2| TCP:1521      |       Online      |         -         |     SCAN     |
+ LISTENER_SCAN3| TCP:1521      |       Online      |         -         |     SCAN     |
+---------------------------------------------------------------------------------------
+
+       DB      |    Version    |      dbadm01      |      dbadm02      |    DB Type   |
+---------------------------------------------------------------------------------------
+ dbatest       | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ e2ebs         | 12.1      (2) |        Open       |        Open       |    RAC (P)   |
+ ebse2         | 12.1      (3) |        Open       |        Open       |    RAC (P)   |
+ ebse4         | 12.1      (4) |        Open       |        Open       |    RAC (P)   |
+ ebsprod       | 12.1      (5) |        Open       |        Open       |    RAC (P)   |
+ flcdwh24      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ fldwhdb       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flhistdb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flolap        | 12.1.0.2  (6) |      Readonly     |      Readonly     |    RAC (S)   |
+ floltp        | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flschddb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flstage       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ olde2         | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ tdetest       | 12.1.0.2  (6) |         -         |      Shutdown     |    RAC (P)   |
+---------------------------------------------------------------------------------------
+
+        ORACLE_HOME references listed in the Version column :                                   Primary : White and (P)
+                                                                                                Standby : Red   and (S)
+41
+                1 : %s
+                2 : %s
+                3 : %s
+                4 : %s
+                5 : %s
+                6 : %s
+41
+41
+41
+41
+41
+
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+You have mail in /var/spool/mail/oracle
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+    Listener   |      Port     |      dbadm01      |      dbadm02      |     Type     |
+---------------------------------------------------------------------------------------
+ E2EBS1        | TCP:1521      |         -         |         -         |   Listener   |
+ EBSE22        | TCP:1523      |         -         |         -         |   Listener   |
+ LISTENER      | TCP:1521      |       Online      |       Online      |   Listener   |
+ LISTENER_SCAN1| TCP:1521      |         -         |       Online      |     SCAN     |
+ LISTENER_SCAN2| TCP:1521      |       Online      |         -         |     SCAN     |
+ LISTENER_SCAN3| TCP:1521      |       Online      |         -         |     SCAN     |
+---------------------------------------------------------------------------------------
+
+       DB      |    Version    |      dbadm01      |      dbadm02      |    DB Type   |
+---------------------------------------------------------------------------------------
+ dbatest       | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ e2ebs         | 12.1      (2) |        Open       |        Open       |    RAC (P)   |
+ ebse2         | 12.1      (3) |        Open       |        Open       |    RAC (P)   |
+ ebse4         | 12.1      (4) |        Open       |        Open       |    RAC (P)   |
+ ebsprod       | 12.1      (5) |        Open       |        Open       |    RAC (P)   |
+ flcdwh24      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ fldwhdb       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flhistdb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flolap        | 12.1.0.2  (6) |      Readonly     |      Readonly     |    RAC (S)   |
+ floltp        | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flschddb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flstage       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ olde2         | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ tdetest       | 12.1.0.2  (6) |         -         |      Shutdown     |    RAC (P)   |
+---------------------------------------------------------------------------------------
+
+        ORACLE_HOME references listed in the Version column :                                   Primary : White and (P)
+                                                                                                Standby : Red   and (S)
+41
+                1 : /u01/app/oracle/product/12.1.0.2/dbhome_4oracle:oinstall
+                2 :                    /u02/oracle/E2EBS/12.1oradev:dba
+                3 :                    /u02/oracle/EBSE2/12.1oradev:dba
+                4 :                    /u02/oracle/EBSE4/12.1oradev:dba
+                5 :                  /u02/oracle/EBSPROD/12.1oraprod:dba
+                6 : /u01/app/oracle/product/12.1.0.2/dbhome_3oracle:oinstall
+41
+41
+41
+41
+41
+
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+    Listener   |      Port     |      dbadm01      |      dbadm02      |     Type     |
+---------------------------------------------------------------------------------------
+ E2EBS1        | TCP:1521      |         -         |         -         |   Listener   |
+ EBSE22        | TCP:1523      |         -         |         -         |   Listener   |
+ LISTENER      | TCP:1521      |       Online      |       Online      |   Listener   |
+ LISTENER_SCAN1| TCP:1521      |         -         |       Online      |     SCAN     |
+ LISTENER_SCAN2| TCP:1521      |       Online      |         -         |     SCAN     |
+ LISTENER_SCAN3| TCP:1521      |       Online      |         -         |     SCAN     |
+---------------------------------------------------------------------------------------
+
+       DB      |    Version    |      dbadm01      |      dbadm02      |    DB Type   |
+---------------------------------------------------------------------------------------
+ dbatest       | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ e2ebs         | 12.1      (2) |        Open       |        Open       |    RAC (P)   |
+ ebse2         | 12.1      (3) |        Open       |        Open       |    RAC (P)   |
+ ebse4         | 12.1      (4) |        Open       |        Open       |    RAC (P)   |
+ ebsprod       | 12.1      (5) |        Open       |        Open       |    RAC (P)   |
+ flcdwh24      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ fldwhdb       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flhistdb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flolap        | 12.1.0.2  (6) |      Readonly     |      Readonly     |    RAC (S)   |
+ floltp        | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flschddb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flstage       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ olde2         | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ tdetest       | 12.1.0.2  (6) |         -         |      Shutdown     |    RAC (P)   |
+---------------------------------------------------------------------------------------
+
+        ORACLE_HOME references listed in the Version column :                                   Primary : White and (P)
+                                                                                                Standby : Red   and (S)
+41
+                1 : /u01/app/oracle/product/12.1.0.2/dbhome_4oracle:oinstall
+                2 : /u02/oracle/E2EBS/12.1                   oradev:dba
+                3 : /u02/oracle/EBSE2/12.1                   oradev:dba
+                4 : /u02/oracle/EBSE4/12.1                   oradev:dba
+                5 : /u02/oracle/EBSPROD/12.1                 oraprod:dba
+                6 : /u01/app/oracle/product/12.1.0.2/dbhome_3oracle:oinstall
+41
+41
+41
+41
+41
+
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+    Listener   |      Port     |      dbadm01      |      dbadm02      |     Type     |
+---------------------------------------------------------------------------------------
+ E2EBS1        | TCP:1521      |         -         |         -         |   Listener   |
+ EBSE22        | TCP:1523      |         -         |         -         |   Listener   |
+ LISTENER      | TCP:1521      |       Online      |       Online      |   Listener   |
+ LISTENER_SCAN1| TCP:1521      |         -         |       Online      |     SCAN     |
+ LISTENER_SCAN2| TCP:1521      |       Online      |         -         |     SCAN     |
+ LISTENER_SCAN3| TCP:1521      |       Online      |         -         |     SCAN     |
+---------------------------------------------------------------------------------------
+
+       DB      |    Version    |      dbadm01      |      dbadm02      |    DB Type   |
+---------------------------------------------------------------------------------------
+ dbatest       | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ e2ebs         | 12.1      (2) |        Open       |        Open       |    RAC (P)   |
+ ebse2         | 12.1      (3) |        Open       |        Open       |    RAC (P)   |
+ ebse4         | 12.1      (4) |        Open       |        Open       |    RAC (P)   |
+ ebsprod       | 12.1      (5) |        Open       |        Open       |    RAC (P)   |
+ flcdwh24      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ fldwhdb       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flhistdb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flolap        | 12.1.0.2  (6) |      Readonly     |      Readonly     |    RAC (S)   |
+ floltp        | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flschddb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flstage       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ olde2         | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ tdetest       | 12.1.0.2  (6) |         -         |      Shutdown     |    RAC (P)   |
+---------------------------------------------------------------------------------------
+
+        ORACLE_HOME references listed in the Version column :                                   Primary : White and (P)
+                                                                                                Standby : Red   and (S)
+                1 : /u01/app/oracle/product/12.1.0.2/dbhome_4   oracle:oinstall
+                2 : /u02/oracle/E2EBS/12.1                      oradev:dba
+                3 : /u02/oracle/EBSE2/12.1                      oradev:dba
+                4 : /u02/oracle/EBSE4/12.1                      oradev:dba
+                5 : /u02/oracle/EBSPROD/12.1                    oraprod:dba
+                6 : /u01/app/oracle/product/12.1.0.2/dbhome_3   oracle:oinstall
+
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+You have mail in /var/spool/mail/oracle
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+    Listener   |      Port     |      dbadm01      |      dbadm02      |     Type     |
+---------------------------------------------------------------------------------------
+ E2EBS1        | TCP:1521      |         -         |         -         |   Listener   |
+ EBSE22        | TCP:1523      |         -         |         -         |   Listener   |
+ LISTENER      | TCP:1521      |       Online      |       Online      |   Listener   |
+ LISTENER_SCAN1| TCP:1521      |         -         |       Online      |     SCAN     |
+ LISTENER_SCAN2| TCP:1521      |       Online      |         -         |     SCAN     |
+ LISTENER_SCAN3| TCP:1521      |       Online      |         -         |     SCAN     |
+---------------------------------------------------------------------------------------
+
+       DB      |    Version    |      dbadm01      |      dbadm02      |    DB Type   |
+---------------------------------------------------------------------------------------
+ dbatest       | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ e2ebs         | 12.1      (2) |        Open       |        Open       |    RAC (P)   |
+ ebse2         | 12.1      (3) |        Open       |        Open       |    RAC (P)   |
+ ebse4         | 12.1      (4) |        Open       |        Open       |    RAC (P)   |
+ ebsprod       | 12.1      (5) |        Open       |        Open       |    RAC (P)   |
+ flcdwh24      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ fldwhdb       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flhistdb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flolap        | 12.1.0.2  (6) |      Readonly     |      Readonly     |    RAC (S)   |
+ floltp        | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flschddb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flstage       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ olde2         | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ tdetest       | 12.1.0.2  (6) |         -         |      Shutdown     |    RAC (P)   |
+---------------------------------------------------------------------------------------
+
+        ORACLE_HOME references listed in the Version column :                                   Primary : White and (P)
+                                                                                                Standby : Red   and (S)
+                1 : /u01/app/oracle/product/12.1.0.2/dbhome_4   oracle:oinstall
+                2 : /u02/oracle/E2EBS/12.1                      oradev:dba
+                3 : /u02/oracle/EBSE2/12.1                      oradev:dba
+                4 : /u02/oracle/EBSE4/12.1                      oradev:dba
+                5 : /u02/oracle/EBSPROD/12.1                    oraprod:dba
+                6 : /u01/app/oracle/product/12.1.0.2/dbhome_3   oracle:oinstall
+
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+    Listener   |      Port     |      dbadm01      |      dbadm02      |     Type     |
+---------------------------------------------------------------------------------------
+ E2EBS1        | TCP:1521      |         -         |         -         |   Listener   |
+ EBSE22        | TCP:1523      |         -         |         -         |   Listener   |
+ LISTENER      | TCP:1521      |       Online      |       Online      |   Listener   |
+ LISTENER_SCAN1| TCP:1521      |         -         |       Online      |     SCAN     |
+ LISTENER_SCAN2| TCP:1521      |       Online      |         -         |     SCAN     |
+ LISTENER_SCAN3| TCP:1521      |       Online      |         -         |     SCAN     |
+---------------------------------------------------------------------------------------
+
+       DB      |    Version    |      dbadm01      |      dbadm02      |    DB Type   |
+---------------------------------------------------------------------------------------
+ dbatest       | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ e2ebs         | 12.1      (2) |        Open       |        Open       |    RAC (P)   |
+ ebse2         | 12.1      (3) |        Open       |        Open       |    RAC (P)   |
+ ebse4         | 12.1      (4) |        Open       |        Open       |    RAC (P)   |
+ ebsprod       | 12.1      (5) |        Open       |        Open       |    RAC (P)   |
+ flcdwh24      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ fldwhdb       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flhistdb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flolap        | 12.1.0.2  (6) |      Readonly     |      Readonly     |    RAC (S)   |
+ floltp        | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flschddb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flstage       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ olde2         | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ tdetest       | 12.1.0.2  (6) |         -         |      Shutdown     |    RAC (P)   |
+---------------------------------------------------------------------------------------
+
+        ORACLE_HOME references listed in the Version column :                                   Primary : White and (P)
+                                                                                                Standby : Red   and (S)
+                1 : (/u01/app/oracle/product/12.1.0.2/dbhome_4) oracle:oinstall
+                2 : (/u02/oracle/E2EBS/12.1                   ) oradev:dba
+                3 : (/u02/oracle/EBSE2/12.1                   ) oradev:dba
+                4 : (/u02/oracle/EBSE4/12.1                   ) oradev:dba
+                5 : (/u02/oracle/EBSPROD/12.1                 ) oraprod:dba
+                6 : (/u01/app/oracle/product/12.1.0.2/dbhome_3) oracle:oinstall
+
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+    Listener   |      Port     |      dbadm01      |      dbadm02      |     Type     |
+---------------------------------------------------------------------------------------
+ E2EBS1        | TCP:1521      |         -         |         -         |   Listener   |
+ EBSE22        | TCP:1523      |         -         |         -         |   Listener   |
+ LISTENER      | TCP:1521      |       Online      |       Online      |   Listener   |
+ LISTENER_SCAN1| TCP:1521      |         -         |       Online      |     SCAN     |
+ LISTENER_SCAN2| TCP:1521      |       Online      |         -         |     SCAN     |
+ LISTENER_SCAN3| TCP:1521      |       Online      |         -         |     SCAN     |
+---------------------------------------------------------------------------------------
+
+       DB      |    Version    |      dbadm01      |      dbadm02      |    DB Type   |
+---------------------------------------------------------------------------------------
+ dbatest       | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ e2ebs         | 12.1      (2) |        Open       |        Open       |    RAC (P)   |
+ ebse2         | 12.1      (3) |        Open       |        Open       |    RAC (P)   |
+ ebse4         | 12.1      (4) |        Open       |        Open       |    RAC (P)   |
+ ebsprod       | 12.1      (5) |        Open       |        Open       |    RAC (P)   |
+ flcdwh24      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ fldwhdb       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flhistdb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flolap        | 12.1.0.2  (6) |      Readonly     |      Readonly     |    RAC (S)   |
+ floltp        | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flschddb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flstage       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ olde2         | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ tdetest       | 12.1.0.2  (6) |         -         |      Shutdown     |    RAC (P)   |
+---------------------------------------------------------------------------------------
+
+        ORACLE_HOME references listed in the Version column :                                   Primary : White and (P)
+                                                                                                Standby : Red   and (S)
+                1 : /u01/app/oracle/product/12.1.0.2/dbhome_4   (oracle:oinstall)
+                2 : /u02/oracle/E2EBS/12.1                      (oradev:dba)
+                3 : /u02/oracle/EBSE2/12.1                      (oradev:dba)
+                4 : /u02/oracle/EBSE4/12.1                      (oradev:dba)
+                5 : /u02/oracle/EBSPROD/12.1                    (oraprod:dba)
+                6 : /u01/app/oracle/product/12.1.0.2/dbhome_3   (oracle:oinstall)
+
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+You have mail in /var/spool/mail/oracle
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+    Listener   |      Port     |      dbadm01      |      dbadm02      |     Type     |
+---------------------------------------------------------------------------------------
+ E2EBS1        | TCP:1521      |         -         |         -         |   Listener   |
+ EBSE22        | TCP:1523      |         -         |         -         |   Listener   |
+ LISTENER      | TCP:1521      |       Online      |       Online      |   Listener   |
+ LISTENER_SCAN1| TCP:1521      |         -         |       Online      |     SCAN     |
+ LISTENER_SCAN2| TCP:1521      |       Online      |         -         |     SCAN     |
+ LISTENER_SCAN3| TCP:1521      |       Online      |         -         |     SCAN     |
+---------------------------------------------------------------------------------------
+
+       DB      |    Version    |      dbadm01      |      dbadm02      |    DB Type   |
+---------------------------------------------------------------------------------------
+ dbatest       | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ e2ebs         | 12.1      (2) |        Open       |        Open       |    RAC (P)   |
+ ebse2         | 12.1      (3) |        Open       |        Open       |    RAC (P)   |
+ ebse4         | 12.1      (4) |        Open       |        Open       |    RAC (P)   |
+ ebsprod       | 12.1      (5) |        Open       |        Open       |    RAC (P)   |
+ flcdwh24      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ fldwhdb       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flhistdb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flolap        | 12.1.0.2  (6) |      Readonly     |      Readonly     |    RAC (S)   |
+ floltp        | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flschddb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flstage       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ olde2         | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ tdetest       | 12.1.0.2  (6) |         -         |      Shutdown     |    RAC (P)   |
+---------------------------------------------------------------------------------------
+
+        ORACLE_HOME references listed in the Version column :                                   Primary : White and (P)
+                                                                                                Standby : Red   and (S)
+                1 : /u01/app/oracle/product/12.1.0.2/dbhome_4   : oracle:oinstall
+                2 : /u02/oracle/E2EBS/12.1                      : oradev:dba
+                3 : /u02/oracle/EBSE2/12.1                      : oradev:dba
+                4 : /u02/oracle/EBSE4/12.1                      : oradev:dba
+                5 : /u02/oracle/EBSPROD/12.1                    : oraprod:dba
+                6 : /u01/app/oracle/product/12.1.0.2/dbhome_3   : oracle:oinstall
+
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+You have mail in /var/spool/mail/oracle
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+    Listener   |      Port     |      dbadm01      |      dbadm02      |     Type     |
+---------------------------------------------------------------------------------------
+ E2EBS1        | TCP:1521      |         -         |         -         |   Listener   |
+ EBSE22        | TCP:1523      |         -         |         -         |   Listener   |
+ LISTENER      | TCP:1521      |       Online      |       Online      |   Listener   |
+ LISTENER_SCAN1| TCP:1521      |         -         |       Online      |     SCAN     |
+ LISTENER_SCAN2| TCP:1521      |       Online      |         -         |     SCAN     |
+ LISTENER_SCAN3| TCP:1521      |       Online      |         -         |     SCAN     |
+---------------------------------------------------------------------------------------
+
+       DB      |    Version    |      dbadm01      |      dbadm02      |    DB Type   |
+---------------------------------------------------------------------------------------
+ dbatest       | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ e2ebs         | 12.1      (2) |        Open       |        Open       |    RAC (P)   |
+ ebse2         | 12.1      (3) |        Open       |        Open       |    RAC (P)   |
+ ebse4         | 12.1      (4) |        Open       |        Open       |    RAC (P)   |
+ ebsprod       | 12.1      (5) |        Open       |        Open       |    RAC (P)   |
+ flcdwh24      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ fldwhdb       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flhistdb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flolap        | 12.1.0.2  (6) |      Readonly     |      Readonly     |    RAC (S)   |
+ floltp        | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flschddb      | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flstage       | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ olde2         | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ tdetest       | 12.1.0.2  (6) |         -         |      Shutdown     |    RAC (P)   |
+---------------------------------------------------------------------------------------
+
+        ORACLE_HOME references listed in the Version column :                                   Primary : White and (P)
+                                                                                                Standby : Red   and (S)
+                1 : /u01/app/oracle/product/12.1.0.2/dbhome_4   oracle:oinstall
+                2 : /u02/oracle/E2EBS/12.1                      oradev:dba
+                3 : /u02/oracle/EBSE2/12.1                      oradev:dba
+                4 : /u02/oracle/EBSE4/12.1                      oradev:dba
+                5 : /u02/oracle/EBSPROD/12.1                    oraprod:dba
+                6 : /u01/app/oracle/product/12.1.0.2/dbhome_3   oracle:oinstall
+
+[oracle@flccssdbadm01 pythian]$ vi rac-status
+[oracle@flccssdbadm01 pythian]$ vi rac-status.sh
+You have mail in /var/spool/mail/oracle
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh -a
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+    Listener   |        Port       |      dbadm01      |      dbadm02      |     Type     |
+-------------------------------------------------------------------------------------------
+ E2EBS1        | TCP:1521          |         -         |         -         |   Listener   |
+ EBSE22        | TCP:1523          |         -         |         -         |   Listener   |
+ LISTENER      | TCP:1521          |       Online      |       Online      |   Listener   |
+ LISTENER_SCAN1| TCP:1521          |         -         |       Online      |     SCAN     |
+ LISTENER_SCAN2| TCP:1521          |       Online      |         -         |     SCAN     |
+ LISTENER_SCAN3| TCP:1521          |       Online      |         -         |     SCAN     |
+-------------------------------------------------------------------------------------------
+
+       DB      |      Service      |      dbadm01      |      dbadm02      |
+----------------------------------------------------------------------------
+ dbatest       | dbatest_bkup1     |         -         |         -         |
+               | dbatest_bkup2     |         -         |         -         |
+               | dbatest_export    |         -         |         -         |
+               | dbatestdr         |         -         |         -         |
+               | test              |         -         |         -         |
+ e2ebs         | e2ebs1            |       Online      |       Online      |
+               | e2ebs2            |       Online      |       Online      |
+               | e2ebs_bkup1       |       Online      |         -         |
+               | e2ebs_bkup2       |       Online      |         -         |
+               | e2ebs_export      |       Online      |       Online      |
+               | pbatchsib_service1|       Online      |         -         |
+               | pbatchsib_service2|       Online      |         -         |
+ ebse2         | ebse2_bkup1       |       Online      |         -         |
+               | ebse2_bkup2       |       Online      |         -         |
+               | ebse2_export      |       Online      |       Online      |
+ ebse4         | ebse41            |       Online      |       Online      |
+               | ebse42            |       Online      |       Online      |
+               | ebse4_bkup1       |       Online      |         -         |
+               | ebse4_bkup2       |       Online      |         -         |
+               | ebse4_export      |       Online      |       Online      |
+ ebsprod       | ebsprod_bkup1     |       Online      |         -         |
+               | ebsprod_bkup2     |       Online      |         -         |
+               | ebsprod_export    |       Online      |       Online      |
+               | ebsprode1         |       Online      |       Online      |
+ flcdwh24      | flcdwh24_bkup1    |       Online      |         -         |
+               | flcdwh24_bkup2    |       Online      |         -         |
+               | flcdwh24_export   |       Online      |       Online      |
+ fldwhdb       | fldwhdb_bkup1     |       Online      |         -         |
+               | fldwhdb_bkup2     |       Online      |         -         |
+               | fldwhdb_export    |       Online      |       Online      |
+               | fldwhdbe1         |       Online      |       Online      |
+ flhistdb      | flhistdb_bkup1    |       Online      |         -         |
+               | flhistdb_bkup2    |       Online      |         -         |
+               | flhistdb_export   |       Online      |       Online      |
+ flolap        | flolap_bkup1      |         -         |         -         |
+               | flolap_bkup2      |         -         |         -         |
+               | reportingdb       |       Online      |       Online      |
+ floltp        | floltp_bkup1      |       Online      |         -         |
+               | floltp_bkup2      |       Online      |         -         |
+               | floltp_export     |       Online      |       Online      |
+               | floltpe1          |       Online      |       Online      |
+               | floltpqueue       |       Online      |         -         |
+               | reportingdb       |         -         |         -         |
+ flschddb      | flschddb_bkup1    |       Online      |         -         |
+               | flschddb_bkup2    |       Online      |         -         |
+               | flschddb_export   |       Online      |       Online      |
+               | flschddbe1        |       Online      |       Online      |
+ flstage       | flcstgse2         |       Online      |       Online      |
+               | flstage_bkup1     |       Online      |         -         |
+               | flstage_bkup2     |       Online      |         -         |
+               | flstage_export    |       Online      |       Online      |
+----------------------------------------------------------------------------
+
+       DB      |      Version      |      dbadm01      |      dbadm02      |    DB Type   |
+-------------------------------------------------------------------------------------------
+ dbatest       | 12.1.0.2      (1) |         -         |      Shutdown     |    RAC (P)   |
+ e2ebs         | 12.1          (2) |        Open       |        Open       |    RAC (P)   |
+ ebse2         | 12.1          (3) |        Open       |        Open       |    RAC (P)   |
+ ebse4         | 12.1          (4) |        Open       |        Open       |    RAC (P)   |
+ ebsprod       | 12.1          (5) |        Open       |        Open       |    RAC (P)   |
+ flcdwh24      | 12.1.0.2      (6) |        Open       |        Open       |    RAC (P)   |
+ fldwhdb       | 12.1.0.2      (6) |        Open       |        Open       |    RAC (P)   |
+ flhistdb      | 12.1.0.2      (6) |        Open       |        Open       |    RAC (P)   |
+ flolap        | 12.1.0.2      (6) |      Readonly     |      Readonly     |    RAC (S)   |
+ floltp        | 12.1.0.2      (6) |        Open       |        Open       |    RAC (P)   |
+ flschddb      | 12.1.0.2      (6) |        Open       |        Open       |    RAC (P)   |
+ flstage       | 12.1.0.2      (6) |        Open       |        Open       |    RAC (P)   |
+ olde2         | 12.1.0.2      (1) |         -         |      Shutdown     |    RAC (P)   |
+ tdetest       | 12.1.0.2      (6) |         -         |      Shutdown     |    RAC (P)   |
+-------------------------------------------------------------------------------------------
+
+        ORACLE_HOME references listed in the Version column :                                   Primary : White and (P)
+                                                                                                Standby : Red   and (S)
+                1 : /u01/app/oracle/product/12.1.0.2/dbhome_4   oracle:oinstall
+                2 : /u02/oracle/E2EBS/12.1                      oradev:dba
+                3 : /u02/oracle/EBSE2/12.1                      oradev:dba
+                4 : /u02/oracle/EBSE4/12.1                      oradev:dba
+                5 : /u02/oracle/EBSPROD/12.1                    oraprod:dba
+                6 : /u01/app/oracle/product/12.1.0.2/dbhome_3   oracle:oinstall
+
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh -n -l
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+    Listener   |      Port     |      dbadm01      |      dbadm02      |     Type     |
+---------------------------------------------------------------------------------------
+ E2EBS1        | TCP:1521      |         -         |         -         |   Listener   |
+ EBSE22        | TCP:1523      |         -         |         -         |   Listener   |
+ LISTENER      | TCP:1521      |       Online      |       Online      |   Listener   |
+ LISTENER_SCAN1| TCP:1521      |         -         |       Online      |     SCAN     |
+ LISTENER_SCAN2| TCP:1521      |       Online      |         -         |     SCAN     |
+ LISTENER_SCAN3| TCP:1521      |       Online      |         -         |     SCAN     |
+---------------------------------------------------------------------------------------
+
+
+[oracle@flccssdbadm01 pythian]$ ./rac-status.sh -n -d
+
+                Cluster flccss is a  X6-2 Quarter Rack HC 8TB
+
+     DB     |    Version    |      dbadm01      |      dbadm02      |    DB Type   |
+------------------------------------------------------------------------------------
+ dbatest    | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ e2ebs      | 12.1      (2) |        Open       |        Open       |    RAC (P)   |
+ ebse2      | 12.1      (3) |        Open       |        Open       |    RAC (P)   |
+ ebse4      | 12.1      (4) |        Open       |        Open       |    RAC (P)   |
+ ebsprod    | 12.1      (5) |        Open       |        Open       |    RAC (P)   |
+ flcdwh24   | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ fldwhdb    | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flhistdb   | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flolap     | 12.1.0.2  (6) |      Readonly     |      Readonly     |    RAC (S)   |
+ floltp     | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flschddb   | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ flstage    | 12.1.0.2  (6) |        Open       |        Open       |    RAC (P)   |
+ olde2      | 12.1.0.2  (1) |         -         |      Shutdown     |    RAC (P)   |
+ tdetest    | 12.1.0.2  (6) |         -         |      Shutdown     |    RAC (P)   |
+------------------------------------------------------------------------------------
+
+        ORACLE_HOME references listed in the Version column :                                   Primary : White and (P)
+                                                                                                Standby : Red   and (S)
+                1 : /u01/app/oracle/product/12.1.0.2/dbhome_4   oracle:oinstall
+                2 : /u02/oracle/E2EBS/12.1                      oradev:dba
+                3 : /u02/oracle/EBSE2/12.1                      oradev:dba
+                4 : /u02/oracle/EBSE4/12.1                      oradev:dba
+                5 : /u02/oracle/EBSPROD/12.1                    oraprod:dba
+                6 : /u01/app/oracle/product/12.1.0.2/dbhome_3   oracle:oinstall
+
+[oracle@flccssdbadm01 pythian]$ cat rac-status
+cat: rac-status: No such file or directory
+[oracle@flccssdbadm01 pythian]$ cat rac-status.sh
 #!/bin/bash
 # Fred Denis -- Jan 2016 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
 #
@@ -7,10 +1640,11 @@
 # Please have a look at https://unknowndba.blogspot.com/2018/04/rac-statussh-overview-of-your-rac-gi.html for some details and screenshots
 # The script latest version can be downloaded here : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/rac-status.sh
 #
-# The current script version is 20190204
+# The current script version is 20190307
 #
 # History :
 #
+# 20190307 - Fred Denis - Added owner:group behind the ORACLE_HOME (useful when owner are different) -- thanks Andrey for the feature idea !
 # 20190204 - Fred Denis - Oracle Restart support
 # 20190130 - Fred Denis - 11g support (BREAK_HERE); 11g and 12c crsctl outputs are quite different
 #                                               - A new -o option to specify a file to save the crsctl commands output
@@ -213,11 +1847,11 @@ then
                                    NODES=`olsnodes | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}'`
                         CLUSTER_NAME=`olsnodes -c`
         fi
-	# if oracle restart, olsnodes is here but returns nothing, we then set the NODES with the current hostname
-	if [ -z "${NODES}" ]
-	then
-		NODES=`hostname -s`
-	fi
+        # if oracle restart, olsnodes is here but returns nothing, we then set the NODES with the current hostname
+        if [ -z "${NODES}" ]
+        then
+                NODES=`hostname -s`
+        fi
 
         printf "\n\t\t%s \033[1;37m%-s\033[m" "Cluster" "$CLUSTER_NAME"
 
@@ -300,6 +1934,7 @@ fi
                   COL_DB = 12                           ;
                  COL_VER = 15                           ;
                 COL_TYPE = 14                           ;
+                  COL_OH = 24                           ;       # to print the ORACLE_HOMEs
         }
 
         #
@@ -346,6 +1981,10 @@ fi
                         {
                                 if ((DB in version == 0) && (DB in tab_lsnr == 0) && (DB in tab_svc == 0))
                                 {
+                                        # Get the owner and the group
+                                        match($2, /owner:([a-z]*):.*/, OWNER);
+                                        match($2, /^.*pgrp:([a-z]*):.*/, GROUP);
+
                                         while (getline)
                                         {
                                                 if ($1 == "ORACLE_HOME")
@@ -368,6 +2007,10 @@ fi
                                                         {
                                                                 oh_ref++                                        ;
                                                             oh_list[OH] = oh_ref                                ;
+                                                            og_list[OH] = OWNER[1]":"GROUP[1]                   ;       # owner:group
+                                                                if (length(OH) > COL_OH)
+                                                                {       COL_OH = length(OH)                     ;
+                                                                }
                                                         }
                                                         break                                                   ;
                                                 }
@@ -388,9 +2031,9 @@ fi
                         if ($1 == "LAST_SERVER")        # crsctl stat res -v output
                         {           NB = 0      ;       # Number of instance as CARDINALITY_ID is sometimes irrelevant
                                 SERVER = $2     ;
-				if (length(SERVER) > COL_NODE)
-				{	COL_NODE = length(SERVER) + COL_NODE_OFFSET	;
-				}
+                                if (length(SERVER) > COL_NODE)
+                                {       COL_NODE = length(SERVER) + COL_NODE_OFFSET     ;
+                                }
                                 while (getline)
                                 {
                                         if ($1 == "LAST_SERVER")        {       SERVER = $2                             ; }
@@ -586,7 +2229,7 @@ fi
 
                                 for (x in oh_list)
                                 {
-                                        printf("\t\t%s\n", oh_list[x] " : " x) | "sort"                           ;
+                                        printf("\t\t%s : %-"COL_OH"s\t%s\n", oh_list[x],  x, og_list[x]) | "sort"                           ;
                                 }
                         }
         }' $TMP | ${AWK} -v GREP="$GREP" -v UNGREP="$UNGREP" ' BEGIN {FS="|"}                                              # AWK used to grep and ungrep
@@ -619,3 +2262,4 @@ fi
 #*********************************************************************************************************
 #                               E N D     O F      S O U R C E
 #*********************************************************************************************************
+[oracle@flccssdbadm01 pythian]$
