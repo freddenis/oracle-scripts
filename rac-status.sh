@@ -11,6 +11,7 @@
 # History :
 #
 # 20190307 - Fred Denis - Added owner:group behind the ORACLE_HOME (useful when owner are different) -- thanks Andrey for the feature idea !
+#			  Also removed the P for Primary and S for Stanby legend; it looks self explanatory enough already
 # 20190204 - Fred Denis - Oracle Restart support
 # 20190130 - Fred Denis - 11g support (BREAK_HERE); 11g and 12c crsctl outputs are quite different
 #                                               - A new -o option to specify a file to save the crsctl commands output
@@ -301,6 +302,8 @@ fi
                  COL_VER = 15                           ;
                 COL_TYPE = 14                           ;
                   COL_OH = 24                           ;       # to print the ORACLE_HOMEs
+	       COL_OWNER = 6				;	# to print owner:group
+	       COL_GROUP = 3 				;	# to print owner:group
         }
 
         #
@@ -373,10 +376,11 @@ fi
                                                         {
                                                                 oh_ref++                                        ;
                                                             oh_list[OH] = oh_ref                                ;
-                                                            og_list[OH] = OWNER[1]":"GROUP[1]                   ;       # owner:group
-                                                                if (length(OH) > COL_OH)
-                                                                {       COL_OH = length(OH)                     ;
-                                                                }
+                                                            o_list[OH] = OWNER[1]				;
+							    g_list[OH] = GROUP[1]				;
+                                                                if (length(OH)       > COL_OH)    {        COL_OH = length(OH)                  ; }
+								if (length(OWNER[1]) > COL_OWNER) {	COL_OWNER = length(OWNER[1])		; }
+								if (length(GROUP[1]) > COL_GROUP) {	COL_GROUP = length(GROUP[1])		; }
                                                         }
                                                         break                                                   ;
                                                 }
@@ -579,24 +583,41 @@ fi
                                 # a "---" line as a footer
                                 print_a_line()                                                                    ;
 
-                                #
                                 # Print the OH list and a legend for the DB Type colors underneath the table
-                                #
-                                printf ("\n\t%s", "ORACLE_HOME references listed in the Version column :")        ;
+                                printf ("\n%s", "ORACLE_HOME references listed in the Version column ")        ;
+				printf ("(%s) :\n\n", "\"" sprintf(COLOR_BEGIN TEAL "%s" COLOR_END, "\47\47") "\" means \"same as above\"")	;
 
-                                # Print the output in many lines for code visibility
-                                printf ("\t\t\t\t\t")                                                             ;
-                                printf("%s" COLOR_BEGIN WHITE "%-6s" COLOR_END    , "Primary : ", "White")        ;
-                                printf("%s" COLOR_BEGIN WHITE "%s"   COLOR_END"\n", "and "      , "(P)"  )        ;
-                                printf ("\t\t\t\t\t\t\t\t\t\t\t\t")                                               ;
-                                printf("%s" COLOR_BEGIN RED "%-6s"   COLOR_END    , "Standby : ", "Red"  )        ;
-                                printf("%s" COLOR_BEGIN RED "%s"     COLOR_END"\n", "and "      , "(S)" )         ;
+# Note sure it is needed         # Print the output in many lines for code visibility
+#                                printf ("\t\t\t\t")                                                             ;
+#                                printf("%s" COLOR_BEGIN WHITE "%-6s" COLOR_END    , "Primary : ", "White")        ;
+#                                printf("%s" COLOR_BEGIN WHITE "%s"   COLOR_END"\n", "and "      , "(P)"  )        ;
+#                                printf ("\t\t\t\t\t\t\t\t\t\t\t")                                               ;
+#                                printf("%s" COLOR_BEGIN RED "%-6s"   COLOR_END    , "Standby : ", "Red"  )        ;
+#                                printf("%s" COLOR_BEGIN RED "%s"     COLOR_END"\n", "and "      , "(S)" )         ;
 
+				previous_group = ""			;
+				previous_owner = ""			;
+				g_same_as_above=sprintf(COLOR_BEGIN TEAL "%"(COL_GROUP/2)-1"s%s" COLOR_END, "", "\47\47");
+				o_same_as_above=sprintf(COLOR_BEGIN TEAL "%"(COL_OWNER/2)-1"s%s%"(COL_OWNER/2)-1"s" COLOR_END, "", "\47\47", "");
 
+				# to ease the ORACLE_HOME sorting
                                 for (x in oh_list)
                                 {
-                                        printf("\t\t%s : %-"COL_OH"s\t%s\n", oh_list[x],  x, og_list[x]) | "sort"                           ;
+					to_print[oh_list[x]] = x	;
                                 }
+				for (i=1; i<=oh_ref; i++)
+				{	
+                                        # to ease the naming
+					the_oh=to_print[i]		;
+					 owner=o_list[to_print[i]]	;
+					 group=g_list[to_print[i]]	;
+					if (group == previous_group) {	group_to_print = g_same_as_above 	;	} else {	group_to_print = group	;	} 
+					if (owner == previous_owner) {	owner_to_print = o_same_as_above	;	} else {	owner_to_print = owner	;	} 
+
+					printf("\t%2d : %-"COL_OH"s\t%-"COL_OWNER"s %s\n", i, the_oh, owner_to_print, group_to_print) ;
+					previous_group = group		;
+					previous_owner = owner		;
+				}
                         }
         }' $TMP | ${AWK} -v GREP="$GREP" -v UNGREP="$UNGREP" ' BEGIN {FS="|"}                                              # AWK used to grep and ungrep
                       {         if ((NF >= 3) && ($(NF-1) !~ /Type/) && ($2 !~ /Service/))
@@ -607,7 +628,7 @@ fi
                                 } else {
                                         print  $0                                                                 ;
                                 }
-                        }'
+                        }' | sed s'/^/  /'
 
         printf "\n"
 
@@ -628,4 +649,3 @@ fi
 #*********************************************************************************************************
 #                               E N D     O F      S O U R C E
 #*********************************************************************************************************
-
