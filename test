@@ -457,10 +457,10 @@ then
         E_H2=""
         S_H3="h4."
         E_H3=""
-       S_PRE="{panel}"
-       E_PRE="{panel}"
-        S_B="*"
-        E_B="*"
+       S_PRE="{code:language=bash}"
+       E_PRE="{code}"
+        S_B=""
+        E_B=""
      U_DONE="{color:green}* ( Done ) * {color}"
 else
   COLOR_BEGIN="\033[1;"
@@ -507,9 +507,9 @@ echo -e "
 ${S_H2}0/ Preamble${E_H2}
 -- Few scripts need to be copied as below as they ease many actions of the patching procedure (they can be found here : https://goo.gl/9DsVxc)
 ${S_PRE}
-${TAB} ${DBROOTPROMPT} ${EXAVERSIONS}
-${TAB} ${DBGIPROMPT} ${LSPATCHES}
-${TAB} ${DBGIPROMPT} ${STATUS_SCRIPT}
+${TAB} ${DBROOTPROMPT} ${S_B}${EXAVERSIONS}${E_B}
+${TAB} ${DBGIPROMPT} ${S_B}${LSPATCHES}${E_B}
+${TAB} ${DBGIPROMPT} ${S_B}${STATUS_SCRIPT}${E_B}
 
 -- A quick description of these scripts:
 ${TAB}  - ${STATUS_SCRIPT}     : A GI 12c instances status output (may be replaced by many "ps" or some "crsctl stat res -t" commands)
@@ -519,9 +519,9 @@ ${E_PRE}
 -- It is important to ensure that the ~/dbs_group, ~/cell_group and ~/ib_group files are up to date to not miss any component when patching
 -- Please find below how to update them if yours are not up to date
 ${S_PRE}
-${TAB} ${DBROOTPROMPT} ibhosts | sed s'/\"//' | grep db | awk '{print $6}' | sort > ~/dbs_group
-${TAB} ${DBROOTPROMPT} ibhosts | sed s'/\"//' | grep cel | awk '{print $6}' | sort > ~/cell_group
-${TAB} ${DBROOTPROMPT} ibswitches | awk '{print $10}' | sort > ~/ib_group
+${TAB} ${DBROOTPROMPT} ${S_B}ibhosts | sed s'/\"//' | grep db | awk '{print $6}' | sort > ~/dbs_group${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}ibhosts | sed s'/\"//' | grep cel | awk '{print $6}' | sort > ~/cell_group${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}ibswitches | awk '{print $10}' | sort > ~/ib_group${E_B}
 ${E_PRE}
 "
 fi              # End of if [ "${PREREQ_ONLY}" != "Yes" ]
