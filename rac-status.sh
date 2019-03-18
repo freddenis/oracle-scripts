@@ -585,8 +585,8 @@ fi
                                 print_a_line()                                                                    ;
 
                                 # Print the OH list and a legend for the DB Type colors underneath the table
-                                printf ("\n%s", "ORACLE_HOME references listed in the Version column:")        ;
-                                if (of_ref > 1)
+                                printf ("\n%s", "ORACLE_HOME references listed in the Version column ")        ;
+                                if (oh_ref > 1)
                                 {
                                         printf ("(%s)", "\"" sprintf(COLOR_BEGIN TEAL "%s" COLOR_END, "\47\47") "\" means \"same as above\"")     ;
                                 }
