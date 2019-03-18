@@ -6,10 +6,11 @@
 # Please have a look at https://unknowndba.blogspot.com/2018/04/rac-statussh-overview-of-your-rac-gi.html for some details and screenshots
 # The script latest version can be downloaded here : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/rac-status.sh
 #
-# The current script version is 20190307
+# The current script version is 20190318
 #
 # History :
 #
+# 20190318 - Fred Denis - Dont show the owner:group legend about '' menaing same as above if only 1 Home
 # 20190307 - Fred Denis - Added owner:group behind the ORACLE_HOME (useful when owner are different) -- thanks Andrey for the feature idea !
 #                         Also removed the P for Primary and S for Stanby legend; it looks self explanatory enough already
 # 20190204 - Fred Denis - Oracle Restart support
@@ -584,8 +585,12 @@ fi
                                 print_a_line()                                                                    ;
 
                                 # Print the OH list and a legend for the DB Type colors underneath the table
-                                printf ("\n%s", "ORACLE_HOME references listed in the Version column ")        ;
-                                printf ("(%s) :\n\n", "\"" sprintf(COLOR_BEGIN TEAL "%s" COLOR_END, "\47\47") "\" means \"same as above\"")     ;
+                                printf ("\n%s", "ORACLE_HOME references listed in the Version column:")        ;
+                                if (of_ref > 1)
+                                {
+                                        printf ("(%s)", "\"" sprintf(COLOR_BEGIN TEAL "%s" COLOR_END, "\47\47") "\" means \"same as above\"")     ;
+                                }
+                                printf ("\n\n")                                                                 ;
 
 # Note sure it is needed         # Print the output in many lines for code visibility
 #                                printf ("\t\t\t\t")                                                             ;
