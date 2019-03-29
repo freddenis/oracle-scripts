@@ -6,12 +6,11 @@
 # Please have a look at https://unknowndba.blogspot.com/2018/04/rac-statussh-overview-of-your-rac-gi.html for some details and screenshots
 # The script latest version can be downloaded here : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/rac-status.sh
 #
-# The current script version is 20190329 -- still in dev
+# The current script version is 20190330
 #
 # History :
 #
-# 20190329 - Fred Denis - a new -u option to show the output in black and white (Uncolored)
-#                         forces the background color for those who have a white default background and then have the output not visible -- still in dev
+# 20190330 - Fred Denis - A new -r option to Reverse the colors for ligt backgrounds
 # 20190325 - Fred Denis - Solaris sed does not support sed -i, use gsed instead
 #                         New -e option to NOT use oraenv to set the ASM environment but to use the current manually set environment
 #                               (USE_ORAENV="NO" on top of the script to have this permanently)
@@ -54,13 +53,15 @@
 #
 # Variables
 #
-        TMP=/tmp/status$$.tmp                                             # A tempfile
-       TMP2=/tmp/status2$$.tmp                                            # Another tempfile
-  DBMACHINE=/opt/oracle.SupportTools/onecommand/databasemachine.xml       # File where we should find the Exadata model as oracle user
-       GREP="."                                                           # What we grep                  -- default is everything
-     UNGREP="nothing_to_ungrep_unless_v_option_is_used$$"                 # What we don't grep (grep -v)  -- default is nothing
- USE_ORAENV="YES"                                                         # Use oraenv to set the ASM env (-e changes this to NO)
-WITH_COLORS="YES"                                                         # Output with colors, (-b changes this to NO); set to NO for permanent no colored output
+       TMP=/tmp/status$$.tmp                                             # A tempfile
+      TMP2=/tmp/status2$$.tmp                                            # Another tempfile
+ DBMACHINE=/opt/oracle.SupportTools/onecommand/databasemachine.xml       # File where we should find the Exadata model as oracle user
+      GREP="."                                                           # What we grep                  -- default is everything
+    UNGREP="nothing_to_ungrep_unless_v_option_is_used$$"                 # What we don't grep (grep -v)  -- default is nothing
+USE_ORAENV="YES"                                                         # Use oraenv to set the ASM env (-e changes this to NO)
+   REVERSE="NO"                                                          # In case of light terminal backgrounds, revert the colors to make them visible
+
+WHITE="37m"
 
 # Choose the information what you want to see -- the last uncommented value wins
 # ./rac-status.sh -h for more information
@@ -70,25 +71,6 @@ SHOW_LSNR="YES"                 # Listeners
 #SHOW_LSNR="NO"
  SHOW_SVC="YES"                 # Services
  SHOW_SVC="NO"
-
-#
-# Colors -- https://misc.flogisoft.com/bash/tip_colors_and_formatting
-# Script has been developped with a black background and white font but for people using white background,
-# the output is not visible so I have forced the background color on every printf
-# People with black or dark default background should be using "49m" which is the default background
-# People with white default background should be using a dark one like "40m" or check the teh above URL for a list of background colors
-# The last uncommenetd value wins
-#
- BACKGROUND="107m"                              ;       # White
- BACKGROUND="44m"                               ;       # Blue
- BACKGROUND="40m"                               ;       # Black
- #BACKGROUND="49m"                              ;       # Default
-COLOR_BEGIN="\e[2;"                             ;
-  COLOR_END="\e[m"                              ;
-        RED="31m"$COLOR_BEGIN$BACKGROUND        ;
-      WHITE="97m"$COLOR_BEGIN$BACKGROUND        ;
-    DEFAULT="49m"$COLOR_BEGIN$BACKGROUND        ;
-
 
 # Number of spaces between the status and the "|" of the column - this applies before and after the status
 # A value of 2 would print 2 spaces before and after the status and like |  Open  |
@@ -143,7 +125,7 @@ END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
 cat << END
-        $0 [-a] [-n] [-d] [-l] [-s] [-o] [-f] [-e] [-u] [-h]
+        $0 [-a] [-n] [-d] [-l] [-s] [-o] [-f] [-h]
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
@@ -190,7 +172,7 @@ cat << END
         -e        Do not use oraenv to set the ASM environment but relies on the current environment
                   Set USE_ORAENV="NO" on top of the script to have a permanent -e option
 
-        -u        Shows the Uncolored output (no colors); set WITH_COLORS="NO" on top of the script to have it permanently
+        -r        Reverse the colors for ligt backgrounds
 
         -h        Shows this help
 
@@ -205,7 +187,7 @@ exit 123
 }
 
 # Options
-while getopts "andslhg:v:o:f:eu" OPT; do
+while getopts "andslhg:v:o:f:er" OPT; do
         case ${OPT} in
         a)         SHOW_DB="YES"        ; SHOW_LSNR="YES"       ; SHOW_SVC="YES"                ;;
         n)         SHOW_DB="NO"         ; SHOW_LSNR="NO"        ; SHOW_SVC="NO"                 ;;
@@ -217,7 +199,7 @@ while getopts "andslhg:v:o:f:eu" OPT; do
         f)                   FILE=${OPTARG}                                                     ;;
         o)                OUT=${OPTARG}                                                         ;;
         e)          USE_ORAENV="NO"                                                             ;;
-        u)         WITH_COLORS="NO"                                                             ;;
+        r)             REVERSE="YES"                                                            ;;
         h)         usage                                                                        ;;
         \?)        echo "Invalid option: -$OPTARG" >&2; usage                                   ;;
         esac
@@ -225,6 +207,10 @@ done
 #
 # Check that the input file is here if specified
 #
+if [[ "${REVERSE}" == "YES" ]]
+then
+        WHITE="30m"     ;        # Black
+fi
 if [ -n "$FILE" ]       # Input file specified, we wont run any crsctl command and rely on the file as input
 then
     if  [ ! -f ${FILE} ]
@@ -274,14 +260,7 @@ then
                 NODES=`hostname -s`
         fi
 
-        if [[ "$WITH_COLORS" == "YES" ]]
-        then
-#               printf "\n\t\t%s \033[1;37m\033[1;"${BACKGROUND}"%-s\033[m" "Cluster " "$CLUSTER_NAME"
-                #printf "$COLOR_BEGIN$DEFAULT\n\t\t%s$COLOR_END$COLOR_BEGIN$WHITE%-s$COLOR_END" "Cluster" "$CLUSTER_NAME"
-                printf "$COLOR_BEGIN$DEFAULT\n\t\t%s$COLOR_END$COLOR_BEGIN$WHITE%-s$COLOR_END" "Cluster " "$CLUSTER_NAME"
-        else
-                printf "\n\t\t%s %-s" "Cluster" "$CLUSTER_NAME"
-        fi
+        printf "\n\t\t%s\e[1;"${WHITE}"%s\e[m" "Cluster " "$CLUSTER_NAME"
 
         #
         # Show the Exadata model if possible (if this cluster is an Exadata)
@@ -289,13 +268,7 @@ then
         if [ -f ${DBMACHINE} ] && [ -r ${DBMACHINE} ]
         then
                         MODEL=`grep -i MACHINETYPES ${DBMACHINE} | sed -e s':</*MACHINETYPES>::g' -e s'/^ *//' -e s'/ *$//'`
-                        if [[ "$WITH_COLORS" == "YES" ]]
-                        then
-#                               printf "%s \033[1;37m%s\033[m\n" " is a " "$MODEL"
-                                printf "$COLOR_BEGIN$DEFAULT%s $COLOR_END$COLOR_BEGIN$WHITE%-s\n$COLOR_END" " is a " "$MODEL"
-                        else
-                                printf "%s %s\n" " is a " "$MODEL"
-                        fi
+                        printf "%s\e[1;"${WHITE}"%s\e[m\n" " is a " "$MODEL"
         else
                         printf "\n"
         fi
@@ -336,6 +309,7 @@ else            # If we use an input file
         NB_NODES=`grep LAST_SERVER $TMP | awk -F"=" '{print $2}' | sort | uniq | wc -l`
 fi      # End if [ -z "$FILE" ]
 
+
 #
 # Define the offset to apply to the status column depending on the number of nodes to make the tables visible for big implementations
 #
@@ -347,20 +321,23 @@ then
                 if [ "$NB_NODES" -gt "4" ]; then COL_NODE_OFFSET=3      ;       fi      ;
 fi
 
-        ${AWK} -v NODES="$NODES" -v col_node_offset="$COL_NODE_OFFSET" -v BACKGROUND_COLOR="$BACKGROUND" 'BEGIN\
+        ${AWK} -v NODES="$NODES" -v col_node_offset="$COL_NODE_OFFSET" -v REVERSE="$REVERSE" 'BEGIN\
         {             FS = "="                          ;
                        n = split(NODES, nodes, ",")     ;       # Make a table with the nodes of the cluster
                 # some colors
-              BACKGROUND =       BACKGROUND_COLOR       ;
-             COLOR_BEGIN =       "\033[2;"              ;
+             COLOR_BEGIN =       "\033[1;"              ;
                COLOR_END =       "\033[m"               ;
-                     RED =       "31m"COLOR_BEGIN BACKGROUND    ;
-                   GREEN =       "32m"COLOR_BEGIN BACKGROUND                    ;
-                  YELLOW =       "33m"COLOR_BEGIN BACKGROUND                  ;
-                    BLUE =       "34m"COLOR_BEGIN BACKGROUND                  ;
-                    TEAL =       "36m"COLOR_BEGIN BACKGROUND                  ;
-                   WHITE =       "97m"COLOR_BEGIN BACKGROUND                  ;
-                 DEFAULT =       "39m"COLOR_BEGIN BACKGROUND                    ;
+                     RED =       "31m"                  ;
+                   GREEN =       "32m"                  ;
+                  YELLOW =       "33m"                  ;
+                    BLUE =       "34m"                  ;
+                    TEAL =       "36m"                  ;
+                   WHITE =       "37m"                  ;
+                if (REVERSE == "YES")
+                {
+                   WHITE =       "30m"                  ;       # Black
+                    TEAL =       "34m"                  ;       # Blue
+                }
 
                  UNKNOWN = "-"                          ;       # Something to print when the status is unknown
 
@@ -381,7 +358,7 @@ fi
         function center( str, n, color)
         {       right = int((n - length(str)) / 2)                                                              ;
                 left  = n - length(str) - right                                                                 ;
-                return sprintf(COLOR_BEGIN color "%" left "s%s%" right "s" COLOR_END COLOR_BEGIN DEFAULT "|" COLOR_END, "", str, "" )         ;
+                return sprintf(COLOR_BEGIN color "%" left "s%s%" right "s" COLOR_END "|", "", str, "" )         ;
         }
         #
         # A function that just print a "---" white line
@@ -393,7 +370,7 @@ fi
                 }
                 printf("%s", COLOR_BEGIN WHITE)                                                                 ;
                 for (k=1; k<=size; k++) {printf("%s", "-");}                                                    ;       # n = number of nodes
-                printf("%s", "\n"COLOR_END)                                                                     ;
+                printf("%s", COLOR_END"\n")                                                                     ;
         }
         {
                # Fill 2 tables with the OH and the version from "crsctl stat res -p -w "TYPE = ora.database.type""
@@ -514,7 +491,7 @@ fi
                                         printf("%s", center(nodes[i], COL_NODE, WHITE))                         ;
                                 }
                                 printf("%s", center("Type"    , COL_TYPE, WHITE))                               ;
-                                printf(COLOR_BEGIN DEFAULT "\n" COLOR_END)                                      ;
+                                printf("\n")                                                                    ;
 
                                 # a "---" line under the header
                                 print_a_line()                                                                  ;
@@ -523,15 +500,15 @@ fi
                                 x=asorti(tab_lsnr, lsnr_sorted)                                                 ;
                                 for (j = 1; j <= x; j++)
                                 {
-                                        printf(COLOR_BEGIN WHITE " %-"COL_DB-1"s|" COLOR_END, lsnr_sorted[j], WHITE);     # Listener name
+                                        printf(COLOR_BEGIN WHITE " %-"COL_DB-1"s" COLOR_END"|", lsnr_sorted[j], WHITE);     # Listener name
                                         # It may happen that listeners listen on many ports then it wont fit this column
                                         # We then print it outside of the table after the last column
                                         if (length(port[lsnr_sorted[j]]) > COL_VER)
                                         {
-                                                printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s|" COLOR_END, "See -->", WHITE);       # "See -->"
+                                                printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s" COLOR_END"|", "See -->", WHITE);       # "See -->"
                                                 print_port_later = 1                                            ;
                                         } else {
-                                                printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s|" COLOR_END, port[lsnr_sorted[j]], WHITE);      # Port
+                                                printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s" COLOR_END"|", port[lsnr_sorted[j]], WHITE);      # Port
                                         }
 
                                         for (i = 1; i <= n; i++)
@@ -552,11 +529,11 @@ fi
                                         {       print_port_later = 0                                            ;
                                                 printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s" COLOR_END, port[lsnr_sorted[j]], WHITE);      # Port
                                         }
-                                        printf(COLOR_BEGIN DEFAULT "\n" COLOR_END)                              ;
+                                        printf("\n")                                                            ;
                                 }
                                 # a "---" line under the header
                                 print_a_line()                                                                  ;
-                                printf(COLOR_BEGIN DEFAULT "\n" COLOR_END)                                      ;
+                                printf("\n")                                                                    ;
                         }
 
                         if (length(tab_svc) > 0)                # We print only if we have something to show
@@ -568,10 +545,10 @@ fi
                                 for (i = 1; i <= n; i++) {
                                         printf("%s", center(nodes[i], COL_NODE, WHITE))                         ;
                                 }
-                                printf(COLOR_BEGIN DEFAULT "\n" COLOR_END)                                      ;
+                                printf("\n")
 
                                 # a "---" line under the header
-                                print_a_line(COL_DB+COL_NODE*n+COL_VER+n+2)                                     ;
+                                print_a_line(COL_DB+COL_NODE*n+COL_VER+n+2)                                    ;
 
 
                                 # Print the Services
@@ -581,12 +558,14 @@ fi
                                         split(svc_sorted[j], to_print, ".")                                     ;       # The service we have is <db_name>.<service_name>
                                         if (previous_db != to_print[1])                                                 # Do not duplicate the DB names on the output
                                         {
-                                                printf(COLOR_BEGIN WHITE " %-"COL_DB-1"s|" COLOR_END, to_print[1], WHITE);     # Database
+                                                printf(COLOR_BEGIN WHITE " %-"COL_DB-1"s" COLOR_END"|", to_print[1], WHITE);     # Database
                                                 previous_db = to_print[1]                                       ;
                                         }else {
                                                 printf("%s", center("",  COL_DB, WHITE))                        ;
                                         }
-                                        printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s|" COLOR_END, to_print[2], WHITE);     # Service
+                                        printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s" COLOR_END"|", to_print[2], WHITE);     # Service
+
+
 
                                         for (i = 1; i <= n; i++)
                                         {
@@ -596,11 +575,11 @@ fi
                                                 if (dbstatus == "Online")       {printf("%s", center(dbstatus, COL_NODE, GREEN        ))      ;}
                                                 else                            {printf("%s", center(dbstatus, COL_NODE, RED          ))      ;}
                                         }
-                                        printf(COLOR_BEGIN DEFAULT "\n" COLOR_END)                              ;
+                                        printf("\n")                                                             ;
                                 }
                                 # a "---" line under the header
                                 print_a_line(COL_DB+COL_NODE*n+COL_VER+n+2)                                      ;
-                                printf(COLOR_BEGIN DEFAULT "\n" COLOR_END)                                       ;
+                                printf("\n")                                                                     ;
                         }
 
                         if (length(version) > 0)                # We print only if we have something to show
@@ -613,7 +592,7 @@ fi
                                         printf("%s", center(nodes[i], COL_NODE, WHITE))                          ;
                                 }
                                 printf("%s", center("DB Type"    , COL_TYPE, WHITE))                             ;
-                                printf(COLOR_BEGIN DEFAULT "\n" COLOR_END)                                       ;
+                                printf("\n")                                                                     ;
 
                                 # a "---" line under the header
                                 print_a_line()                                                                   ;
@@ -622,9 +601,9 @@ fi
                                 m=asorti(version, version_sorted)                                                ;
                                 for (j = 1; j <= m; j++)
                                 {
-                                        printf(COLOR_BEGIN WHITE " %-"COL_DB-1"s" COLOR_END COLOR_BEGIN DEFAULT "|" COLOR_END, version_sorted[j], WHITE);     # Database
+                                        printf(COLOR_BEGIN WHITE " %-"COL_DB-1"s" COLOR_END"|", version_sorted[j], WHITE);     # Database
                                         printf(COLOR_BEGIN WHITE " %-"COL_VER-7"s" COLOR_END, version[version_sorted[j]], COL_VER, WHITE)         ;       # Version
-                                        printf(COLOR_BEGIN WHITE "%6s" COLOR_END COLOR_BEGIN DEFAULT "|" COLOR_END," ("oh_list[oh[version_sorted[j]]] ") ")            ;       # OH id
+                                        printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")            ;       # OH id
 
                                         for (i = 1; i <= n; i++) {
                                                 dbstatus = status[version_sorted[j],nodes[i]]                    ;
@@ -644,22 +623,19 @@ fi
                                         if (role[version_sorted[j]] == "PRIMARY") { ROLE_COLOR=WHITE ; ROLE_SHORT=" (P)"; } else { ROLE_COLOR=RED ; ROLE_SHORT=" (S)" }
                                         printf("%s", center(dbtype[version_sorted[j]] ROLE_SHORT, COL_TYPE, ROLE_COLOR))           ;
 
-                                        printf(COLOR_BEGIN DEFAULT "\n" COLOR_END)                                ;
+                                        printf("\n")                                                              ;
                                 }
 
                                 # a "---" line as a footer
                                 print_a_line()                                                                    ;
 
                                 # Print the OH list and a legend for the DB Type colors underneath the table
-                                printf (COLOR_BEGIN DEFAULT"\n%s" COLOR_END, "ORACLE_HOME references listed in the Version column ")        ;
+                                printf ("\n%s", "ORACLE_HOME references listed in the Version column ")        ;
                                 if (oh_ref > 1)
                                 {
-#                                        printf (COLOR_BEGIN DEFAULT"(%s)"COLOR_END, "\"" sprintf(COLOR_BEGIN TEAL "%s" COLOR_END, "\47\47") "\" means \"same as above\"")     ;
-                                        printf (COLOR_BEGIN DEFAULT"(%s"COLOR_END, "\"")        ;
-                                        printf (COLOR_BEGIN TEAL "%s" COLOR_END, "\47\47")      ;
-                                        printf (COLOR_BEGIN DEFAULT"%s)"COLOR_END, "\" means \"same as above\"")     ;
+                                        printf ("(%s)", "\"" sprintf(COLOR_BEGIN TEAL "%s" COLOR_END, "\47\47") "\" means \"same as above\"")     ;
                                 }
-                                printf(COLOR_BEGIN DEFAULT "\n\n" COLOR_END)                                    ;
+                                printf ("\n\n")                                                                 ;
 
 # Note sure it is needed         # Print the output in many lines for code visibility
 #                                printf ("\t\t\t\t")                                                             ;
@@ -673,10 +649,8 @@ fi
                                 previous_owner = ""                     ;
                                 if (COL_OWNER%2) { COL_OWNER++  }
                                 if (COL_GROUP%2) { COL_GROUP++  }
-                                g_same_as_above=sprintf(COLOR_BEGIN TEAL"%"(COL_GROUP/2)-1"s%s"COLOR_END, "", "\47\47");
-                                o_same_as_above=sprintf(COLOR_BEGIN TEAL"%"(COL_OWNER/2)-1"s%s%"(COL_OWNER/2)-1"s" COLOR_END, "", "\47\47", "");
-
-
+                                g_same_as_above=sprintf(COLOR_BEGIN TEAL "%"(COL_GROUP/2)-1"s%s" COLOR_END, "", "\47\47");
+                                o_same_as_above=sprintf(COLOR_BEGIN TEAL "%"(COL_OWNER/2)-1"s%s%"(COL_OWNER/2)-1"s" COLOR_END, "", "\47\47", "");
 
                                 # to ease the ORACLE_HOME sorting
                                 for (x in oh_list)
@@ -692,8 +666,7 @@ fi
                                         if (group == previous_group) {  group_to_print = g_same_as_above        ;       } else {        group_to_print = group  ;       }
                                         if (owner == previous_owner) {  owner_to_print = o_same_as_above        ;       } else {        owner_to_print = owner  ;       }
 
-                                        printf(COLOR_BEGIN DEFAULT "\t%2d : %-"COL_OH"s\t%-"COL_OWNER"s %s"COLOR_END, i, the_oh, owner_to_print, group_to_print) ;
-                                        printf(COLOR_BEGIN DEFAULT "\n" COLOR_END)                                    ;
+                                        printf("\t%2d : %-"COL_OH"s\t%-"COL_OWNER"s %s\n", i, the_oh, owner_to_print, group_to_print) ;
                                         previous_group = group          ;
                                         previous_owner = owner          ;
                                 }
@@ -707,16 +680,7 @@ fi
                                 } else {
                                         print  $0                                                                 ;
                                 }
-                        }' | sed s'/^/  /'      > ${TMP2}                       # We can reuse TMP2 here
-
-        echo -e ${COLOR_END}                    >> ${TMP2}
-
-        if [[ "$WITH_COLORS" == "YES" ]]
-        then
-                cat ${TMP2}
-        else
-                cat ${TMP2} | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g"      # Remove the colors
-        fi
+                        }' | sed s'/^/  /'
 
         printf "\n"
 
@@ -737,4 +701,3 @@ fi
 #*********************************************************************************************************
 #                               E N D     O F      S O U R C E
 #*********************************************************************************************************
-
