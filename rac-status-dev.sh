@@ -81,7 +81,7 @@ SHOW_LSNR="YES"                 # Listeners
 #
  BACKGROUND="107m"                              ;       # White
  BACKGROUND="44m"                               ;       # Blue
- #BACKGROUND="40m"                              ;       # Black
+ BACKGROUND="40m"                               ;       # Black
  #BACKGROUND="49m"                              ;       # Default
 COLOR_BEGIN="\e[2;"                             ;
   COLOR_END="\e[m"                              ;
@@ -143,7 +143,7 @@ END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
 cat << END
-        $0 [-a] [-n] [-d] [-l] [-s] [-o] [-f] [-e] [-b] [-h]
+        $0 [-a] [-n] [-d] [-l] [-s] [-o] [-f] [-e] [-u] [-h]
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
@@ -190,7 +190,7 @@ cat << END
         -e        Do not use oraenv to set the ASM environment but relies on the current environment
                   Set USE_ORAENV="NO" on top of the script to have a permanent -e option
 
-        -b        Shows the output in Black and White (no colors); set WITH_COLORS="NO" on top of the script to have it permanently
+        -u        Shows the Uncolored output (no colors); set WITH_COLORS="NO" on top of the script to have it permanently
 
         -h        Shows this help
 
@@ -205,7 +205,7 @@ exit 123
 }
 
 # Options
-while getopts "andslhg:v:o:f:eb" OPT; do
+while getopts "andslhg:v:o:f:eu" OPT; do
         case ${OPT} in
         a)         SHOW_DB="YES"        ; SHOW_LSNR="YES"       ; SHOW_SVC="YES"                ;;
         n)         SHOW_DB="NO"         ; SHOW_LSNR="NO"        ; SHOW_SVC="NO"                 ;;
@@ -217,7 +217,7 @@ while getopts "andslhg:v:o:f:eb" OPT; do
         f)                   FILE=${OPTARG}                                                     ;;
         o)                OUT=${OPTARG}                                                         ;;
         e)          USE_ORAENV="NO"                                                             ;;
-        b)         WITH_COLORS="NO"                                                             ;;
+        u)         WITH_COLORS="NO"                                                             ;;
         h)         usage                                                                        ;;
         \?)        echo "Invalid option: -$OPTARG" >&2; usage                                   ;;
         esac
@@ -737,3 +737,4 @@ fi
 #*********************************************************************************************************
 #                               E N D     O F      S O U R C E
 #*********************************************************************************************************
+
