@@ -10,7 +10,7 @@
 #
 # History :
 #
-# 20190329 - Fred Denis - a new -b option to show the output in black and white (no color)
+# 20190329 - Fred Denis - a new -u option to show the output in black and white (Uncolored)
 #                         forces the background color for those who have a white default background and then have the output not visible -- still in dev
 # 20190325 - Fred Denis - Solaris sed does not support sed -i, use gsed instead
 #                         New -e option to NOT use oraenv to set the ASM environment but to use the current manually set environment
