@@ -4,8 +4,9 @@
 # Automatically generates an Exadata patching action plan from a bundle.xml file
 # For more details about the Exadata patching procedure, you can have a look at https://unknowndba.blogspot.com/2018/11/how-to-patch-exadata-upgrade-exadata-18c-part1.html
 #
-# The current version of the script is 20190208
+# The current version of the script is 20190423
 #
+# 20190423 - Fred Denis - A default value for PATCH_DIR in case of it is not specified when using -b as it would result in no leading path
 # 20190208 - Fred Denis - Fixed an issue with -b and -d option
 # 20181211 - Fred Denis - A new -b option to be able to use a bundle.xml in another location than the bundle itself
 # 20181206 - Fred Denis - Check if ASM is running to find the GI Owner, if different from the -o option, I use what -o specifies and raise a warning
@@ -78,6 +79,7 @@ DEBUG="Yes"
                  PREREQ_ONLY="No"                                       # Show pre requisites only ? can be changed by the -p option
                    AP_FORMAT="TEXT"                                     # Format of the action plan, default is TEXT, can also be HTML or JIRA
                   BUNDLE_XML=""                                         # Location of the bundle.xml file (if different from $PATCH_DIR/bundle.xml)
+	           PATCH_DIR="/???"					# If not specified with -d option (oftenly when -b is used)
 #
 # A usage function
 #
