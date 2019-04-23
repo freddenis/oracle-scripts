@@ -188,9 +188,9 @@ fi
                                         if ($0 ~ /^$/)
                                         {
                                                 # A Header
-                                                if (db_node[1] ~ /db[0-9]/ )      {printf("%s\n", center("-- Database Servers",         40,RED))};
-                                                if (db_node[1] ~ /cel[0-9]/)      {printf("%s\n", center("-- Cells",                    30,RED))};
-                                                if (db_node[1] ~ /ib[0-9]/ )      {printf("%s\n", center("-- Infiniband Switches",      40,RED))};
+                                                if (db_node[1] ~ /db.*[0-9]/ )      {printf("%s\n", center("-- Database Servers",         40,RED))};
+                                                if (db_node[1] ~ /cel.*[0-9]/)      {printf("%s\n", center("-- Cells",                    30,RED))};
+                                                if (db_node[1] ~ /ib.*[0-9]/ )      {printf("%s\n", center("-- Infiniband Switches",      40,RED))};
                                                 printf("\n")                                                            ;
                                                 version_ref = db_version[1]                                             ;
 
