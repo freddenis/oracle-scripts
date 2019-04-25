@@ -4,8 +4,9 @@
 # Automatically generates an Exadata patching action plan from a bundle.xml file
 # For more details about the Exadata patching procedure, you can have a look at https://unknowndba.blogspot.com/2018/11/how-to-patch-exadata-upgrade-exadata-18c-part1.html
 #
-# The current version of the script is 20190423
+# The current version of the script is 20190425
 #
+# 20190425 - Fred Denis - AWK commands to create the *_group files were not showing properly
 # 20190423 - Fred Denis - A default value for PATCH_DIR in case of it is not specified when using -b as it would result in no leading path
 # 20190208 - Fred Denis - Fixed an issue with -b and -d option
 # 20181211 - Fred Denis - A new -b option to be able to use a bundle.xml in another location than the bundle itself
@@ -73,7 +74,7 @@ DEBUG="Yes"
             ALLOW_ACTIVE_NFS="Yes"                                      # To use the -allow_active_network_mounts option (available starting from version 12.1.2.1.1)
                        CEL01=""                                         # Name of the Cell 01 we will be using to patch the DB Nodes (can be modify using the -c option)
                         DB01=""                                         # Name of the DB Server 01 we will be using to patch the DB Nodes (can be modify using the -s option)
-             DIR_IB_PATCHING="/tmp/IB_PATCHING"                         # Directory to copy the IB Switch outside of NFS/ZFS to avoid issues when rebooting the IB Switches
+             DIR_IB_PATCHING="/u01/IB_PATCHING"                         # Directory to copy the IB Switch outside of NFS/ZFS to avoid issues when rebooting the IB Switches
              DIR_DB_PATCHING="/tmp/SAVE"                                # Directory used on cel01 to patch the DB servers
             DEFAULT_GI_OWNER="oracle"                                   # Default Grid Owner -- can be overwritten by the -o option
                  PREREQ_ONLY="No"                                       # Show pre requisites only ? can be changed by the -p option
@@ -444,10 +445,12 @@ CELL_AND_IB_ZIP="p"$CELL_AND_IB_ZIP"_*_Linux-x86-64.zip"        ;
 #
 # Define HTML or shell tags and colors depending on the chosen option
 #
+# If you want some colors
+#
 
 if [ "${AP_FORMAT}" = "HTML" ]
 then
-         S_H2="<hr style='border-style: dotted;'><h2 style='font-size:18px;text-decoration:underline'>"
+         S_H2="<hr style='border-style: dotted;'><h2 style='font-size:18px;text-decoration:underline;color:blue'>"
          E_H2="</h2>"
          S_H3="<h3>"
          E_H3="</h3>"
@@ -524,9 +527,9 @@ ${E_PRE}
 -- It is important to ensure that the ~/dbs_group, ~/cell_group and ~/ib_group files are up to date to not miss any component when patching
 -- Please find below how to update them if yours are not up to date
 ${S_PRE}
-${TAB} ${DBROOTPROMPT} ${S_B}ibhosts | sed s'/\"//' | grep db | awk '{print $6}' | sort > ~/dbs_group${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B}ibhosts | sed s'/\"//' | grep cel | awk '{print $6}' | sort > ~/cell_group${E_B}
-${TAB} ${DBROOTPROMPT} ${S_B}ibswitches | awk '{print $10}' | sort > ~/ib_group${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}ibhosts | sed s'/\"//' | grep db | awk '{print \$6}' | sort > ~/dbs_group${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}ibhosts | sed s'/\"//' | grep cel | awk '{print \$6}' | sort > ~/cell_group${E_B}
+${TAB} ${DBROOTPROMPT} ${S_B}ibswitches | awk '{print \$10}' | sort > ~/ib_group${E_B}
 ${E_PRE}
 "
 fi              # End of if [ "${PREREQ_ONLY}" != "Yes" ]
