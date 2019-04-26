@@ -6,10 +6,11 @@
 # Please have a look at https://unknowndba.blogspot.com/2018/04/rac-statussh-overview-of-your-rac-gi.html for some details and screenshots
 # The script latest version can be downloaded here : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/rac-status.sh
 #
-# The current script version is 20190104
+# The current script version is 20190426
 #
 # History :
 #
+# 20190426 - Fred Denis - which gawk for AIX
 # 20190104 - Fred Denis - A new -r option to Reverse the colors (useful for clear terminal backgrounds)
 #                         A new -u option to show an Uncolored output
 # 20190325 - Fred Denis - Solaris sed does not support sed -i, use gsed instead
@@ -95,7 +96,7 @@ case ${OS} in
                            AWK=`which awk`                          ;
                            SED=`which sed`                          ;;
         AIX)
-                           AWK=`which awk`                          ;
+                           AWK=`which gawk`                         ;
                            SED=`which sed`                          ;;
         *)                 printf "\n\t\033[1;31m%s\033[m\n\n" "Unsupported OS, cannot continue."           ;
                            exit 666                            ;;
