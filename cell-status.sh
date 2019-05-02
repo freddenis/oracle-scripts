@@ -112,16 +112,16 @@ awk -v nb_per_line="$NB_PER_LINE" -v show_bad_disks="$SHOW_BAD_DISKS" 'BEGIN\
                                 }
                                 if ($3 == "normal")
                                 {
-                                        tab_status[cell,$6,$3]++        ;
+                                        tab_status[cell,$NF,$3]++        ;
                                 } else {
                                         bad_cell_disks[$0] = $0 ;
                                 }
-                                tab_err[cell,$6]+=$5            ;
-                                if ($5 > 0)                     # Errors here
+                                tab_err[cell,$NF]+=$(NF-1)            ;
+                                if ($(NF-1) > 0)                     # Errors here
                                 {       bad_cell_disks[$0] = $0 ;
                                 }
-                                tab_nbdisks[cell,$6]++          ;
-                                tab_disktype[$6]=$6     ;
+                                tab_nbdisks[cell,$NF]++          ;
+                                tab_disktype[$NF]=$NF     ;
                         }
                 }       # End                 if ($2 == "celldisk")
                 if ($2 == "griddisk")
@@ -321,7 +321,7 @@ awk -v nb_per_line="$NB_PER_LINE" -v show_bad_disks="$SHOW_BAD_DISKS" 'BEGIN\
                                         }
                                 }
 
-                                if (tab2_err[cell,dg]>0)    { COLOR_ERROR=RED;      }
+                                if (tab2_err[cell,dg]>0)    { COLOR_ERROR=COLOR_STATUS_BAD;      }
 #                               printf ("%s", center(tab2_err[cell,dg], COL_NB, COLOR_ERROR, "|"))        ;     # NB err
                                 if (tab2_err[cell,dg] != "")
                                 {       printf ("%s", center(tab2_err[cell,dg], COL_NB, COLOR_ERROR, "|"))        ;     # NB errors
