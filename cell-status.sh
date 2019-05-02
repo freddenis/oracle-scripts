@@ -227,14 +227,16 @@ awk -v nb_per_line="$NB_PER_LINE" -v show_bad_disks="$SHOW_BAD_DISKS" 'BEGIN\
                 printf("\n")    ;
 
                 printf ("%s", center(" ", COL_CELL, WHITE, "|"))        ;
-                printf ("%s", center("Nb", COL_NB, WHITE, "|"))        ;
-                printf ("%s", center("Normal", COL_NB, WHITE, "|"))        ;
-                printf ("%s", center("Errors", COL_NB, WHITE, "|"))        ;
-                printf ("%s", center("Nb", COL_NB, WHITE, "|"))        ;
-                printf ("%s", center("Normal", COL_NB, WHITE, "|"))        ;
-                printf ("%s", center("Errors", COL_NB, WHITE, "|"))        ;
+
+		
+                for (disktype in tab_disktype)
+		{
+			printf ("%s", center("Nb", COL_NB, WHITE, "|"))        ;
+			printf ("%s", center("Normal", COL_NB, WHITE, "|"))        ;
+			printf ("%s", center("Errors", COL_NB, WHITE, "|"))        ;
+		}
                 printf("\n")    ;
-                print_a_line(COL_CELL+COL_DISKTYPE*2+3) ;
+                print_a_line(COL_CELL+COL_DISKTYPE*length(tab_disktype)+length(tab_disktype)+1) ;
 
                 #for (x in tab_cell)
                 for (x=1; x<=nb_cells; x++)
@@ -267,7 +269,7 @@ awk -v nb_per_line="$NB_PER_LINE" -v show_bad_disks="$SHOW_BAD_DISKS" 'BEGIN\
                         }
                         printf("\n")    ;
                 }
-                print_a_line(COL_CELL+COL_DISKTYPE*2+3) ;
+                print_a_line(COL_CELL+COL_DISKTYPE*length(tab_disktype)+length(tab_disktype)+1) ;
                 printf("\n")    ;
 
                 if (tolower(show_bad_disks) == "yes")
