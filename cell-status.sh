@@ -8,6 +8,7 @@
         NB_PER_LINE=$(bc <<< "`tput cols`/30")          # Number of DG to show per line,  can be changed with -n option
                 TMP=/tmp/cell-status$$.tmp              # A tempfile
                TMP2=/tmp/cell-status2$$.tmp             # A tempfile
+     SHOW_BAD_DISKS="NO"                                # Show the details of the bad disks (-v option)
 
 #
 # An usage function
@@ -22,11 +23,12 @@ exit 123
 }
 
 # Options
-while getopts "ho:f:n:" OPT; do
+while getopts "ho:f:n:v" OPT; do
         case ${OPT} in
-        o)         OUT=${OPTARG}                                                                ;;
-        f)          IN=${OPTARG}                                                                ;;
-        n) NB_PER_LINE=${OPTARG}                                                                ;;
+        o)           OUT=${OPTARG}                                                              ;;
+        f)            IN=${OPTARG}                                                              ;;
+        n)   NB_PER_LINE=${OPTARG}                                                              ;;
+        v)SHOW_BAD_DISKS="YES"                                                                  ;;
         h)         usage                                                                        ;;
         \?)        echo "Invalid option: -$OPTARG" >&2; usage                                   ;;
         esac
@@ -39,6 +41,16 @@ then
         IN=${TMP}
 fi
 
+if [[ -n ${OUT} ]]      # Output file specified, we save the cell infos in and we exit
+then
+        cp ${TMP} ${OUT}
+        rm ${TMP}
+        cat << END
+        Output file ${OUT} has been successfully generated.
+END
+exit 456
+fi
+
 if [[ ! -f ${IN} ]]
 then
         cat << !
@@ -48,7 +60,7 @@ exit 123
 fi
 #IN=a
 
-awk -v nb_per_line="$NB_PER_LINE" 'BEGIN\
+awk -v nb_per_line="$NB_PER_LINE" -v show_bad_disks="$SHOW_BAD_DISKS" 'BEGIN\
         {
           # Some colors
              COLOR_BEGIN =       "\033[1;"                      ;
@@ -101,8 +113,13 @@ awk -v nb_per_line="$NB_PER_LINE" 'BEGIN\
                                 if ($3 == "normal")
                                 {
                                         tab_status[cell,$6,$3]++        ;
+                                } else {
+                                        bad_cell_disks[$0] = $0 ;
                                 }
                                 tab_err[cell,$6]+=$5            ;
+                                if ($5 > 0)                     # Errors here
+                                {       bad_cell_disks[$0] = $0 ;
+                                }
                                 tab_nbdisks[cell,$6]++          ;
                                 tab_disktype[$6]=$6     ;
                         }
@@ -118,16 +135,21 @@ awk -v nb_per_line="$NB_PER_LINE" 'BEGIN\
                                 if ($3 != "UNUSED")             # Unused disks have no DG
                                 {
                                         tab2_err[cell,$2]+=$7           ;
+                                        if ($7 > 0)                             # Errors here
+                                        {       bad_grid_disks[$0] = $0 ;
+                                        }
                                         tab2_nbdisks[cell,$2]++         ;       # Nb disks per diskgroup
                                         tab2_dgs[$2]=$2                 ;       # Diskgroups
                                         if (tolower($5) != "yes")               # asmDeactivationOutcome
                                         {       tab2_deact[cell,$2]="no"        ;
+                                                bad_grid_disks[$0] = $0 ;
                                         }
                                         if ($4 == "ONLINE")
                                         {
                                                 tab2_status[cell,$2]++  ;       # cell,DG
                                         }       else {
                                                 tab2_bad[cell,$2]++  ;          # bad status disks
+                                                bad_grid_disks[$0] = $0 ;
                                         }
                                 }
                         }
@@ -232,6 +254,19 @@ awk -v nb_per_line="$NB_PER_LINE" 'BEGIN\
                 print_a_line(COL_CELL+COL_DISKTYPE*2+3) ;
                 printf("\n")    ;
 
+                if (tolower(show_bad_disks) == "yes")
+                {
+                        if (length(bad_cell_disks) > 0)
+                        {       a=asort(bad_cell_disks, bad_cell_disks_sorted)  ;
+                                printf("%8s%16s%12s%16s%6s%16s\n", "cell", "name", "status", "size", "error", "disktype")       ;
+                                for (i=1; i<=a; i++)
+                                {
+                                        printf ("%s\n", bad_cell_disks_sorted[i])       ;
+                                }
+                        }
+                        printf("\n")    ;
+                }
+
                 #
                 # GRID DISKS
                 #
@@ -300,6 +335,21 @@ awk -v nb_per_line="$NB_PER_LINE" 'BEGIN\
                 print_a_line(COL_CELL+COL_DISKTYPE*nb_printed+nb_printed+1) ;
                 printf("\n")    ;
         }       # End         for (i=1; i<=nb_dgs; i++)
+
+        # Show bad grid disks
+        if (tolower(show_bad_disks) == "yes")
+        {
+                if (length(bad_grid_disks) > 0)
+                {       a=asort(bad_grid_disks, bad_grid_disks_sorted)  ;
+                        printf("%-14s%-24s%12s%16s%6s%8s%6s%16s\n", "cell", "asmDGName", "name","status", "deactoutcome", "size", "error" ,"disktype" )       ;
+                        for (i=1; i<=a; i++)
+                        {
+                                printf ("%s\n", bad_grid_disks_sorted[i])       ;
+                        }
+                }
+                printf("\n")    ;
+        }
+
         # Legend
         printf(COLOR_BEGIN BLUE " %-"3"s" COLOR_END, "--");
         printf(COLOR_BEGIN WHITE " %-"12"s |" COLOR_END, ": Unused disks");
