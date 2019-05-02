@@ -9,6 +9,7 @@
                 TMP=/tmp/cell-status$$.tmp              # A tempfile
                TMP2=/tmp/cell-status2$$.tmp             # A tempfile
      SHOW_BAD_DISKS="NO"                                # Show the details of the bad disks (-v option)
+          DBMACHINE=/opt/oracle.SupportTools/onecommand/databasemachine.xml       # File where we should find the Exadata model as oracle user
 
 #
 # An usage function
@@ -58,7 +59,22 @@ then
 !
 exit 123
 fi
-#IN=a
+
+#
+# Show the Exadata model if possible (if this cluster is an Exadata)
+#
+#
+# Show the Exadata model if possible
+#
+printf "\n"
+if [ -f ${DBMACHINE} ] && [ -r ${DBMACHINE} ]
+then
+        cat << !
+                Cluster is a `grep -i MACHINETYPES ${DBMACHINE} | sed s'/\t*//' | sed -e s':</*MACHINETYPES>::g' -e s'/^ *//' -e s'/ *$//'`
+!
+else
+        printf "\n"
+fi
 
 awk -v nb_per_line="$NB_PER_LINE" -v show_bad_disks="$SHOW_BAD_DISKS" 'BEGIN\
         {
