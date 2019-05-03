@@ -211,16 +211,16 @@ awk -v nb_per_line="$NB_PER_LINE" -v show_bad_disks="$SHOW_BAD_DISKS" 'BEGIN\
                 printf(COLOR_BEGIN RED_BACKGROUND " %-"3"s" COLOR_END, "  ")                    ;
                 printf(COLOR_BEGIN WHITE " %-"20"s" COLOR_END, ": asmDeactivationOutcome is NOT yes");
         }
-        function print_table(in_array, in_title)
+        function print_table(in_array, in_title, in_header)
         {
                 # Print a table from in_array adapting every column to the largest colum in the table
-                # including the header from in_title which is a string collectyion separated by blank like "col1 col2 col3"
+                # including the header from in_header hich is a string collectyion separated by blank like "col1 col2 col3"
                 # Only the first column always have a COL_CELL size to match with the other tables to keep nice output
                 # It then always make a nice table and it was fun to code :)
                 a=asort(in_array, sorted)                                               ;
-                sorted[a+1]= in_title                                                   ;       # Table header
+                sorted[a+1]= in_header                                                  ;       # Table header
                 print sorted[0]                                          ;
-                printf("%s", center("Failed Cell Disks details", COL_CELL, TEAL))       ;
+                printf("%s", center(in_title, COL_CELL, TEAL))       ;
                 printf("\n")                                                            ;
                 for (i=1; i<=a+1; i++)                                                          # For each line
                 {       split(sorted[i], bad)                            ;
@@ -343,7 +343,7 @@ awk -v nb_per_line="$NB_PER_LINE" -v show_bad_disks="$SHOW_BAD_DISKS" 'BEGIN\
                 if (tolower(show_bad_disks) == "yes")
                 {
                         if (length(bad_cell_disks) > 0)
-                        {       print_table(bad_cell_disks, "Cell Name Status Size Nb_Error Disktype")   ;
+                        {       print_table(bad_cell_disks, "Failed Cell Disks details", "Cell Name Status Size Nb_Error Disktype")   ;
                         }
                 }
 
@@ -411,26 +411,26 @@ awk -v nb_per_line="$NB_PER_LINE" -v show_bad_disks="$SHOW_BAD_DISKS" 'BEGIN\
                         print_legend()                                                  ;
                 }       # End         for (i=1; i<=nb_dgs; i++)
 
-        # Show bad grid disks
-        if (tolower(show_bad_disks) == "yes")
-        {       printf("\n\n")                                                          ;
-                printf("%s", center("Failed Cell Disks details", COL_CELL, TEAL))       ;
-                printf("\n")                                                            ;
-                if (length(bad_grid_disks) > 0)
-                {
-                        a=asort(bad_grid_disks, bad_grid_disks_sorted)                  ;
-                        printf("%-14s%-24s%12s%16s%6s%8s%6s%16s\n", "cell", "asmDGName", "name","status", "deactoutcome", "size", "error" ,"disktype" )       ;
-                        for (i=1; i<=a; i++)
+                # Show bad grid disks
+                if (tolower(show_bad_disks) == "yes")
+                {       printf("\n\n")                                                          ;
+                        printf("%s", center("Failed Cell Disks details", COL_CELL, TEAL))       ;
+                        printf("\n")                                                            ;
+#                       print_table(bad_grid_disks, "Failed Grid Disks details", "Cell asmDGName Name Status Deact Size NBError Disktype")      ;
+                        if (length(bad_grid_disks) > 0)
                         {
-                                printf ("%s\n", bad_grid_disks_sorted[i])               ;
+                                a=asort(bad_grid_disks, bad_grid_disks_sorted)                  ;
+                                printf("%-14s%-24s%12s%16s%6s%8s%6s%16s\n", "cell", "asmDGName", "name","status", "deactoutcome", "size", "error" ,"disktype" )       ;
+                                for (i=1; i<=a; i++)
+                                {
+                                        printf ("%s\n", bad_grid_disks_sorted[i])               ;
+                                }
                         }
+                        printf("\n")                                                            ;
                 }
-                printf("\n")                                                            ;
-        }
         printf("\n")                                                                    ;
         printf("\n")                                                                    ;
         }' ${IN}
-
 
 #
 # Delete tempfiles
