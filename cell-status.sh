@@ -324,8 +324,8 @@ awk -v nb_per_line="$NB_PER_LINE" -v show_bad_disks="$SHOW_BAD_DISKS" 'BEGIN\
                                         printf ("%s", center(bad[6], COL_CELL, NORMAL, "|"))      ;
                                         printf("\n")                                                    ;
                                 }
+                                print_a_line(COL_CELL*5+10+6)                           ;
                         }
-                        print_a_line(COL_CELL*5+10+6)                           ;
                 }
 
                 #
@@ -395,10 +395,10 @@ awk -v nb_per_line="$NB_PER_LINE" -v show_bad_disks="$SHOW_BAD_DISKS" 'BEGIN\
         # Show bad grid disks
         if (tolower(show_bad_disks) == "yes")
         {       printf("\n\n")                                                          ;
-                printf("%s", center("Failed Cell Disks details", COL_CELL, TEAL))       ;
-                printf("\n")                                                            ;
                 if (length(bad_grid_disks) > 0)
                 {
+                        printf("%s", center("Failed Cell Disks details", COL_CELL, TEAL))       ;
+                        printf("\n")                                                            ;
                         a=asort(bad_grid_disks, bad_grid_disks_sorted)                  ;
                         printf("%-14s%-24s%12s%16s%6s%8s%6s%16s\n", "cell", "asmDGName", "name","status", "deactoutcome", "size", "error" ,"disktype" )       ;
                         for (i=1; i<=a; i++)
