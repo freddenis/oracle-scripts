@@ -203,6 +203,15 @@ awk -v nb_per_line="$NB_PER_LINE" -v show_bad_disks="$SHOW_BAD_DISKS" 'BEGIN\
         {
                 printf ("%s", center("xx", size, COLOR_STATUS, sep))                    ;       # Just print a red "xx"
         }
+        function print_legend()
+        {       # A legend behind the tables
+                printf(COLOR_BEGIN BLUE " %-"3"s" COLOR_END, "--")                              ;
+                printf(COLOR_BEGIN WHITE " %-"12"s |" COLOR_END, ": Unused disks")              ;
+                printf(COLOR_BEGIN RED " %-"3"s" COLOR_END, "xx")                               ;
+                printf(COLOR_BEGIN WHITE " %-"20"s |" COLOR_END, ": Not ONLINE disks")          ;
+                printf(COLOR_BEGIN RED_BACKGROUND " %-"3"s" COLOR_END, "  ")                    ;
+                printf(COLOR_BEGIN WHITE " %-"20"s" COLOR_END, ": asmDeactivationOutcome is NOT yes");
+        }
         function print_griddisk_header(i)
         {
                 printed=0                                                               ;
@@ -380,14 +389,17 @@ awk -v nb_per_line="$NB_PER_LINE" -v show_bad_disks="$SHOW_BAD_DISKS" 'BEGIN\
                                 printf("\n")                                            ;
                         }
                         print_a_line(COL_CELL+COL_DISKTYPE*nb_printed+nb_printed+1)     ;
-                        printf("\n")                                                    ;
+                        print_legend()                                                  ;
                 }       # End         for (i=1; i<=nb_dgs; i++)
 
         # Show bad grid disks
         if (tolower(show_bad_disks) == "yes")
-        {
+        {       printf("\n\n")                                                          ;
+                printf("%s", center("Failed Cell Disks details", COL_CELL, TEAL))       ;
+                printf("\n")                                                            ;
                 if (length(bad_grid_disks) > 0)
-                {       a=asort(bad_grid_disks, bad_grid_disks_sorted)                  ;
+                {
+                        a=asort(bad_grid_disks, bad_grid_disks_sorted)                  ;
                         printf("%-14s%-24s%12s%16s%6s%8s%6s%16s\n", "cell", "asmDGName", "name","status", "deactoutcome", "size", "error" ,"disktype" )       ;
                         for (i=1; i<=a; i++)
                         {
@@ -396,14 +408,6 @@ awk -v nb_per_line="$NB_PER_LINE" -v show_bad_disks="$SHOW_BAD_DISKS" 'BEGIN\
                 }
                 printf("\n")                                                            ;
         }
-
-        # Legend
-        printf(COLOR_BEGIN BLUE " %-"3"s" COLOR_END, "--")                              ;
-        printf(COLOR_BEGIN WHITE " %-"12"s |" COLOR_END, ": Unused disks")              ;
-        printf(COLOR_BEGIN RED " %-"3"s" COLOR_END, "xx")                               ;
-        printf(COLOR_BEGIN WHITE " %-"20"s |" COLOR_END, ": Not ONLINE disks")          ;
-        printf(COLOR_BEGIN RED_BACKGROUND " %-"3"s" COLOR_END, "  ")                    ;
-        printf(COLOR_BEGIN WHITE " %-"20"s" COLOR_END, ": asmDeactivationOutcome is NOT yes");
         printf("\n")                                                                    ;
         printf("\n")                                                                    ;
         }' ${IN}
