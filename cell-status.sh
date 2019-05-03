@@ -141,11 +141,10 @@ awk -v nb_per_line="$NB_PER_LINE" -v show_bad_disks="$SHOW_BAD_DISKS" 'BEGIN\
         }
         {       sub (":", "", $1)                                                       ;
                 if ($2 == "celldisk")
-                {
-                        cell = $1                                                       ;
+                {       cell = $1                                                       ;
                         tab_cell[cell] = cell                                           ;
                         while (getline)
-                        {
+                        {       sub (":", "", $1)                                       ;
                                 if ($2 == "BREAK")
                                 {
                                         break                                           ;
@@ -167,7 +166,7 @@ awk -v nb_per_line="$NB_PER_LINE" -v show_bad_disks="$SHOW_BAD_DISKS" 'BEGIN\
                 if ($2 == "griddisk")
                 {       cell = $1                                                       ;
                         while(getline)
-                        {
+                        {       sub (":", "", $1)                                       ;
                                 if ($2 == "BREAK_CELL")
                                 {
                                         break                                           ;
@@ -211,6 +210,47 @@ awk -v nb_per_line="$NB_PER_LINE" -v show_bad_disks="$SHOW_BAD_DISKS" 'BEGIN\
                 printf(COLOR_BEGIN WHITE " %-"20"s |" COLOR_END, ": Not ONLINE disks")          ;
                 printf(COLOR_BEGIN RED_BACKGROUND " %-"3"s" COLOR_END, "  ")                    ;
                 printf(COLOR_BEGIN WHITE " %-"20"s" COLOR_END, ": asmDeactivationOutcome is NOT yes");
+        }
+        function print_table(in_array, in_title)
+        {
+                # Print a table from in_array adapting every column to the largest colum in the table
+                # including the header from in_title which is a string collectyion separated by blank like "col1 col2 col3"
+                # Only the first column always have a COL_CELL size to match with the other tables to keep nice output
+                # It then always make a nice table and it was fun to code :)
+                a=asort(in_array, sorted)                                               ;
+                sorted[a+1]= in_title                                                   ;       # Table header
+                print sorted[0]                                          ;
+                printf("%s", center("Failed Cell Disks details", COL_CELL, TEAL))       ;
+                printf("\n")                                                            ;
+                for (i=1; i<=a+1; i++)                                                          # For each line
+                {       split(sorted[i], bad)                            ;
+                        for (j=1; j<=length(bad); j++)                                          # For each column
+                        {       if (j == 1)                                                     # To have the cell column same on all tables
+                                {       size[j] = COL_CELL                              ;
+                                } else {
+                                        if (length(bad[j])>size[j]) { size[j] = length(bad[j])+2}       ;
+                                }
+                        }
+                }
+                line_size=0                                                             ;
+                for (k=1; k<=length(size); k++) { line_size+=size[k]                    ;}
+                for (i=1; i<=a; i++)                                                            # For each line
+                {       split(sorted[i], bad)                            ;
+                        if (i == 1)
+                        {       for (j=1; j<=length(bad); j++)                                  # For each column
+                                {       split(sorted[a+1], title)        ;
+                                        printf("%s", center(title[j], size[j], NORMAL, "|"))            ;
+                                }
+                                printf("\n")                                            ;
+                                print_a_line(line_size+length(size))                    ;
+                        }
+                        for (j=1; j<=length(bad); j++)  # Each column                           # For each column
+                        {
+                                printf("%s", center(bad[j], size[j], NORMAL, "|"))      ;
+                        }
+                        printf("\n")                                                    ;
+                }
+                print_a_line(line_size+length(size))                                    ;
         }
         function print_griddisk_header(i)
         {
@@ -297,34 +337,13 @@ awk -v nb_per_line="$NB_PER_LINE" -v show_bad_disks="$SHOW_BAD_DISKS" 'BEGIN\
                 }
                 print_a_line(COL_CELL+COL_DISKTYPE*length(tab_disktype)+length(tab_disktype)+1)                                         ;
 
+                #
+                # Print the failed cell disks details contained in the array bad_cell_disks
+                #
                 if (tolower(show_bad_disks) == "yes")
                 {
                         if (length(bad_cell_disks) > 0)
-                        {       a=asort(bad_cell_disks, bad_cell_disks_sorted)          ;
-                                printf("%s", center("Failed Cell Disks details", COL_CELL, TEAL))      ;
-                                printf("\n")                                                    ;
-                                printf("%s", center("", COL_CELL, WHITE, "|"))      ;
-                                printf("%s", center("Name", COL_CELL, WHITE, "|"))      ;
-                                printf("%s", center("Status", COL_CELL, WHITE, "|"))      ;
-                                printf("%s", center("Size", COL_CELL, WHITE, "|"))      ;
-                                printf("%s", center("Nb Error", 10, WHITE, "|"))      ;
-                                printf("%s", center("Disktype", COL_CELL, WHITE, "|"))      ;
-                                printf("\n")                                                    ;
-                                print_a_line(COL_CELL*5+10+6)                           ;
-                                for (i=1; i<=a; i++)
-                                {       split(bad_cell_disks_sorted[i], bad)            ;
-                                        sub (":", "", bad[1])                           ;
-                                        if (bad[3] != "normal") {COLOR_STATUS=RED; } else { COLOR_STATUS=NORMAL; }      # Status
-                                        if (bad[5] > 0) {COLOR_ERROR=RED; } else { COLOR_ERROR=NORMAL; }        # Nb errors
-                                        printf ("%s", center(bad[1], COL_CELL, NORMAL, "|"))      ;
-                                        printf ("%s", center(bad[2], COL_CELL, NORMAL, "|"))      ;
-                                        printf ("%s", center(bad[3], COL_CELL, COLOR_STATUS, "|"))      ;
-                                        printf ("%s", center(bad[4], COL_CELL, NORMAL, "|"))      ;
-                                        printf ("%s", center(bad[5], 10, COLOR_ERROR, "|"))      ;
-                                        printf ("%s", center(bad[6], COL_CELL, NORMAL, "|"))      ;
-                                        printf("\n")                                                    ;
-                                }
-                                print_a_line(COL_CELL*5+10+6)                           ;
+                        {       print_table(bad_cell_disks, "Cell Name Status Size Nb_Error Disktype")   ;
                         }
                 }
 
@@ -395,10 +414,10 @@ awk -v nb_per_line="$NB_PER_LINE" -v show_bad_disks="$SHOW_BAD_DISKS" 'BEGIN\
         # Show bad grid disks
         if (tolower(show_bad_disks) == "yes")
         {       printf("\n\n")                                                          ;
+                printf("%s", center("Failed Cell Disks details", COL_CELL, TEAL))       ;
+                printf("\n")                                                            ;
                 if (length(bad_grid_disks) > 0)
                 {
-                        printf("%s", center("Failed Cell Disks details", COL_CELL, TEAL))       ;
-                        printf("\n")                                                            ;
                         a=asort(bad_grid_disks, bad_grid_disks_sorted)                  ;
                         printf("%-14s%-24s%12s%16s%6s%8s%6s%16s\n", "cell", "asmDGName", "name","status", "deactoutcome", "size", "error" ,"disktype" )       ;
                         for (i=1; i<=a; i++)
