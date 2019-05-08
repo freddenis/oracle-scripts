@@ -6,10 +6,11 @@
 # Please have a look at https://unknowndba.blogspot.com/2018/04/rac-statussh-overview-of-your-rac-gi.html for some details and screenshots
 # The script latest version can be downloaded here : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/rac-status.sh
 #
-# The current script version is 20190426
+# The current script version is 2019508
 #
 # History :
 #
+# 20190508 - Fred Denis - Show the whole service name and not only part of it when it contains "."
 # 20190426 - Fred Denis - which gawk for AIX
 # 20190104 - Fred Denis - A new -r option to Reverse the colors (useful for clear terminal backgrounds)
 #                         A new -u option to show an Uncolored output
@@ -51,7 +52,6 @@
 # 20170518 - Fred Denis - Add  a readable check on the ${DBMACHINE} file - it happens that it exists but is only root readable
 # 20170501 - Fred Denis - First release
 #
-
 #
 # Variables
 #
@@ -391,12 +391,15 @@ fi
                         sub("^ora.", "", $2)                                                                    ;
                         sub(".db$",  "", $2)                                                                    ;
                         if ($2 ~ ".lsnr"){sub(".lsnr$", "", $2); tab_lsnr[$2] = $2;}                            ;       # Listeners
-                        if ($2 ~ ".svc") {sub(".svc$", "", $2) ; tab_svc[$2] = $2;
-                                          split($2, temp, ".");
-                                          if (length(temp[2]) > COL_VER-1)                                               # To adapt the column size
-                                          {     COL_VER = length(temp[2]) +1                                    ;
-                                          }
-                                         }                                                                              # Services
+                        if ($2 ~ ".svc")                                                                                # Services
+                        {       sub(".svc$", "", $2)                                                            ;
+                                tab_svc[$2]=$2                                                                  ;
+                                    service=$2                                                                  ;
+                                sub(/^[^.]*\./, "", service)                                                    ;       # Remove the DB name
+                                if (length(service) > COL_VER-1)                                                        # To adapt the column size
+                                {     COL_VER = length(service) +1                                              ;
+                                }
+                        }
                         DB=$2                                                                                   ;
                         split($2, temp, ".")                                                                    ;
                         if (length(temp[1]) > COL_DB-1)                                                                   # To adapt the 1st column size
@@ -562,12 +565,12 @@ fi
                                 # a "---" line under the header
                                 print_a_line(COL_DB+COL_NODE*n+COL_VER+n+2)                                    ;
 
-
                                 # Print the Services
                                 x=asorti(tab_svc, svc_sorted)                                                   ;
                                 for (j = 1; j <= x; j++)
-                                {
-                                        split(svc_sorted[j], to_print, ".")                                     ;       # The service we have is <db_name>.<service_name>
+                                {       split(svc_sorted[j], to_print, ".")                                     ;       # The service we have is <db_name>.<service_name>
+                                        service = svc_sorted[j]                                                 ;
+                                        sub(/^[^.]*\./, "", service)                                            ;       # Remove the DB name only
                                         if (previous_db != to_print[1])                                                 # Do not duplicate the DB names on the output
                                         {
                                                 printf(COLOR_BEGIN WHITE " %-"COL_DB-1"s" COLOR_END"|", to_print[1], WHITE);     # Database
@@ -575,9 +578,8 @@ fi
                                         }else {
                                                 printf("%s", center("",  COL_DB, WHITE))                        ;
                                         }
-                                        printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s" COLOR_END"|", to_print[2], WHITE);     # Service
-
-
+                                        #printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s" COLOR_END"|", to_print[2], WHITE);     # Service
+                                        printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s" COLOR_END"|", service, WHITE);     # Service
 
                                         for (i = 1; i <= n; i++)
                                         {
