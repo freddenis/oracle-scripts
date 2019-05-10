@@ -17,58 +17,58 @@ END
 
 
 awk     ' BEGIN {FS="|"}
+          {
+                # Some colors
+             COLOR_BEGIN =       "\033[1;"                      ;
+               COLOR_END =       "\033[m"                       ;
+                     RED =       "31m"                          ;
+                   GREEN =       "32m"                          ;
+                  YELLOW =       "33m"                          ;
+                    BLUE =       "34m"                          ;
+                    TEAL =       "36m"                          ;
+                   WHITE =       "37m"                          ;
+                  NORMAL =        "0m"                          ;
+          BACK_LIGHTBLUE =      "104m"                          ;
+
+                # Size columns
+                COL_EVENT=      35                              ;
+                COL_NODE =      12                              ;
+                # Misc
+                   FIRST =      1                               ;
+
+                # Save info in arrays
+                if (NF == 3)
                 {
-                        # Some colors
-                     COLOR_BEGIN =       "\033[1;"                      ;
-                       COLOR_END =       "\033[m"                       ;
-                             RED =       "31m"                          ;
-                           GREEN =       "32m"                          ;
-                          YELLOW =       "33m"                          ;
-                            BLUE =       "34m"                          ;
-                            TEAL =       "36m"                          ;
-                           WHITE =       "37m"                          ;
-                          NORMAL =        "0m"                          ;
-                  BACK_LIGHTBLUE =      "104m"                          ;
+                        instances[$1] = $1                      ;
+                        gsub(/ *$/, "", $2)                     ;
+                        sub("cell physical IO",    "CPIO", $2)  ;
+                        sub("physical read total", "PRT",  $2)  ;
+                        sub("cell physical write", "CPW",  $2)  ;
+                        sub("physical write total", "PWT",  $2) ;
+                        events[$2] = $2                         ;
+                        tab[$1,$2] = $3                         ;
+                }
 
-                        # Size columns
-                        COL_EVENT=      35                              ;
-                        COL_NODE =      12                              ;
-                        # Misc
-                           FIRST =      1                               ;
+                # Events
+                 LRFC="logical read bytes from cache"                           ;   LRFC_descr="logical read from cache (bytes)"        ;
+                 PRTB="PRT bytes"                                               ;   PRTB_descr="Physical read (bytes)"                  ;
+                PRTBO="PRT bytes optimized"                                     ;  PRTBO_descr="Physical read optimized"                ;
+                CPIOP="CPIO bytes eligible for predicate offload"               ;  CPIOP_descr="Eligible for Smart Scans (bytes)"       ;
+               CPIOSI="CPIO bytes saved by storage index"                       ; CPIOSI_descr="% saved by Storage Index"               ;
+              CPIOSCC="CPIO bytes saved by columnar cache"                      ;CPIOSCC_descr="% saved by Columnar Cache"              ;
+               CPIOSC="CPIO interconnect bytes returned by smart scan"          ; CPIOSC_descr="% returned by Smart Scans"              ;
+                CPIOI="CPIO interconnect bytes"                                 ;                                                               # IN + OUT Traffic + count ASM mirrorring
+               CPIOFC="CPIO bytes saved during optimized file creation"         ; CPIOFC_descr="% saved during file creation"           ;
+             CPIOBCPU="CPIO bytes sent directly to DB node to balance CPU"      ;CPIOBCPU_descr="When cells are overloaded"             ;
+                  UNC="cell IO uncompressed bytes"                              ;    UNC_descr="cell IO uncompressed (bytes)"           ;
+                  PWT="PWT bytes"                                               ;    PWT_descr="Physical writes"                        ;
+                 PWTO="PWT bytes optimized"                                     ;   PWTO_descr="Physical writes optimized"              ;
+                 CWFC="cell writes to flash cache"                              ;   CWFC_descr="Writes to Flash Cache"                  ;
+              HCCCUNC="HCC scan cell bytes decompressed"                        ;HCCCUNC_descr="HCC decompressed on cell (bytes)"       ;
+              HCCBUNC="HCC scan rdbms bytes decompressed"                       ;HCCBUNC_descr="% decompressed on rdbms"                ;
+                   PW="physical writes"                                         ;     PW_descr="Nb of physical writes"                  ;       # Includes ASM mirorring so unusable
 
-                        # Save info in arrays
-                        if (NF == 3)
-                        {
-                                instances[$1] = $1                      ;
-                                gsub(/ *$/, "", $2)                     ;
-                                sub("cell physical IO",    "CPIO", $2)  ;
-                                sub("physical read total", "PRT",  $2)  ;
-                                sub("cell physical write", "CPW",  $2)  ;
-                                sub("physical write total", "PWT",  $2) ;
-                                events[$2] = $2                         ;
-                                tab[$1,$2] = $3                         ;
-                        }
-
-                        # Events
-                         LRFC="logical read bytes from cache"                           ;   LRFC_descr="logical read from cache (bytes)"        ;
-                         PRTB="PRT bytes"                                               ;   PRTB_descr="Physical read (bytes)"                  ;
-                        PRTBO="PRT bytes optimized"                                     ;  PRTBO_descr="Physical read optimized"                ;
-                        CPIOP="CPIO bytes eligible for predicate offload"               ;  CPIOP_descr="Eligible for Smart Scans (bytes)"       ;
-                       CPIOSI="CPIO bytes saved by storage index"                       ; CPIOSI_descr="% saved by Storage Index"               ;
-                      CPIOSCC="CPIO bytes saved by columnar cache"                      ;CPIOSCC_descr="% saved by Columnar Cache"              ;
-                       CPIOSC="CPIO interconnect bytes returned by smart scan"          ; CPIOSC_descr="% returned by Smart Scans"              ;
-                        CPIOI="CPIO interconnect bytes"                                 ;                                                               # IN + OUT Traffic + count ASM mirrorring
-                       CPIOFC="CPIO bytes saved during optimized file creation"         ; CPIOFC_descr="% saved during file creation"           ;
-                     CPIOBCPU="CPIO bytes sent directly to DB node to balance CPU"      ;CPIOBCPU_descr="When cells are overloaded"             ;
-                          UNC="cell IO uncompressed bytes"                              ;    UNC_descr="cell IO uncompressed (bytes)"           ;
-                          PWT="PWT bytes"                                               ;    PWT_descr="Physical writes"                        ;
-                         PWTO="PWT bytes optimized"                                     ;   PWTO_descr="Physical writes optimized"              ;
-                         CWFC="cell writes to flash cache"                              ;   CWFC_descr="Writes to Flash Cache"                  ;
-                      HCCCUNC="HCC scan cell bytes decompressed"                        ;HCCCUNC_descr="HCC decompressed on cell (bytes)"       ;
-                      HCCBUNC="HCC scan rdbms bytes decompressed"                       ;HCCBUNC_descr="% decompressed on rdbms"                ;
-                           PW="physical writes"                                         ;     PW_descr="Nb of physical writes"                  ;       # Includes ASM mirorring so unusable
-
-                        }
+          }
           #
           # A function to center the outputs with colors
           #
@@ -90,7 +90,7 @@ awk     ' BEGIN {FS="|"}
                 printf("%s", COLOR_END"\n")                                             ;
          }
          #
-         # Calculate and print a ratio as a ine of the output table
+         # Calculate and print a ratio as a line of the output table
          #
          function print_ratio(event, event_descr, eventtodivideby, threshold)
          {
@@ -121,7 +121,7 @@ awk     ' BEGIN {FS="|"}
                                 printf ("%s", center(sprintf("%.2e", value_event), COL_NODE, NORMAL, "|"))        ;
                         }
                 }
-                # Perint the overall value
+                # Print the overall value
                 if (eventtodivideby)
                 {       printf ("%s", center(sprintf("%.2f%%", sum_event/sum_divider*100), COL_NODE, WHITE, "|"))   ;
                 } else {
