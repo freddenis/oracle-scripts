@@ -6,10 +6,11 @@
 # Please have a look at https://unknowndba.blogspot.com/2018/04/rac-statussh-overview-of-your-rac-gi.html for some details and screenshots
 # The script latest version can be downloaded here : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/rac-status.sh
 #
-# The current script version is 20190508
+# The current script version is 20190524
 #
 # History :
 #
+# 20190524 - Fred Denis - Fixed a bug when hostnames had more than 1 "db" pattern in their names
 # 20190508 - Fred Denis - Show the whole service name and not only part of it when it contains "."
 # 20190426 - Fred Denis - which gawk for AIX
 # 20190104 - Fred Denis - A new -r option to Reverse the colors (useful for clear terminal backgrounds)
@@ -252,12 +253,13 @@ then
         SHORT_NAMES="NO"
         if [[ `olsnodes | head -1 | sed s'/,.*$//g' | tr '[:upper:]' '[:lower:]'` == *"db"* ]]
         then
-                                   NODES=`olsnodes | sed s'/^.*db/db/g' | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}'`
-                        CLUSTER_NAME=`olsnodes | head -1 | sed s'/db.*$//g'`
-                        SHORT_NAMES="YES"
+                       NODES=`olsnodes | sed s'/^.*db/db/g' | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}'`
+        #       CLUSTER_NAME=`olsnodes | head -1 | sed s'/db.*$//g'`
+                CLUSTER_NAME=`olsnodes | head -1 | sed s'/\(^.*\)db.*/\1/'`
+                 SHORT_NAMES="YES"
         else
-                                   NODES=`olsnodes | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}'`
-                        CLUSTER_NAME=`olsnodes -c`
+                       NODES=`olsnodes | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}'`
+                CLUSTER_NAME=`olsnodes -c`
         fi
         # if oracle restart, olsnodes is here but returns nothing, we then set the NODES with the current hostname
         if [ -z "${NODES}" ]
