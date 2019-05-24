@@ -16,8 +16,9 @@
 #    in red and a note about this will be shown at the end of the report
 #
 #
-# The current version of the script is 20180913
+# The current version of the script is 20190524
 #
+# 20190524 - Fred Denis - Better management of the naming of the hosts, cells and IB
 # 20180913 - Fred Denis - Add the status = failure information for the Cells and DB Servers
 #
 
@@ -122,24 +123,24 @@ fi
 #
 # Fill the tempfiles
 #
-        ibhosts | grep db  | sed s'/"//g' | awk '{print $6}'  > ${DBS_GROUP}
+        ibhosts | grep db  | grep -v cel | sed s'/"//g' | awk '{print $6}'  > ${DBS_GROUP}
         ibhosts | grep cel | sed s'/"//g' | awk '{print $6}'  > ${CELL_GROUP}
         ibswitches                        | awk '{print $10}' > ${IB_GROUP}
 
 
 ( if [[ "$SHOW_DBS" == "Yes" ]] || [[ "$SHOW_ALL" == "Yes" ]]
   then
-        dcli -g ${DBS_GROUP}  -l root "imageinfo -ver -status" | sort | awk -F ": " '{if(node==""){node=$1}; if($2 != "") {status=$3; getline; printf ("%s:%s:%s\n",node, $3, status);  node="" ;}}'
+        dcli -g ~/dbs_group  -l root "imageinfo -ver -status" | sort | awk -F ": " '{if(node==""){node=$1}; if($2 != "") {status=$3; getline; printf ("%s:%s:%s:%s\n","db", node, $3, status);  node="" ;}}'
         echo ""
   fi
   if [[ "$SHOW_CELLS" == "Yes" ]] || [[ "$SHOW_ALL" == "Yes" ]]
   then
-        dcli -g ${CELL_GROUP}  -l root "imageinfo -ver -status" | grep "Active" | sort | awk -F ": " '{if(node==""){node=$1}; if($2 != "") {status=$3; getline; printf ("%s:%s:%s\n",node, $3, status);  node="" ;}}'
+        dcli -g ${CELL_GROUP} -l root "imageinfo -ver -status" | grep "Active" | sort | awk -F ": " '{if(node==""){node=$1}; if($2 != "") {status=$3; getline; printf ("%s:%s:%s:%s\n","cel", node, $3, status);  node="" ;}}'
         echo ""
   fi
   if [[ "$SHOW_IBS" == "Yes" ]] || [[ "$SHOW_ALL" == "Yes" ]]
   then
-        dcli -g ${IB_GROUP}   -l root version | grep -v BIOS | grep "version:" | awk '{print $1, $NF}' | sort
+        dcli -g ${IB_GROUP}  -l root version | grep -v BIOS | grep "version:" | awk '{print "ib:", $1, $NF}' | sort
         echo ""
   fi
 )\
@@ -179,18 +180,18 @@ fi
                 {       if ($0 !~ /^$/)
                         {
                                             nb_node++                                                                   ;
-                                   db_node[nb_node] = $1                                                                ;
-                                db_version[nb_node] = $2                                                                ;
-                                 db_status[nb_node] = $3                                                                ;
+                                   db_node[nb_node] = $2                                                                ;
+                                db_version[nb_node] = $3                                                                ;
+                                 db_status[nb_node] = $4                                                                ;
 
                                 while (getline)
                                 {
                                         if ($0 ~ /^$/)
                                         {
                                                 # A Header
-                                                if (db_node[1] ~ /db.*[0-9]/ )      {printf("%s\n", center("-- Database Servers",         40,RED))};
-                                                if (db_node[1] ~ /cel.*[0-9]/)      {printf("%s\n", center("-- Cells",                    30,RED))};
-                                                if (db_node[1] ~ /ib.*[0-9]/ )      {printf("%s\n", center("-- Infiniband Switches",      40,RED))};
+                                                if (db_node[1] == "db")      {printf("%s\n", center("-- Database Servers",         40,RED))};
+                                                if (db_node[1] == "cel")     {printf("%s\n", center("-- Cells",                    30,RED))};
+                                                if (db_node[1] == "ib")      {printf("%s\n", center("-- Infiniband Switches",      40,RED))};
                                                 printf("\n")                                                            ;
                                                 version_ref = db_version[1]                                             ;
 
@@ -241,9 +242,9 @@ fi
                                         }       # END if ($0 ~ /^$/)
 
                                                   nb_node++                                                             ;
-                                           db_node[nb_node] = $1                                                        ;
-                                        db_version[nb_node] = $2                                                        ;
-                                         db_status[nb_node] = $3                                                        ;
+                                           db_node[nb_node] = $2                                                        ;
+                                        db_version[nb_node] = $3                                                        ;
+                                         db_status[nb_node] = $4                                                        ;
                                 }       # END while (getline)
                         }       # END  if ($0 !~ /^$/)
                 } END { if (FAILURES == 1)
