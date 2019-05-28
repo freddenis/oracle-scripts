@@ -16,8 +16,9 @@
 #    in red and a note about this will be shown at the end of the report
 #
 #
-# The current version of the script is 20190524
+# The current version of the script is 20190528
 #
+# 20190528 - Fred Denis - Fixed a bug on the headers
 # 20190524 - Fred Denis - Better management of the naming of the hosts, cells and IB
 # 20180913 - Fred Denis - Add the status = failure information for the Cells and DB Servers
 #
@@ -180,6 +181,7 @@ fi
                 {       if ($0 !~ /^$/)
                         {
                                             nb_node++                                                                   ;
+                                               type = $1                                                                ;
                                    db_node[nb_node] = $2                                                                ;
                                 db_version[nb_node] = $3                                                                ;
                                  db_status[nb_node] = $4                                                                ;
@@ -189,9 +191,9 @@ fi
                                         if ($0 ~ /^$/)
                                         {
                                                 # A Header
-                                                if (db_node[1] == "db")      {printf("%s\n", center("-- Database Servers",         40,RED))};
-                                                if (db_node[1] == "cel")     {printf("%s\n", center("-- Cells",                    30,RED))};
-                                                if (db_node[1] == "ib")      {printf("%s\n", center("-- Infiniband Switches",      40,RED))};
+                                                if (type == "db")      {printf("%s\n", center("-- Database Servers",         40,RED))};
+                                                if (type == "cel")     {printf("%s\n", center("-- Cells",                    30,RED))};
+                                                if (type == "ib")      {printf("%s\n", center("-- Infiniband Switches",      40,RED))};
                                                 printf("\n")                                                            ;
                                                 version_ref = db_version[1]                                             ;
 
