@@ -1,4 +1,3 @@
-# Fred Denis -- Jan 2016 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
 #
 # Quickly shows a status of all running instances accross a 12c cluster
 # The script just need to have a working oraenv
@@ -6,10 +5,13 @@
 # Please have a look at https://unknowndba.blogspot.com/2018/04/rac-statussh-overview-of-your-rac-gi.html for some details and screenshots
 # The script latest version can be downloaded here : https://raw.githubusercontent.com/freddenis/oracle-scripts/master/rac-status.sh
 #
-# The current script version is 20190524
+# The current script version is 20190606
 #
 # History :
 #
+# 20190606 - Fred Denis - Show a yellow background when a resource has been restarted less than DIFF_HOURS hours
+#                         A new -w option can be use to specify a number of hours through the command line
+#                         Owners and groups which contained numbers were ignored, this is fixed
 # 20190524 - Fred Denis - Fixed a bug when hostnames had more than 1 "db" pattern in their names
 # 20190508 - Fred Denis - Show the whole service name and not only part of it when it contains "."
 # 20190426 - Fred Denis - which gawk for AIX
@@ -65,6 +67,7 @@
     REVERSE="NO"                                                          # Revert the colors to make them visible, useful for clear terminal backgrounds
 WITH_COLORS="YES"                                                         # Output with colors, (-b changes this to NO); set to NO for permanent no colored output
       WHITE="37m"                                                         # White color code
+ DIFF_HOURS="24"                                                          # Nb of hours the instance has been restarted
 
 # Choose the information what you want to see -- the last uncommented value wins
 # ./rac-status.sh -h for more information
@@ -179,6 +182,8 @@ cat << END
 
         -u        Shows the Uncolored output (no colors); set WITH_COLORS="NO" on top of the script to have it permanently
 
+        -w        Show a yellow background when a resource has been restarted less than the number of hours in parameter (default is $DIFF_HOURS)
+
         -h        Shows this help
 
         Note : the options are cumulative and can be combined with a "the last one wins" behavior :
@@ -192,7 +197,7 @@ exit 123
 }
 
 # Options
-while getopts "andslhg:v:o:f:eru" OPT; do
+while getopts "andslhg:v:o:f:eruw:" OPT; do
         case ${OPT} in
         a)         SHOW_DB="YES"        ; SHOW_LSNR="YES"       ; SHOW_SVC="YES"                ;;
         n)         SHOW_DB="NO"         ; SHOW_LSNR="NO"        ; SHOW_SVC="NO"                 ;;
@@ -201,15 +206,17 @@ while getopts "andslhg:v:o:f:eru" OPT; do
         l)         if [ "$SHOW_LSNR" = "YES" ]; then SHOW_LSNR="NO"; else SHOW_LSNR="YES"; fi   ;;
         g)           GREP=${OPTARG}                                                             ;;
         v)         UNGREP=${OPTARG}                                                             ;;
-        f)                   FILE=${OPTARG}                                                     ;;
-        o)                OUT=${OPTARG}                                                         ;;
-        e)          USE_ORAENV="NO"                                                             ;;
-        r)             REVERSE="YES"                                                            ;;
-        u)         WITH_COLORS="NO"                                                             ;;
+        f)           FILE=${OPTARG}                                                             ;;
+        o)            OUT=${OPTARG}                                                             ;;
+        e)     USE_ORAENV="NO"                                                                  ;;
+        r)        REVERSE="YES"                                                                 ;;
+        w)     DIFF_HOURS=${OPTARG}                                                             ;;
+        u)    WITH_COLORS="NO"                                                                  ;;
         h)         usage                                                                        ;;
         \?)        echo "Invalid option: -$OPTARG" >&2; usage                                   ;;
         esac
 done
+
 #
 # Check that the input file is here if specified
 #
@@ -334,11 +341,12 @@ then
                 if [ "$NB_NODES" -gt "4" ]; then COL_NODE_OFFSET=3      ;       fi      ;
 fi
 
-        ${AWK} -v NODES="$NODES" -v col_node_offset="$COL_NODE_OFFSET" -v REVERSE="$REVERSE" 'BEGIN\
+        ${AWK} -v NODES="$NODES" -v col_node_offset="$COL_NODE_OFFSET" -v REVERSE="$REVERSE" -v DIFF_HOURS="$DIFF_HOURS" 'BEGIN\
         {             FS = "="                          ;
                        n = split(NODES, nodes, ",")     ;       # Make a table with the nodes of the cluster
                 # some colors
              COLOR_BEGIN =       "\033[1;"              ;
+             #COLOR_BEGIN =       "\033["              ;
                COLOR_END =       "\033[m"               ;
                      RED =       "31m"                  ;
                    GREEN =       "32m"                  ;
@@ -346,6 +354,7 @@ fi
                     BLUE =       "34m"                  ;
                     TEAL =       "36m"                  ;
                    WHITE =       "37m"                  ;
+               WITH_BACK =       "43m"                  ;
                 if (REVERSE == "YES")
                 {
                    WHITE =       "30m"                  ;       # Black
@@ -364,6 +373,8 @@ fi
                   COL_OH = 24                           ;       # to print the ORACLE_HOMEs
                COL_OWNER = 6                            ;       # to print owner:group
                COL_GROUP = 3                            ;       # to print owner:group
+             COL_DEFAULT = BLUE                         ;       # for the "-"
+        RECENT_RESTARTED = 0                            ;       # To show a legend if we found a recent restarted
         }
 
         #
@@ -373,6 +384,26 @@ fi
         {       right = int((n - length(str)) / 2)                                                              ;
                 left  = n - length(str) - right                                                                 ;
                 return sprintf(COLOR_BEGIN color "%" left "s%s%" right "s" COLOR_END "|", "", str, "" )         ;
+        }
+        #
+        # Get a date in format MM/DD/YYYY HH24:MI:SS and return the rounded number hours difference
+        # between this date and the current date
+        function diff_hours(a_date)
+        {       split(a_date, temp, /[\/ :]/)                                                                   ;
+                #return sprintf("%d",(systime()-mktime (temp[3]" "temp[1]" "temp[2]" "temp[4]" "temp[5]" "temp[6]))/(60*60))     ;
+                return (systime()-mktime (temp[3]" "temp[1]" "temp[2]" "temp[4]" "temp[5]" "temp[6]))/(60*60)     ;
+        }
+        #
+        # Print a legend for the recent restarted instances, listeners and services
+        #
+        function print_legend_recent_restarted()
+        {
+                if (RECENT_RESTARTED == 1)
+                {       IN_DAYS=sprintf("%.2f", DIFF_HOURS/24)                                  ;       # Round nb of days
+                        printf ("\n")                                                           ;
+                        printf(COLOR_BEGIN WITH_BACK " %-"3"s" COLOR_END, " ")                  ;
+                        printf(COLOR_BEGIN WHITE " %-"12"s\n " COLOR_END, ": Has been restarted less than "DIFF_HOURS" hours ago ("IN_DAYS" days ago)")              ;
+                }
         }
         #
         # A function that just print a "---" white line
@@ -414,8 +445,8 @@ fi
                                 if ((DB in version == 0) && (DB in tab_lsnr == 0) && (DB in tab_svc == 0))
                                 {
                                         # Get the owner and the group
-                                        match($2, /owner:([a-z]*):.*/, OWNER);
-                                        match($2, /^.*pgrp:([a-z]*):.*/, GROUP);
+                                        match($2, /owner:([[:alnum:]]*):.*/, OWNER)                             ;
+                                        match($2, /^.*pgrp:([[:alnum:]]*):.*/, GROUP)                           ;
 
                                         while (getline)
                                         {
@@ -477,6 +508,7 @@ fi
                                                                                 if ($2 ~ /OFFLINE/) {STATE=""           ;}
                                                                         }
                                         if ($1 == "TARGET")             {       TARGET = $2                             ;}
+                                        if ($1 == "LAST_RESTART")       {       started[DB,SERVER]=diff_hours($2" "$3)  ;}
                                         if ($1 == "STATE_DETAILS")      {       NB++                                    ;       # Number of instances we came through
                                                                                 sub("STATE_DETAILS=", "", $0)           ;
                                                                                 sub(",HOME=.*$", "", $0)                ;       # Manage the 12cR2 new feature, check 20170606 for more details
@@ -531,10 +563,17 @@ fi
                                         for (i = 1; i <= n; i++)
                                         {
                                                 dbstatus = status[lsnr_sorted[j],nodes[i]]                      ;
-
-                                                if (dbstatus == "")             {printf("%s", center(UNKNOWN , COL_NODE, BLUE         ))      ;}      else
-                                                if (dbstatus == "Online")       {printf("%s", center(dbstatus, COL_NODE, GREEN        ))      ;}
-                                                else                            {printf("%s", center(dbstatus, COL_NODE, RED          ))      ;}
+                                                if ((started[lsnr_sorted[j],nodes[i]] < DIFF_HOURS) && (started[lsnr_sorted[j],nodes[i]]))
+                                                {         COL_ONLINE=WITH_BACK                          ;
+                                                           COL_OTHER=WITH_BACK                          ;
+                                                    RECENT_RESTARTED=1                                  ;
+                                                } else {
+                                                          COL_ONLINE=GREEN                              ;
+                                                           COL_OTHER=RED                                ;
+                                                }
+                                                if (dbstatus == "")             {printf("%s", center(UNKNOWN , COL_NODE, COL_DEFAULT    ))      ;}      else
+                                                if (dbstatus == "Online")       {printf("%s", center(dbstatus, COL_NODE, COL_ONLINE     ))      ;}
+                                                else                            {printf("%s", center(dbstatus, COL_NODE, COL_OTHER      ))      ;}
                                         }
                                         if (toupper(lsnr_sorted[j]) ~ /SCAN/)
                                         {       LSNR_TYPE = "SCAN"                                              ;
@@ -585,11 +624,18 @@ fi
 
                                         for (i = 1; i <= n; i++)
                                         {
-                                                dbstatus = status[svc_sorted[j],nodes[i]]                       ;
-
-                                                if (dbstatus == "")             {printf("%s", center(UNKNOWN , COL_NODE, BLUE         ))      ;}      else
-                                                if (dbstatus == "Online")       {printf("%s", center(dbstatus, COL_NODE, GREEN        ))      ;}
-                                                else                            {printf("%s", center(dbstatus, COL_NODE, RED          ))      ;}
+                                                dbstatus = status[svc_sorted[j],nodes[i]]               ;
+                                                if ((started[svc_sorted[j],nodes[i]] < DIFF_HOURS) && (started[svc_sorted[j],nodes[i]] < DIFF_HOURS))
+                                                {         COL_ONLINE=WITH_BACK                          ;
+                                                           COL_OTHER=WITH_BACK                          ;
+                                                    RECENT_RESTARTED=1                                  ;
+                                                } else {
+                                                          COL_ONLINE=GREEN                              ;
+                                                           COL_OTHER=RED                                ;
+                                                }
+                                                if (dbstatus == "")             {printf("%s", center(UNKNOWN , COL_NODE, COL_DEFAULT   ))      ;}      else
+                                                if (dbstatus == "Online")       {printf("%s", center(dbstatus, COL_NODE, COL_ONLINE    ))      ;}
+                                                else                            {printf("%s", center(dbstatus, COL_NODE, COL_OTHER     ))      ;}
                                         }
                                         printf("\n")                                                             ;
                                 }
@@ -623,15 +669,27 @@ fi
 
                                         for (i = 1; i <= n; i++) {
                                                 dbstatus = status[version_sorted[j],nodes[i]]                    ;
-
                                                 #
                                                 # Print the status here, all that are not listed in that if ladder will appear in RED
                                                 #
-                                                if (dbstatus == "")                     {printf("%s", center(UNKNOWN , COL_NODE, BLUE         ))      ;}      else
-                                                if (dbstatus == "Open")                 {printf("%s", center(dbstatus, COL_NODE, GREEN        ))      ;}      else
-                                                if (dbstatus ~  /Readonly/)             {printf("%s", center(dbstatus, COL_NODE, WHITE        ))      ;}      else
-                                                if (dbstatus ~  /Shut/)                 {printf("%s", center(dbstatus, COL_NODE, YELLOW       ))      ;}      else
-                                                                                        {printf("%s", center(dbstatus, COL_NODE, RED          ))      ;}
+                                                if ((started[version_sorted[j],nodes[i]] < DIFF_HOURS) && (started[version_sorted[j],nodes[i]]))
+                                                {           COL_OPEN=WITH_BACK                          ;
+                                                        COL_READONLY=WITH_BACK                          ;
+                                                            COL_SHUT=WITH_BACK                          ;
+                                                           COL_OTHER=WITH_BACK                          ;
+                                                    RECENT_RESTARTED=1                                  ;
+                                                } else {
+                                                            COL_OPEN=GREEN                              ;
+                                                        COL_READONLY=WHITE                              ;
+                                                            COL_SHUT=YELLOW                             ;
+                                                           COL_OTHER=RED                                ;
+                                                }
+                                                if (dbstatus == "")                     {printf("%s", center(UNKNOWN , COL_NODE, COL_DEFAULT ))  ;}      else
+                                                if (dbstatus == "Open")                 {printf("%s", center(dbstatus, COL_NODE, COL_OPEN    ))  ;}      else
+                                                if (dbstatus ~  /Readonly/)             {printf("%s", center(dbstatus, COL_NODE, COL_READONLY))  ;}      else
+                                                if (dbstatus ~  /Shut/)                 {printf("%s", center(dbstatus, COL_NODE, COL_SHUT    ))  ;}      else
+                                                                                        {printf("%s", center(dbstatus, COL_NODE, COL_OTHER   ))  ;}
+
                                         }
                                         #
                                         # Color the DB Type column depending on the ROLE of the database (20170619)
@@ -639,27 +697,19 @@ fi
                                         if (role[version_sorted[j]] == "PRIMARY") { ROLE_COLOR=WHITE ; ROLE_SHORT=" (P)"; } else { ROLE_COLOR=RED ; ROLE_SHORT=" (S)" }
                                         printf("%s", center(dbtype[version_sorted[j]] ROLE_SHORT, COL_TYPE, ROLE_COLOR))           ;
 
-                                        printf("\n")                                                              ;
+                                        printf("\n")                                                            ;
                                 }
 
                                 # a "---" line as a footer
-                                print_a_line()                                                                    ;
+                                print_a_line()                                                                  ;
 
                                 # Print the OH list and a legend for the DB Type colors underneath the table
-                                printf ("\n%s", "ORACLE_HOME references listed in the Version column ")        ;
+                                printf ("%s", "ORACLE_HOME references listed in the Version column ")         ;
                                 if (oh_ref > 1)
                                 {
                                         printf ("(%s)", "\"" sprintf(COLOR_BEGIN TEAL "%s" COLOR_END, "\47\47") "\" means \"same as above\"")     ;
                                 }
                                 printf ("\n\n")                                                                 ;
-
-# Note sure it is needed         # Print the output in many lines for code visibility
-#                                printf ("\t\t\t\t")                                                             ;
-#                                printf("%s" COLOR_BEGIN WHITE "%-6s" COLOR_END    , "Primary : ", "White")        ;
-#                                printf("%s" COLOR_BEGIN WHITE "%s"   COLOR_END"\n", "and "      , "(P)"  )        ;
-#                                printf ("\t\t\t\t\t\t\t\t\t\t\t")                                               ;
-#                                printf("%s" COLOR_BEGIN RED "%-6s"   COLOR_END    , "Standby : ", "Red"  )        ;
-#                                printf("%s" COLOR_BEGIN RED "%s"     COLOR_END"\n", "and "      , "(S)" )         ;
 
                                 previous_group = ""                     ;
                                 previous_owner = ""                     ;
@@ -687,7 +737,9 @@ fi
                                         previous_owner = owner          ;
                                 }
                         }
-        }' $TMP | ${AWK} -v GREP="$GREP" -v UNGREP="$UNGREP" ' BEGIN {FS="|"}                                              # AWK used to grep and ungrep
+        }
+        END {   print_legend_recent_restarted();
+        } ' $TMP | ${AWK} -v GREP="$GREP" -v UNGREP="$UNGREP" ' BEGIN {FS="|"}                                              # AWK used to grep and ungrep
                       {         if ((NF >= 3) && ($(NF-1) !~ /Type/) && ($2 !~ /Service/))
                                 {       if (($0 ~ GREP) && ($0 !~ UNGREP))
                                         {
