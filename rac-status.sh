@@ -7,10 +7,11 @@
 # Please have a look at http://bit.ly/2MFkzDw  for some details and screenshots
 # The latest version of the script can be downloaded here : http://bit.ly/2XEXa6j
 #
-# The current script version is 20190617
+# The current script version is 20190620
 #
 # History :
 #
+# 20190620 - Fred Denis - Fixed an issue with the sorting when there was recently restarted instances
 # 20190617 - Fred Denis - New -c option to sort the databases output
 # 20190606 - Fred Denis - Show a yellow background when a resource has been restarted less than DIFF_HOURS hours
 #                         A new -w option can be use to specify a number of hours through the command line
@@ -757,6 +758,9 @@ fi
                                 }
                         }' | sed s'/^/  /'              > ${TMP2}                       # We can reuse TMP2 here
 
+	#
+	# Special sort order (option -c)
+	#
 	if [[ -n ${SORT_BY} ]] 								# Special sort order
 	then
 		  SORT_COL="${SORT_BY:0:1}"						# First character
@@ -778,16 +782,20 @@ fi
 		# Assign the column  number depending of what we want to sort by
 		SORT_NUM=1
 		case ${SORT_COL} in
-		c )	SORT_NUM=${SORT_NODE}									;;		# Sort by column number
-		d )	SORT_NUM=1										;;		# Sort by DB name
-		v )	SORT_NUM=2										;;		# Sort by version
-		s )	SORT_NUM=$((2 + ${SORT_NODE}))								;;		# Sort by status (Shutdown, Open)
-		t )	SORT_NUM=`cat ${TMP2} | awk 'BEGIN {FS="|"} {if ($2 ~ "Version"){print (NF-1); exit}}'`	;;		# Sort by Type
+		c )	if [[ "${SORT_NODE}" -gt "2" ]]
+			then 
+				SORT_NUM=$(((${SORT_NODE}*2)+1))
+			else	SORT_NUM=$(( ${SORT_NODE}*2   ))
+			fi											;;		# Sort by column number
+		d )	SORT_NUM=2										;;		# Sort by DB name
+		v )	SORT_NUM=4										;;		# Sort by version
+		s )	SORT_NUM=$(((${SORT_NODE}*2)+5))							;;		# Sort by status (Shutdown, Open)
+		t )	TYPE_COL=`cat ${TMP2} | awk 'BEGIN {FS="|"}{if ($2 ~ "Version"){print (NF-1); exit}}'`	;
+			SORT_NUM=$(((${TYPE_COL}*2)+1))								;;		# Sort by Type
 		esac
-		echo "sort num" $SORT_NUM
 
 		cat ${TMP2} | awk 'BEGIN {FS="|"} {print $0; if ($2 ~ "Version"){getline; print $0; exit;}}' > ${TMP}
-		cat ${TMP2} | awk 'BEGIN {FS="|"}{if ($2 ~ "Version"){getline; getline; while(getline){if ($0 ~ /---------------/){break}; print $0; }}}' | sort -i -k ${SORT_NUM} -t "|" ${SORT_ORDER} >> ${TMP}
+		cat ${TMP2} | awk 'BEGIN {FS="|"}{if ($2 ~ "Version"){getline; while(getline){if ($0 ~ /---------------/){break}; print $0; }}}' | sort -i -k ${SORT_NUM}  ${SORT_ORDER} >> ${TMP}
 		tac ${TMP2} | awk '{print $0; if ($0 ~ /---------------/){exit;}}' | tac >> ${TMP}
 
 		cp ${TMP} ${TMP2}
