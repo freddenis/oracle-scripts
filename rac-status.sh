@@ -1,5 +1,5 @@
 #!/bin/bash
-# Fred Denis -- Jan 2016 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com 
+# Fred Denis -- Jan 2016 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
 #
 # Quickly shows a status of all running instances accross a 12c cluster
 # The script just needs to have a working oraenv, if rac-status.sh hangs, you may suffer from http://bit.ly/2IODPJo (alternatively ,see the -e option)
@@ -7,10 +7,12 @@
 # Please have a look at http://bit.ly/2MFkzDw  for some details and screenshots
 # The latest version of the script can be downloaded here : http://bit.ly/2XEXa6j
 #
-# The current script version is 20190620
+# The current script version is 20190621
 #
 # History :
 #
+# 20190621 - Fred Denis - Fixed a bug on the sorting when version was different as other (12.1 instead of 12.1.0.0)
+#                       - Option -w now also supports d for day, w for week, m for month and y for year to specify the delay
 # 20190620 - Fred Denis - Fixed an issue with the sorting when there was recently restarted instances
 # 20190617 - Fred Denis - New -c option to sort the databases output
 # 20190606 - Fred Denis - Show a yellow background when a resource has been restarted less than DIFF_HOURS hours
@@ -72,7 +74,7 @@
 WITH_COLORS="YES"                                                         # Output with colors, (-b changes this to NO); set to NO for permanent no colored output
       WHITE="37m"                                                         # White color code
  DIFF_HOURS="24"                                                          # Nb of hours the instance has been restarted
-    SORT_BY=""								  # Column to sort by (see the help for possible values)
+    SORT_BY=""                                                            # Column to sort by (see the help for possible values)
 
 # Choose the information what you want to see -- the last uncommented value wins
 # ./rac-status.sh -h for more information
@@ -175,7 +177,7 @@ cat << END
                         $ ./rac-status.sh -g "Open|Online"              # Show only the lines with "Open" or "Online" on it
                         $ ./rac-status.sh -g "Open|Online" -v 12        # Show only the lines with "Open" or "Online" on it but no those containing 12
 
-	-c	Column to sort by (default is sorted by database name in an alphabetic order
+        -c      Column to sort by, please have a look at "Sort the database output" in http://bit.ly/2MFkzDw for more details on this -c option
 
         -o                Specify a file to save the crsctl commands output
                                         $ ./rac-status.sh -o /tmp/rac-status_output.log
@@ -190,6 +192,11 @@ cat << END
         -u        Shows the Uncolored output (no colors); set WITH_COLORS="NO" on top of the script to have it permanently
 
         -w        Show a yellow background when a resource has been restarted less than the number of hours in parameter (default is $DIFF_HOURS)
+                    h for hours (default) d for day, w for week, m for month and y for year can be used to specify the delay:
+                        $ ./rac-status.sh -w 24         # 24 hours
+                        $ ./rac-status.sh -w 24h        # 24 hours
+                        $ ./rac-status.sh -w 2d         # 2 days
+                        $ ./rac-status.sh -w 3m         # 3 months
 
         -h        Shows this help
 
@@ -212,7 +219,7 @@ while getopts "andslhg:v:o:f:eruw:c:" OPT; do
         s)         if [ "$SHOW_SVC"  = "YES" ]; then  SHOW_SVC="NO"; else  SHOW_SVC="YES"; fi   ;;
         l)         if [ "$SHOW_LSNR" = "YES" ]; then SHOW_LSNR="NO"; else SHOW_LSNR="YES"; fi   ;;
         g)           GREP=${OPTARG}                                                             ;;
-	c)	  SORT_BY=${OPTARG}								;;
+        c)        SORT_BY=${OPTARG}                                                             ;;
         v)         UNGREP=${OPTARG}                                                             ;;
         f)           FILE=${OPTARG}                                                             ;;
         o)            OUT=${OPTARG}                                                             ;;
@@ -224,6 +231,27 @@ while getopts "andslhg:v:o:f:eruw:c:" OPT; do
         \?)        echo "Invalid option: -$OPTARG" >&2; usage                                   ;;
         esac
 done
+
+
+#
+# Manage the diff hours depending on the unit in the -w option
+#
+DIFF_HOURS_UNIT=${DIFF_HOURS: -1}
+
+if [[ ! "${DIFF_HOURS_UNIT}" =~ [0-9] ]]
+then
+        HOURS=`echo ${DIFF_HOURS} | sed s'/.$//'`
+
+        case ${DIFF_HOURS_UNIT} in
+        h)      NB_HOURS=1                                                                      ;;
+        d)      NB_HOURS=24                                                                     ;;
+        w)      NB_HOURS=$((24*7))                                                              ;;
+        m)      NB_HOURS=$((24*7*31))                                                           ;;
+        y)      NB_HOURS=$((24*7*31*365))                                                       ;;
+        esac
+
+        DIFF_HOURS=$(($HOURS * $NB_HOURS))
+fi
 
 #
 # Check that the input file is here if specified
@@ -672,8 +700,10 @@ fi
                                 for (j = 1; j <= m; j++)
                                 {
                                         printf(COLOR_BEGIN WHITE " %-"COL_DB-1"s" COLOR_END"|", version_sorted[j], WHITE);     # Database
-                                        printf(COLOR_BEGIN WHITE " %-"COL_VER-7"s" COLOR_END, version[version_sorted[j]], COL_VER, WHITE)         ;       # Version
-                                        printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")            ;       # OH id
+                                        #printf(COLOR_BEGIN WHITE " %-"COL_VER-7"s" COLOR_END, version[version_sorted[j]], COL_VER, WHITE)         ;       # Version
+                                        #printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")            ;       # OH id
+                                        printf(COLOR_BEGIN WHITE " %-"COL_VER-6"s" COLOR_END, version[version_sorted[j]], COL_VER, WHITE)         ;       # Version
+                                        printf(COLOR_BEGIN WHITE "%5s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")            ;       # OH id
 
                                         for (i = 1; i <= n; i++) {
                                                 dbstatus = status[version_sorted[j],nodes[i]]                    ;
@@ -758,48 +788,55 @@ fi
                                 }
                         }' | sed s'/^/  /'              > ${TMP2}                       # We can reuse TMP2 here
 
-	#
-	# Special sort order (option -c)
-	#
-	if [[ -n ${SORT_BY} ]] 								# Special sort order
-	then
-		  SORT_COL="${SORT_BY:0:1}"						# First character
-                 SORT_NODE="${SORT_BY:1:1}"						# Second character
-		SORT_ORDER="${SORT_BY: -1}"						# Last character
+        #
+        # Special sort order (option -c)
+        #
+        if [[ -n ${SORT_BY} ]]                                                          # Special sort order
+        then
+                  SORT_COL="${SORT_BY:0:1}"                                             # First character
+                 SORT_NODE="${SORT_BY:1:1}"                                             # Second character
+                SORT_ORDER="${SORT_BY: -1}"                                             # Last character
 
-		# Sort order can only be "r" for reverse or "" for normal
-		if [[ "${SORT_ORDER}" != "r" ]]
-		then	SORT_ORDER=""
-		else	SORT_ORDER=" -r "
-		fi
+                # Sort order can only be "r" for reverse or "" for normal
+                if [[ "${SORT_ORDER}" != "r" ]]
+                then    SORT_ORDER=""
+                else    SORT_ORDER=" -r "
+                fi
 
-		# Column or node number
-		if [[ ! "${SORT_NODE}" =~ [1-9] ]]
-		then	SORT_NODE=1
-		fi
+                # Column or node number
+                if [[ ! "${SORT_NODE}" =~ [1-9] ]]
+                then    SORT_NODE=1
+                fi
 
 
-		# Assign the column  number depending of what we want to sort by
-		SORT_NUM=1
-		case ${SORT_COL} in
-		c )	if [[ "${SORT_NODE}" -gt "2" ]]
-			then 
-				SORT_NUM=$(((${SORT_NODE}*2)+1))
-			else	SORT_NUM=$(( ${SORT_NODE}*2   ))
-			fi											;;		# Sort by column number
-		d )	SORT_NUM=2										;;		# Sort by DB name
-		v )	SORT_NUM=4										;;		# Sort by version
-		s )	SORT_NUM=$(((${SORT_NODE}*2)+5))							;;		# Sort by status (Shutdown, Open)
-		t )	TYPE_COL=`cat ${TMP2} | awk 'BEGIN {FS="|"}{if ($2 ~ "Version"){print (NF-1); exit}}'`	;
-			SORT_NUM=$(((${TYPE_COL}*2)+1))								;;		# Sort by Type
-		esac
+                # Assign the column  number depending of what we want to sort by
+                 SORT_NUM=1
+                SORT_NUM2=2                                                                                                     # Second column to sort by
+                case ${SORT_COL} in
+                c )     if [[ "${SORT_NODE}" -gt "2" ]]
+                        then
+                                SORT_NUM=$(((${SORT_NODE}*2)+2))
+                                SORT_NUM2=$((${SORT_NUM}-1))
+                        else    SORT_NUM=$(( ${SORT_NODE}*2   ))
+                        fi                                                                                      ;;              # Sort by column number
+                d )     SORT_NUM=2                                                                              ;;              # Sort by DB name
+                v )     SORT_NUM=4                                                                              ;;              # Sort by version
+                s )     SORT_NUM=$(((${SORT_NODE}*2)+6))                                                        ;               # Sort by status (Shutdown, Open)
+                        SORT_NUM2=$((${SORT_NUM}-1))                                                            ;;
+                t )     TYPE_COL=`cat ${TMP2} | awk 'BEGIN {FS="|"}{if ($2 ~ "Version"){print (NF-1); exit}}'`  ;
+                        SORT_NUM=$(((${TYPE_COL}*2)+1))                                                         ;;              # Sort by Type
+                esac
+                echo "sort num" $SORT_NUM
+                echo "sort node" $SORT_NODE
 
-		cat ${TMP2} | awk 'BEGIN {FS="|"} {print $0; if ($2 ~ "Version"){getline; print $0; exit;}}' > ${TMP}
-		cat ${TMP2} | awk 'BEGIN {FS="|"}{if ($2 ~ "Version"){getline; while(getline){if ($0 ~ /---------------/){break}; print $0; }}}' | sort -i -k ${SORT_NUM}  ${SORT_ORDER} >> ${TMP}
-		tac ${TMP2} | awk '{print $0; if ($0 ~ /---------------/){exit;}}' | tac >> ${TMP}
+                SORT_K_2=" -k "${SORT_NUM2}" "
 
-		cp ${TMP} ${TMP2}
-	fi
+                cat ${TMP2} | awk 'BEGIN {FS="|"} {print $0; if ($2 ~ "Version"){getline; print $0; exit;}}' > ${TMP}
+                cat ${TMP2} | awk 'BEGIN {FS="|"}{if ($2 ~ "Version"){getline; while(getline){if ($0 ~ /---------------/){break}; print $0; }}}' | sort -i -k ${SORT_NUM} ${SORT_ORDER} ${SORT_K_2} >> ${TMP}
+                tac ${TMP2} | awk '{print $0; if ($0 ~ /---------------/){exit;}}' | tac >> ${TMP}
+
+                cp ${TMP} ${TMP2}
+        fi
 
         if [[ "$WITH_COLORS" == "YES" ]]
         then
