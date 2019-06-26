@@ -7,10 +7,11 @@
 # Please have a look at http://bit.ly/2MFkzDw  for some details and screenshots
 # The latest version of the script can be downloaded here : http://bit.ly/2XEXa6j
 #
-# The current script version is 20190621
+# The current script version is 20190626
 #
 # History :
 #
+# 20190626 - Fred Denis - Better sorting, better recently restarted legend
 # 20190621 - Fred Denis - Fixed a bug on the sorting when version was different as other (12.1 instead of 12.1.0.0)
 #                       - Option -w now also supports d for day, w for week, m for month and y for year to specify the delay
 # 20190620 - Fred Denis - Fixed an issue with the sorting when there was recently restarted instances
@@ -251,6 +252,9 @@ then
         esac
 
         DIFF_HOURS=$(($HOURS * $NB_HOURS))
+else
+	DIFF_HOURS_UNIT="h"
+	          HOURS=${DIFF_HOURS}
 fi
 
 #
@@ -377,7 +381,12 @@ then
                 if [ "$NB_NODES" -gt "4" ]; then COL_NODE_OFFSET=3      ;       fi      ;
 fi
 
-        ${AWK} -v NODES="$NODES" -v col_node_offset="$COL_NODE_OFFSET" -v REVERSE="$REVERSE" -v DIFF_HOURS="$DIFF_HOURS" 'BEGIN\
+        ${AWK} -v NODES="$NODES" -v col_node_offset="$COL_NODE_OFFSET"	\
+				 -v         REVERSE="$REVERSE"		\
+				 -v      DIFF_HOURS="$DIFF_HOURS"	\
+				 -v           HOURS="$HOURS" 		\
+		 		 -v DIFF_HOURS_UNIT="$DIFF_HOURS_UNIT"  \
+	'BEGIN\
         {             FS = "="                          ;
                        n = split(NODES, nodes, ",")     ;       # Make a table with the nodes of the cluster
                 # some colors
@@ -435,10 +444,17 @@ fi
         function print_legend_recent_restarted()
         {
                 if (RECENT_RESTARTED == 1)
-                {       IN_DAYS=sprintf("%.2f", DIFF_HOURS/24)                                  ;       # Round nb of days
+                {       #IN_DAYS=sprintf("%.2f", DIFF_HOURS/24)                                  ;       # Round nb of days
                         printf ("\n")                                                           ;
                         printf(COLOR_BEGIN WITH_BACK " %-"3"s" COLOR_END, " ")                  ;
-                        printf(COLOR_BEGIN WHITE " %-"12"s\n " COLOR_END, ": Has been restarted less than "DIFF_HOURS" hours ago ("IN_DAYS" days ago)")              ;
+                        #printf(COLOR_BEGIN WHITE " %-"12"s\n " COLOR_END, ": Has been restarted less than "DIFF_HOURS" hours ago ("IN_DAYS" days ago)")              ;
+			if (DIFF_HOURS_UNIT == "h")	{ UNIT="hour"		}
+			if (DIFF_HOURS_UNIT == "d")	{ UNIT="day"		}	
+			if (DIFF_HOURS_UNIT == "w")	{ UNIT="week"		}	
+			if (DIFF_HOURS_UNIT == "m")	{ UNIT="month"		}	
+			if (DIFF_HOURS_UNIT == "y")	{ UNIT="year"		}	
+			if (HOURS > 1)			{ UNIT=UNIT"s"		}	
+                        printf(COLOR_BEGIN WHITE " %-"12"s\n " COLOR_END, ": Has been restarted less than "HOURS" "UNIT" ago.")             ;
                 }
         }
         #
@@ -703,7 +719,7 @@ fi
                                         #printf(COLOR_BEGIN WHITE " %-"COL_VER-7"s" COLOR_END, version[version_sorted[j]], COL_VER, WHITE)         ;       # Version
                                         #printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")            ;       # OH id
                                         printf(COLOR_BEGIN WHITE " %-"COL_VER-6"s" COLOR_END, version[version_sorted[j]], COL_VER, WHITE)         ;       # Version
-                                        printf(COLOR_BEGIN WHITE "%5s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")            ;       # OH id
+                                        printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")            ;       # OH id
 
                                         for (i = 1; i <= n; i++) {
                                                 dbstatus = status[version_sorted[j],nodes[i]]                    ;
@@ -797,10 +813,15 @@ fi
                  SORT_NODE="${SORT_BY:1:1}"                                             # Second character
                 SORT_ORDER="${SORT_BY: -1}"                                             # Last character
 
+		if [[ "${SORT_COL}" =~ [1-9] ]]
+		then	SORT_NODE=${SORT_COL}
+			 SORT_COL="c"
+		fi
+
                 # Sort order can only be "r" for reverse or "" for normal
                 if [[ "${SORT_ORDER}" != "r" ]]
                 then    SORT_ORDER=""
-                else    SORT_ORDER=" -r "
+                else    SORT_ORDER="r"
                 fi
 
                 # Column or node number
@@ -811,7 +832,8 @@ fi
 
                 # Assign the column  number depending of what we want to sort by
                  SORT_NUM=1
-                SORT_NUM2=2                                                                                                     # Second column to sort by
+                SORT_NUM2=2                                                                                                    # Second column to sort by
+                SORT_NUM3=2                                                                                                    # Third column to sort by
                 case ${SORT_COL} in
                 c )     if [[ "${SORT_NODE}" -gt "2" ]]
                         then
@@ -826,13 +848,13 @@ fi
                 t )     TYPE_COL=`cat ${TMP2} | awk 'BEGIN {FS="|"}{if ($2 ~ "Version"){print (NF-1); exit}}'`  ;
                         SORT_NUM=$(((${TYPE_COL}*2)+1))                                                         ;;              # Sort by Type
                 esac
-                echo "sort num" $SORT_NUM
-                echo "sort node" $SORT_NODE
 
-                SORT_K_2=" -k "${SORT_NUM2}" "
+		SORT_K_1=" -k"${SORT_NUM}${SORT_ORDER}" "
+                SORT_K_2=" -k"${SORT_NUM2}" "
+                SORT_K_3=" -k"${SORT_NUM3}" "
 
                 cat ${TMP2} | awk 'BEGIN {FS="|"} {print $0; if ($2 ~ "Version"){getline; print $0; exit;}}' > ${TMP}
-                cat ${TMP2} | awk 'BEGIN {FS="|"}{if ($2 ~ "Version"){getline; while(getline){if ($0 ~ /---------------/){break}; print $0; }}}' | sort -i -k ${SORT_NUM} ${SORT_ORDER} ${SORT_K_2} >> ${TMP}
+                cat ${TMP2} | awk 'BEGIN {FS="|"}{if ($2 ~ "Version"){getline; while(getline){if ($0 ~ /---------------/){break}; print $0; }}}' | sort -i ${SORT_K_1} ${SORT_K_2} ${SORT_K_3} >> ${TMP}
                 tac ${TMP2} | awk '{print $0; if ($0 ~ /---------------/){exit;}}' | tac >> ${TMP}
 
                 cp ${TMP} ${TMP2}
