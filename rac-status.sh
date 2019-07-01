@@ -1,16 +1,18 @@
 #!/bin/bash
 # Fred Denis -- Jan 2016 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
 #
-# Quickly shows a status of all running instances accross a 12c cluster
+# Quickly shows a status of all running instances accross a 11g, 12c, 18c+ cluster
 # The script just needs to have a working oraenv, if rac-status.sh hangs, you may suffer from http://bit.ly/2IODPJo (alternatively ,see the -e option)
+# Ultimately, feel free to contact me
 #
 # Please have a look at http://bit.ly/2MFkzDw  for some details and screenshots
 # The latest version of the script can be downloaded here : http://bit.ly/2XEXa6j
 #
-# The current script version is 20190626
+# The current script version is 20190701
 #
 # History :
 #
+# 20190701 - Fred Denis - Minor fixes, alignements issues with the sorting
 # 20190626 - Fred Denis - Better sorting, better recently restarted legend
 # 20190621 - Fred Denis - Fixed a bug on the sorting when version was different as other (12.1 instead of 12.1.0.0)
 #                       - Option -w now also supports d for day, w for week, m for month and y for year to specify the delay
@@ -253,9 +255,18 @@ then
 
         DIFF_HOURS=$(($HOURS * $NB_HOURS))
 else
-	DIFF_HOURS_UNIT="h"
-	          HOURS=${DIFF_HOURS}
+        DIFF_HOURS_UNIT="h"
+                  HOURS=${DIFF_HOURS}
 fi
+
+#
+# If we dont show the DB we dont need to sort
+#
+if [ "$SHOW_DB" = "NO" ]
+then
+        SORT_BY=""
+fi
+
 
 #
 # Check that the input file is here if specified
@@ -381,12 +392,12 @@ then
                 if [ "$NB_NODES" -gt "4" ]; then COL_NODE_OFFSET=3      ;       fi      ;
 fi
 
-        ${AWK} -v NODES="$NODES" -v col_node_offset="$COL_NODE_OFFSET"	\
-				 -v         REVERSE="$REVERSE"		\
-				 -v      DIFF_HOURS="$DIFF_HOURS"	\
-				 -v           HOURS="$HOURS" 		\
-		 		 -v DIFF_HOURS_UNIT="$DIFF_HOURS_UNIT"  \
-	'BEGIN\
+        ${AWK} -v NODES="$NODES" -v col_node_offset="$COL_NODE_OFFSET"  \
+                                 -v         REVERSE="$REVERSE"          \
+                                 -v      DIFF_HOURS="$DIFF_HOURS"       \
+                                 -v           HOURS="$HOURS"            \
+                                 -v DIFF_HOURS_UNIT="$DIFF_HOURS_UNIT"  \
+        'BEGIN\
         {             FS = "="                          ;
                        n = split(NODES, nodes, ",")     ;       # Make a table with the nodes of the cluster
                 # some colors
@@ -444,17 +455,17 @@ fi
         function print_legend_recent_restarted()
         {
                 if (RECENT_RESTARTED == 1)
-                {       #IN_DAYS=sprintf("%.2f", DIFF_HOURS/24)                                  ;       # Round nb of days
+                {       #IN_DAYS=sprintf("%.2f", DIFF_HOURS/24)                                 ;       # Round nb of days
                         printf ("\n")                                                           ;
                         printf(COLOR_BEGIN WITH_BACK " %-"3"s" COLOR_END, " ")                  ;
-                        #printf(COLOR_BEGIN WHITE " %-"12"s\n " COLOR_END, ": Has been restarted less than "DIFF_HOURS" hours ago ("IN_DAYS" days ago)")              ;
-			if (DIFF_HOURS_UNIT == "h")	{ UNIT="hour"		}
-			if (DIFF_HOURS_UNIT == "d")	{ UNIT="day"		}	
-			if (DIFF_HOURS_UNIT == "w")	{ UNIT="week"		}	
-			if (DIFF_HOURS_UNIT == "m")	{ UNIT="month"		}	
-			if (DIFF_HOURS_UNIT == "y")	{ UNIT="year"		}	
-			if (HOURS > 1)			{ UNIT=UNIT"s"		}	
+                        if (DIFF_HOURS_UNIT == "h")     { UNIT="hour"           }
+                        if (DIFF_HOURS_UNIT == "d")     { UNIT="day"            }
+                        if (DIFF_HOURS_UNIT == "w")     { UNIT="week"           }
+                        if (DIFF_HOURS_UNIT == "m")     { UNIT="month"          }
+                        if (DIFF_HOURS_UNIT == "y")     { UNIT="year"           }
+                        if (HOURS > 1)                  { UNIT=UNIT"s"          }
                         printf(COLOR_BEGIN WHITE " %-"12"s\n " COLOR_END, ": Has been restarted less than "HOURS" "UNIT" ago.")             ;
+                        RECENT_RESTARTED = 0                                                    ;
                 }
         }
         #
@@ -586,7 +597,7 @@ fi
                         {
                                 # A header for the listeners
                                 printf("%s", center("Listener" ,  COL_DB, WHITE))                               ;
-                                printf("%s", center("Port"     , COL_VER, WHITE))                               ;
+                                printf("%s", center("Port"     , COL_VER+1, WHITE))                             ;
                                 n=asort(nodes)                                                                  ;       # sort array nodes
                                 for (i = 1; i <= n; i++) {
                                         printf("%s", center(nodes[i], COL_NODE, WHITE))                         ;
@@ -606,10 +617,10 @@ fi
                                         # We then print it outside of the table after the last column
                                         if (length(port[lsnr_sorted[j]]) > COL_VER)
                                         {
-                                                printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s" COLOR_END"|", "See -->", WHITE);       # "See -->"
+                                                printf(COLOR_BEGIN WHITE " %-"COL_VER"s" COLOR_END"|", "See -->", WHITE);       # "See -->"
                                                 print_port_later = 1                                            ;
                                         } else {
-                                                printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s" COLOR_END"|", port[lsnr_sorted[j]], WHITE);      # Port
+                                                printf(COLOR_BEGIN WHITE " %-"COL_VER"s" COLOR_END"|", port[lsnr_sorted[j]], WHITE);      # Port
                                         }
 
                                         for (i = 1; i <= n; i++)
@@ -648,7 +659,7 @@ fi
                         {
                                 # A header for the services
                                 printf("%s", center("DB"      ,  COL_DB, WHITE))                                ;
-                                printf("%s", center("Service" ,  COL_VER, WHITE))                               ;
+                                printf("%s", center("Service" ,  COL_VER+1, WHITE))                             ;
                                 n=asort(nodes)                                                                  ;       # sort array nodes
                                 for (i = 1; i <= n; i++) {
                                         printf("%s", center(nodes[i], COL_NODE, WHITE))                         ;
@@ -672,7 +683,7 @@ fi
                                                 printf("%s", center("",  COL_DB, WHITE))                        ;
                                         }
                                         #printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s" COLOR_END"|", to_print[2], WHITE);     # Service
-                                        printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s" COLOR_END"|", service, WHITE);     # Service
+                                        printf(COLOR_BEGIN WHITE " %-"COL_VER"s" COLOR_END"|", service, WHITE);     # Service
 
                                         for (i = 1; i <= n; i++)
                                         {
@@ -700,7 +711,7 @@ fi
                         {
                                 # A header for the databases
                                 printf("%s", center("DB"        , COL_DB, WHITE))                                ;
-                                printf("%s", center("Version"   , COL_VER, WHITE))                               ;
+                                printf("%s", center("Version"   , COL_VER+1, WHITE))                             ;
                                 n=asort(nodes)                                                                   ;       # sort array nodes
                                 for (i = 1; i <= n; i++) {
                                         printf("%s", center(nodes[i], COL_NODE, WHITE))                          ;
@@ -718,6 +729,9 @@ fi
                                         printf(COLOR_BEGIN WHITE " %-"COL_DB-1"s" COLOR_END"|", version_sorted[j], WHITE);     # Database
                                         #printf(COLOR_BEGIN WHITE " %-"COL_VER-7"s" COLOR_END, version[version_sorted[j]], COL_VER, WHITE)         ;       # Version
                                         #printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")            ;       # OH id
+                                        #printf(COLOR_BEGIN WHITE " %-"COL_VER-6"s" COLOR_END, version[version_sorted[j]], COL_VER, WHITE)         ;       # Version
+                                        #printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")            ;       # OH id
+
                                         printf(COLOR_BEGIN WHITE " %-"COL_VER-6"s" COLOR_END, version[version_sorted[j]], COL_VER, WHITE)         ;       # Version
                                         printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")            ;       # OH id
 
@@ -792,7 +806,7 @@ fi
                                 }
                         }
         }
-        END {   print_legend_recent_restarted();
+        END {  print_legend_recent_restarted();
         } ' $TMP | ${AWK} -v GREP="$GREP" -v UNGREP="$UNGREP" ' BEGIN {FS="|"}                                              # AWK used to grep and ungrep
                       {         if ((NF >= 3) && ($(NF-1) !~ /Type/) && ($2 !~ /Service/))
                                 {       if (($0 ~ GREP) && ($0 !~ UNGREP))
@@ -813,10 +827,10 @@ fi
                  SORT_NODE="${SORT_BY:1:1}"                                             # Second character
                 SORT_ORDER="${SORT_BY: -1}"                                             # Last character
 
-		if [[ "${SORT_COL}" =~ [1-9] ]]
-		then	SORT_NODE=${SORT_COL}
-			 SORT_COL="c"
-		fi
+                if [[ "${SORT_COL}" =~ [1-9] ]]
+                then    SORT_NODE=${SORT_COL}
+                         SORT_COL="c"
+                fi
 
                 # Sort order can only be "r" for reverse or "" for normal
                 if [[ "${SORT_ORDER}" != "r" ]]
@@ -849,7 +863,7 @@ fi
                         SORT_NUM=$(((${TYPE_COL}*2)+1))                                                         ;;              # Sort by Type
                 esac
 
-		SORT_K_1=" -k"${SORT_NUM}${SORT_ORDER}" "
+                SORT_K_1=" -k"${SORT_NUM}${SORT_ORDER}" "
                 SORT_K_2=" -k"${SORT_NUM2}" "
                 SORT_K_3=" -k"${SORT_NUM3}" "
 
