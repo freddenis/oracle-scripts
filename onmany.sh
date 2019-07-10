@@ -21,6 +21,7 @@ DEFAULT_USER_TO_EXEC="oracle"                                   # User used to e
 DEFAULT_NEED_TO_SUDO="yes"                                      # If needed to sudo to another user to execute the script (if not, execute as the user used to connect)
       DEFAULT_BEFORE=""                                         # Default command to execute before the script
        DEFAULT_AFTER=""                                         # Default command to execute after  the script
+   DEFAULT_JUST_COPY="no"                                       # Just copy the file or also execute it ? if the file is not executed then it is not deleted
          CONFIG_FILE=".onmany.config"                           # Default config file containing default values overwritting these ones
                DEBUG="yes"                                      # Show debug info ?
                DEBUG="no"                                       # Show debug info ?
@@ -38,6 +39,7 @@ then
         NEED_TO_SUDO=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^NEED_TO_SUDO" | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
               BEFORE=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^BEFORE"       | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
                AFTER=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^AFTER"        | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
+           JUST_COPY=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^JUST_COPY"    | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
 fi
 
 #
@@ -51,6 +53,7 @@ if [[ -z ${LIST}         ]]     ; then         LIST=$DEFAULT_LIST               
 if [[ -z ${NEED_TO_SUDO} ]]     ; then NEED_TO_SUDO=$DEFAULT_NEED_TO_SUDO       ; fi
 if [[ -z ${BEFORE}       ]]     ; then       BEFORE=$DEFAULT_BEFORE             ; fi
 if [[ -z ${AFTER}        ]]     ; then        AFTER=$DEFAULT_AFTER              ; fi
+if [[ -z ${JUST_COPY}    ]]     ; then    JUST_COPY=$DEFAULT_JUST_COPY          ; fi
 
 #
 # An usage function
@@ -64,7 +67,7 @@ END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"                                    ;
 cat << END
-        $0 [-a] [-b] [-c] [-e] [-n] [-t] [-s] [-h]
+        $0 [-a] [-b] [-c] [-e] [-j] [-n] [-t] [-s] [-h]
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"                                 ;
@@ -86,6 +89,7 @@ cat << END
         -b      Commands to execute after  executing the script
         -c      User to use to connect to the target server (opc for OCI for example)
         -e      User to use to execute the script and the commands on the target server (oracle ? grid ?)
+        -j      Just copy the file on the targets hosts (do not execute it dn do not delete it)
         -n      No need to sudo so script and comands will be executed as the user we connect with
         -s      Name of the script to execute on the target hosts
         -t      A target list of host to execute the script on; each host has to be separated by a ","
@@ -100,12 +104,13 @@ END
 #
 # Options (overwrite default)
 #
-while getopts "s:c:e:t:na:b:h" OPT; do
+while getopts "s:c:e:t:jna:b:h" OPT; do
         case ${OPT} in
         a)              AFTER=${OPTARG}                         ;;
         b)             BEFORE=${OPTARG}                         ;;
         c)       USER_TO_COPY=${OPTARG}                         ;;
         e)       USER_TO_EXEC=${OPTARG}                         ;;
+        j)          JUST_COPY=${OPTARG}                         ;;
         n)       NEED_TO_SUDO="no"                              ;;
         s)             SCRIPT=${OPTARG}                         ;;
         t)               LIST=${OPTARG}                         ;;
@@ -137,6 +142,9 @@ then
         echo "Target            :"      $TARGET
         echo "Need to SUDO      :"      $NEED_TO_SUDO
         echo "Config File       :"      $CONFIG_FILE
+        echo "Before            :"      $BEFORE
+        echo "After             :"      $AFTER
+        echo "Just copy         :"      $JUST_COPY
         exit
 fi
 
@@ -162,22 +170,26 @@ END_SSH
         fi
         if [[ -n ${SCRIPT} ]]                   # A script to execute
         then
-                scp -q ${SCRIPT} ${USER_TO_COPY}@${X}:${TO}
-                ssh -qT ${USER_TO_COPY}@${X} << END_SSH
-                chmod 777 ${TO}
-                if [[ "$NEED_TO_SUDO" = "yes" ]]
+                scp  ${SCRIPT} ${USER_TO_COPY}@${X}:${TO}
+
+                if [[ "$JUST_COPY" = "no" ]]
                 then
-                        sudo su - ${USER_TO_EXEC} << END_SU
-                        . ${TO}
+                        ssh -qT ${USER_TO_COPY}@${X} << END_SSH
+                        chmod 777 ${TO}
+                        if [[ "$NEED_TO_SUDO" = "yes" ]]
+                        then
+                                sudo su - ${USER_TO_EXEC} << END_SU
+                                . ${TO}
 END_SU
-                else
-                        . ${TO}
-                fi
-                if [ -f ${TO} ]
-                then
-                        rm -f ${TO}
-                fi
+                        else
+                                . ${TO}
+                        fi
+                        if [[ -f ${TO} ]]
+                        then
+                                rm -f ${TO}
+                        fi
 END_SSH
+                fi
         fi
         if [[ -n ${AFTER} ]]                    # A command to execute 
         then
