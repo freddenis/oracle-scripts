@@ -130,22 +130,38 @@ END
         exit 666
 fi
 
+print_a_line()
+{
+        printf "\n"                                                                             ;
+        for i in `seq 1 $1`
+        do      printf "\033[1;37m%1s\033[m" "-"                                                ;
+        done
+}
+
 #
 # Show the value of the options with the current setting -- do not do anythongm just show and exit
 #
 if [[ "${SHOW_OPTIONS}" = "yes" ]]
 then
-        printf "\n\033[1;37m%-20s\033[m: %s" "Script"           $SCRIPT                 ;
-        printf "\n\033[1;37m%-20s\033[m: %s" "User to copy"     $USER_TO_COPY           ;
-        printf "\n\033[1;37m%-20s\033[m: %s" "User to exec"     $USER_TO_EXEC           ;
-        printf "\n\033[1;37m%-20s\033[m: %s" "List"             $LIST                   ;
-        printf "\n\033[1;37m%-20s\033[m: %s" "Target"           $TARGET                 ;
-        printf "\n\033[1;37m%-20s\033[m: %s" "Need to SUDO"     $NEED_TO_SUDO           ;
-        printf "\n\033[1;37m%-20s\033[m: %s" "Config File"      $CONFIG_FILE            ;
-        printf "\n\033[1;37m%-20s\033[m: %s" "Before"           $BEFORE                 ;
-        printf "\n\033[1;37m%-20s\033[m: %s" "After"            $AFTER                  ;
-        printf "\n\033[1;37m%-20s\033[m: %s" "Just copy"        $JUST_COPY              ;
-        printf "\n\n"                                                                   ;
+                SIZE=$(( 25 + ${#LIST} ))                                                       ;
+                COL2=$(( ${#LIST}+1 ))                                                          ;
+        FORMAT_TITLE="\n\033[1;37m%-20s\033[m\033[1;37m| %-${COL2}s |\033[m"                    ;
+        FORMAT_VALUE="\n\033[1;34m%-20s\033[m\033[1;37m|\033[m %-${COL2}s \033[1;37m|\033[m"    ;
+
+        printf "${FORMAT_TITLE}" "Option"               "Value"                                 ;
+        print_a_line $SIZE                                                                      ;
+        printf "${FORMAT_VALUE}" "-a: After"            $AFTER                                  ;
+        printf "${FORMAT_VALUE}" "-b: Before"           $BEFORE                                 ;
+        printf "${FORMAT_VALUE}" "-c: User to copy"     $USER_TO_COPY                           ;
+        printf "${FORMAT_VALUE}" "-e: User to exec"     $USER_TO_EXEC                           ;
+        printf "${FORMAT_VALUE}" "-j: Just copy"        $JUST_COPY                              ;
+        printf "${FORMAT_VALUE}" "-l: List"             $LIST                                   ;
+        printf "${FORMAT_VALUE}" "-n: Need to SUDO"     $NEED_TO_SUDO                           ;
+        printf "${FORMAT_VALUE}" "-s: Script"           $SCRIPT                                 ;
+        printf "${FORMAT_VALUE}" "-t: Target"           $TARGET                                 ;
+        printf "${FORMAT_VALUE}" "    Config File"      $CONFIG_FILE                            ;
+        print_a_line $SIZE                                                                      ;
+        printf "\n\n"                                                                           ;
 
         exit 555
 fi
@@ -155,7 +171,7 @@ TO=${TARGET}"/"${SCRIPT}                                        # for better vis
 #
 # Let's go
 #
-for X in `echo ${LIST} | awk 'BEGIN {FS="[ ,;]"} {for (i=1;i<=NF;i++) { print $i}}'`
+for X in `echo ${LIST} | awk 'BEGIN {FS="[,;]"} {for (i=1;i<=NF;i++) { print $i}}'`
 do
         if [[ -n ${BEFORE} ]]                   # A command to execute 
         then
