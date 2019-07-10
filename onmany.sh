@@ -23,8 +23,7 @@ DEFAULT_NEED_TO_SUDO="yes"                                      # If needed to s
        DEFAULT_AFTER=""                                         # Default command to execute after  the script
    DEFAULT_JUST_COPY="no"                                       # Just copy the file or also execute it ? if the file is not executed then it is not deleted
          CONFIG_FILE=".onmany.config"                           # Default config file containing default values overwritting these ones
-               DEBUG="yes"                                      # Show debug info ?
-               DEBUG="no"                                       # Show debug info ?
+        SHOW_OPTIONS="no"                                       # Show the options that would be used and exit -- do not do anything else (-o)
 
 #
 # Get values from the config file
@@ -77,9 +76,9 @@ cat << END
         With no option, `basename $0` use the values defined in the Default section on top of the script
 
         Options precedence is:
-                1/ options defined in the config file (if exists)
-                2/ defaults options defined on top of the script (variables DEFAULT_xxxx)
-                3/ option through the command line
+                1/ Option through the command line
+                2/ Defaults options defined on top of the script (variables DEFAULT_xxxx)
+                3/ Options defined in the config file (if exists)
 
 END
 
@@ -90,7 +89,7 @@ cat << END
         -c      User to use to connect to the target server (opc for OCI for example)
         -e      User to use to execute the script and the commands on the target server (oracle ? grid ?)
         -j      Just copy the file on the targets hosts (do not execute it dn do not delete it)
-        -n      No need to sudo so script and comands will be executed as the user we connect with
+        -n      No need to sudo so script and commands will be executed as the user we connect with
         -s      Name of the script to execute on the target hosts
         -t      A target list of host to execute the script on; each host has to be separated by a ","
         -h      Shows this help
@@ -104,14 +103,15 @@ END
 #
 # Options (overwrite default)
 #
-while getopts "s:c:e:t:jna:b:h" OPT; do
+while getopts "s:c:e:t:jna:b:oh" OPT; do
         case ${OPT} in
         a)              AFTER=${OPTARG}                         ;;
         b)             BEFORE=${OPTARG}                         ;;
         c)       USER_TO_COPY=${OPTARG}                         ;;
         e)       USER_TO_EXEC=${OPTARG}                         ;;
-        j)          JUST_COPY=${OPTARG}                         ;;
+        j)          JUST_COPY="yes"                             ;;
         n)       NEED_TO_SUDO="no"                              ;;
+        o)       SHOW_OPTIONS="yes"                             ;;
         s)             SCRIPT=${OPTARG}                         ;;
         t)               LIST=${OPTARG}                         ;;
         h)      usage                                           ;;
@@ -131,21 +131,23 @@ END
 fi
 
 #
-# Debug ?
+# Show the value of the options with the current setting -- do not do anythongm just show and exit
 #
-if [[ "${DEBUG}" = "yes" ]]
+if [[ "${SHOW_OPTIONS}" = "yes" ]]
 then
-        echo "Script            :"      $SCRIPT
-        echo "User to Copy      :"      $USER_TO_COPY
-        echo "User to Exec      :"      $USER_TO_EXEC
-        echo "List              :"      $LIST
-        echo "Target            :"      $TARGET
-        echo "Need to SUDO      :"      $NEED_TO_SUDO
-        echo "Config File       :"      $CONFIG_FILE
-        echo "Before            :"      $BEFORE
-        echo "After             :"      $AFTER
-        echo "Just copy         :"      $JUST_COPY
-        exit
+        printf "\n\033[1;37m%-20s\033[m: %s" "Script"           $SCRIPT                 ;
+        printf "\n\033[1;37m%-20s\033[m: %s" "User to copy"     $USER_TO_COPY           ;
+        printf "\n\033[1;37m%-20s\033[m: %s" "User to exec"     $USER_TO_EXEC           ;
+        printf "\n\033[1;37m%-20s\033[m: %s" "List"             $LIST                   ;
+        printf "\n\033[1;37m%-20s\033[m: %s" "Target"           $TARGET                 ;
+        printf "\n\033[1;37m%-20s\033[m: %s" "Need to SUDO"     $NEED_TO_SUDO           ;
+        printf "\n\033[1;37m%-20s\033[m: %s" "Config File"      $CONFIG_FILE            ;
+        printf "\n\033[1;37m%-20s\033[m: %s" "Before"           $BEFORE                 ;
+        printf "\n\033[1;37m%-20s\033[m: %s" "After"            $AFTER                  ;
+        printf "\n\033[1;37m%-20s\033[m: %s" "Just copy"        $JUST_COPY              ;
+        printf "\n\n"                                                                   ;
+
+        exit 555
 fi
 
 TO=${TARGET}"/"${SCRIPT}                                        # for better visibility below
