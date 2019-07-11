@@ -1,5 +1,5 @@
 #!/bin/bash
-# Fred Denis -- July 2019
+#
 #
 #
 
@@ -22,7 +22,8 @@ iblinkinfo --switches-only -l |\
 		  RED_BACKGROUND =       "41m"                          ;
 
 		# Columns size
-		      COL_SWITCH = 	20				;
+		      COL_SWITCH = 	22			;
+			COL_HOST = 	14				;
 			COL_PORT = 	6				;
 		}
 		#
@@ -86,7 +87,7 @@ iblinkinfo --switches-only -l |\
 			printf("%s", center(a[2]" ("i")", COL_SWITCH, WHITE, "|"))
 		}
 		printf("\n")	;
-		print_a_line(COL_PORT+COL_SWITCH*nb+nb+1)	;
+		print_a_line(COL_PORT*(nb+1)+COL_HOST*nb+nb*3+1)	;
 
 		for (j=1; j<=36; j++)
 		{		
@@ -105,12 +106,13 @@ iblinkinfo --switches-only -l |\
 				} else {
 					idk = ""	;
 				}
-				printf("%s", center(a[6]" "idk, COL_SWITCH, COLOR, "|"))		;
+				printf(COLOR_BEGIN COLOR " %-"COL_HOST"s" COLOR_END, a[6] );
+				printf(COLOR_BEGIN COLOR "%-"COL_PORT"s" COLOR_END " |", idk );    
 			
 			}
 			printf("\n")							;
 		}
-		print_a_line(COL_PORT+COL_SWITCH*nb+nb+1)	;
+		print_a_line(COL_PORT*(nb+1)+COL_HOST*nb+nb*3+1)	;
 		printf("\n")							;
 	     }
 	     '
