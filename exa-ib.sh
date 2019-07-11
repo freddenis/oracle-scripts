@@ -114,7 +114,7 @@ iblinkinfo --switches-only -l |\
                         }
                         printf("\n")                                                    ;
                 }
-                print_a_line(COL_PORT*(nb+1)+COL_HOST*nb+nb*3+1)        ;
+                print_a_line(COL_PORT*(nb+1)+COL_HOST*nb+nb*4)  ;
                 printf("\n")                                                    ;
              }
              '
