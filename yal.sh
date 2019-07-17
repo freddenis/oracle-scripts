@@ -3,6 +3,8 @@
 #
 # Execute a script and/or some commands on many targets; use the -h option to show the usage function for more information
 #
+# https://unix.stackexchange.com/questions/122616/why-do-i-need-a-tty-to-run-sudo-if-i-can-sudo-without-a-password/122624
+#
 # The current version of the script is 20190710
 #
 # History:
@@ -12,6 +14,8 @@
 
 #
 # Default values
+#
+# You can update the below default values (variables starting with DEFAULT_) but I recommend using a configuration file (see variable CONFIG_FILE)
 #
        DEFAULT_AFTER=""                                         # Default command to execute after  the script
       DEFAULT_BEFORE=""                                         # Default command to execute before the script
@@ -23,10 +27,12 @@ DEFAULT_FILE_TO_COPY=""                                         # A file to copy
       DEFAULT_SCRIPT=""                                         # A file containing a list of target servers (1 server per line)
  DEFAULT_USER_TO_LOG=""                                         # User used to connect to the target server
 
-         CONFIG_FILE=".yal.config"                              # Default config file containing default values overwritting these ones
               HEADER="echo BEGIN on `hostname` : `date`"        # Header to print before execution on  target
-              FOOTER="echo END   on `hostname` : `date`"        # Footer to print after  execution on a target
+              FOOTER="echo END\ \ \ on `hostname` : `date`"     # Footer to print after  execution on a target
+
+         CONFIG_FILE=".yal.config"                              # Default config file containing default values overwritting these ones
         SHOW_OPTIONS="no"                                       # Show the options that would be used and exit -- do not do anything else (-o)
+         SSH_OPTIONS="-qT"                                      # SSH options when connecting to the hosts
 
 #
 # Get values from the config file
@@ -135,7 +141,7 @@ done
 
 if [[ -n ${GROUP_FILE} && -n ${SERVER_LIST} ]]
 then
-        printf "\n\033[1;33m%s\033[m\n" "Info: when both a server list (-c) and a group file (-g) are specified, the group file is used."           ;
+        printf "\n\033[1;33m%s\033[m\n\n" "Info: when both a server list (-c) and a group file (-g) are specified, the group file is used."           ;
 fi
 
 if [[ -n ${GROUP_FILE} ]]               # A group file is specifiedm we will use the hosts from it
@@ -213,7 +219,7 @@ TO=${TARGET}"/"${FILE_TO_COPY}                                        # for bett
 for X in `echo ${SERVER_LIST} | awk 'BEGIN {FS="[,;]"} {for (i=1;i<=NF;i++) { print $i}}'`
 do      if [[ -n "${HEADER}" ]]
         then
-                ssh -qT ${USER_TO_LOG}@${X} << END_SSH
+                ssh ${SSH_OPTIONS} ${USER_TO_LOG}@${X} << END_SSH
                 echo -ne "\e[36m"                               ;
                 eval "${HEADER}"                                ;
                 echo -ne "\e[0m"                                ;
@@ -221,10 +227,10 @@ END_SSH
         fi
         if [[ -n "${BEFORE}" ]]                   # A command to execute
         then
-                ssh -qT ${USER_TO_LOG}@${X} << END_SSH
+                ssh ${SSH_OPTIONS} ${USER_TO_LOG}@${X} << END_SSH
                 if [[ -n \${USER_TO_EXEC} ]]
                 then
-                        sudo su - ${USER_TO_EXEC} << END_SU
+                        sudo su - \${USER_TO_EXEC} << END_SU
                         eval "${BEFORE}"
 END_SU
                 else
@@ -238,11 +244,11 @@ END_SSH
 
                 if [[ -f ${SCRIPT} ]]
                 then
-                        ssh -qT ${USER_TO_LOG}@${X} << END_SSH
+                        ssh ${SSH_OPTIONS} ${USER_TO_LOG}@${X} << END_SSH
                         chmod 777 ${TO}
                         if [[ -n \${USER_TO_EXEC} ]]
                         then
-                                sudo su - ${USER_TO_EXEC} << END_SU
+                                sudo su - \${USER_TO_EXEC} << END_SU
                                 . ${TO}
 END_SU
                         else
@@ -257,10 +263,10 @@ END_SSH
         fi
         if [[ -n "${AFTER}" ]]                    # A command to execute
         then
-                ssh -qT ${USER_TO_LOG}@${X} << END_SSH
+                ssh ${SSH_OPTIONS} ${USER_TO_LOG}@${X} << END_SSH
                 if [[ -n \${USER_TO_EXEC} ]]
                 then
-                        sudo su - ${USER_TO_EXEC} << END_SU
+                        sudo su - \${USER_TO_EXEC} << END_SU
                         eval "${AFTER}"
 END_SU
                 else
@@ -270,7 +276,7 @@ END_SSH
         fi
         if [[ -n "${FOOTER}" ]]
         then
-                ssh -qT ${USER_TO_LOG}@${X} << END_SSH
+                ssh ${SSH_OPTIONS} ${USER_TO_LOG}@${X} << END_SSH
                 echo -ne "\e[36m"                               ;
                 eval "${FOOTER}"
                 echo -ne "\e[0m"                                ;
