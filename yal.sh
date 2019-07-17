@@ -13,16 +13,17 @@
 #
 # Default values
 #
-      DEFAULT_SCRIPT=""                                         # Script we want to execute
-DEFAULT_USER_TO_COPY=""                                         # User used to connect to the target server
-DEFAULT_USER_TO_EXEC=""                                         # User used to execute the script on the target server (sudo to this user privilege is needed)
-      DEFAULT_TARGET="/tmp"                                     # Target directory to copy the script before executing it
-        DEFAULT_LIST=""                                         # List of hosts to execute the script on
-      DEFAULT_BEFORE=""                                         # Default command to execute before the script
        DEFAULT_AFTER=""                                         # Default command to execute after  the script
-   DEFAULT_JUST_COPY="no"                                       # Just copy the file or also execute it ? if the file is not executed then it is not deleted
+      DEFAULT_BEFORE=""                                         # Default command to execute before the script
+ DEFAULT_SERVER_LIST=""                                         # List of hosts to execute the script on
+        DEFAULT_DEST="/tmp"                                     # Target directory to copy the script before executing it
+DEFAULT_USER_TO_EXEC=""                                         # User used to execute the script on the target server (sudo to this user privilege is needed)
+DEFAULT_FILE_TO_COPY=""                                         # A file to copy to the target servers
+  DEFAULT_GROUP_FILE=""                                         # A file to copy to the target servers
+      DEFAULT_SCRIPT=""                                         # A file containing a list of target servers (1 server per line)
+ DEFAULT_USER_TO_LOG=""                                         # User used to connect to the target server
 
-         CONFIG_FILE=".onmany.config"                           # Default config file containing default values overwritting these ones
+         CONFIG_FILE=".yal.config"                              # Default config file containing default values overwritting these ones
               HEADER="echo BEGIN on `hostname` : `date`"        # Header to print before execution on  target
               FOOTER="echo END   on `hostname` : `date`"        # Footer to print after  execution on a target
         SHOW_OPTIONS="no"                                       # Show the options that would be used and exit -- do not do anything else (-o)
@@ -32,27 +33,29 @@ DEFAULT_USER_TO_EXEC=""                                         # User used to e
 #
 if [[ -f ${CONFIG_FILE} ]]
 then
-              SCRIPT=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^SCRIPT"       | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-        USER_TO_COPY=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^USER_TO_COPY" | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-        USER_TO_EXEC=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^USER_TO_EXEC" | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-              TARGET=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^TARGET"       | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-                LIST=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^LIST"         | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-              BEFORE=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^BEFORE"       | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
                AFTER=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^AFTER"        | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-           JUST_COPY=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^JUST_COPY"    | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
+              BEFORE=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^BEFORE"       | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
+         SERVER_LIST=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^SERVER_LIST"  | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
+                DEST=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^DEST"         | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
+        USER_TO_EXEC=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^USER_TO_EXEC" | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
+        FILE_TO_COPY=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^FILE_TO_COPY" | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
+          GROUP_FILE=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^GROUP_FILE"   | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
+         USER_TO_LOG=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^USER_TO_LOG"  | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
+              SCRIPT=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^SCRIPT"       | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
 fi
 
 #
 # Use default values if not specified in the config file
 #
-if [[ -z ${SCRIPT}       ]]     ; then       SCRIPT=$DEFAULT_SCRIPT             ; fi
-if [[ -z ${USER_TO_COPY} ]]     ; then USER_TO_COPY=$DEFAULT_USER_TO_COPY       ; fi
-if [[ -z ${USER_TO_EXEC} ]]     ; then USER_TO_EXEC=$DEFAULT_USER_TO_EXEC       ; fi
-if [[ -z ${TARGET}       ]]     ; then       TARGET=$DEFAULT_TARGET             ; fi
-if [[ -z ${LIST}         ]]     ; then         LIST=$DEFAULT_LIST               ; fi
-if [[ -z ${BEFORE}       ]]     ; then       BEFORE=$DEFAULT_BEFORE             ; fi
 if [[ -z ${AFTER}        ]]     ; then        AFTER=$DEFAULT_AFTER              ; fi
-if [[ -z ${JUST_COPY}    ]]     ; then    JUST_COPY=$DEFAULT_JUST_COPY          ; fi
+if [[ -z ${BEFORE}       ]]     ; then       BEFORE=$DEFAULT_BEFORE             ; fi
+if [[ -z ${SERVER_LIST}  ]]     ; then  SERVER_LIST=$DEFAULT_SERVER_LIST        ; fi
+if [[ -z ${DEST}         ]]     ; then         DEST=$DEFAULT_DEST               ; fi
+if [[ -z ${USER_TO_EXEC} ]]     ; then USER_TO_EXEC=$DEFAULT_USER_TO_EXEC       ; fi
+if [[ -z ${FILE_TO_COPY} ]]     ; then FILE_TO_COPY=$DEFAULT_FILE_TO_COPY       ; fi
+if [[ -z ${GROUP_FILE}   ]]     ; then   GROUP_FILE=$DEFAULT_GROUP_FILE         ; fi
+if [[ -z ${USER_TO_LOG}  ]]     ; then  USER_TO_LOG=$DEFAULT_USER_TO_LOG        ; fi
+if [[ -z ${SCRIPT}       ]]     ; then       SCRIPT=$DEFAULT_SCRIPT             ; fi
 
 #
 # An usage function
@@ -61,18 +64,18 @@ usage()
 {
 printf "\n\033[1;37m%-8s\033[m\n" "NAME"                                        ;
 cat << END
-        `basename $0` - Execute a script on many targets
+        `basename $0` - Execute or copy a script on many hosts; can also execute commands on many hosts
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"                                    ;
 cat << END
-        $0 [-a] [-b] [-c] [-e] [-j] [-t] [-s] [-h]
+        $0 [-a] [-b] [-c] [-d] [-e] [-f] [-g] [-l] [-o] [-x] [-h]
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"                                 ;
 cat << END
         `basename $0` needs SSH equivalence already set between the user executing it and the target user (option -c)
-        `basename $0` does not support different users to connect and execute per host
+        `basename $0` does not support different users to connect and execute per host (yet)
         With no option, `basename $0` use the values defined in the Default section on top of the script
 
         Options precedence is:
@@ -86,11 +89,14 @@ printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"                                     
 cat << END
         -a      Commands to execute before executing the script
         -b      Commands to execute after  executing the script
-        -c      User to use to connect to the target server (opc for OCI for example)
-        -e      User to use to execute the script and the commands on the target server (sudo to this user privilege is needed)
-        -j      Just copy the file on the targets hosts (do not execute it nor delete it)
-        -s      Name of the script to execute on the target hosts
-        -t      A target list of host to execute the script on; each host has to be separated by a ","
+        -c      Comma separated list of target servers to log in to
+        -d      Destination of the file on the target servers
+        -e      User to use to Execute the script and the commands on the target server (sudo to this user privilege is needed)
+        -f      File to be copied to the target servers (see -x to have the file also executed)
+        -g      Specify a file containing a list of target servers to connect to (1 server per line)
+        -l      User to use to Login to the target servers
+        -o      Only shows the values of the options and exit (do not do anything else)
+        -x      Copy and eXecute the script on the target hosts
         -h      Shows this help
 
         Experiment and enjoy  !
@@ -98,39 +104,6 @@ cat << END
 END
         exit 123
 }
-
-#
-# Options (overwrite default)
-#
-while getopts "s:c:e:t:ja:b:oh" OPT; do
-        case ${OPT} in
-        a)              AFTER=${OPTARG}                         ;;
-        b)             BEFORE=${OPTARG}                         ;;
-        c)       USER_TO_COPY=${OPTARG}                         ;;
-        e)       USER_TO_EXEC=${OPTARG}                         ;;
-        j)          JUST_COPY="yes"                             ;;
-        o)       SHOW_OPTIONS="yes"                             ;;
-        s)             SCRIPT=${OPTARG}                         ;;
-        t)               LIST=${OPTARG}                         ;;
-        h)      usage                                           ;;
-        \?) echo "Invalid option: -$OPTARG" >&2; usage          ;;
-        esac
-done
-
-echo $LIST
-exit
-
-#
-# Input checks
-#
-if [[ ! -f ${SCRIPT} && -n ${SCRIPT} ]]
-then
-        cat << END
-        Cannot find ${SCRIPT} is not executable -- cannot continue.
-END
-        exit 666
-fi
-
 print_a_line()
 {
         printf "\n"                                                                             ;
@@ -139,14 +112,51 @@ print_a_line()
         done
 }
 
+
+#
+# Options (overwrite default)
+#
+while getopts "a:b:c:d:e:f:g:l:ox:h" OPT; do
+        case ${OPT} in
+        a)              AFTER=${OPTARG}                         ;;
+        b)             BEFORE=${OPTARG}                         ;;
+        c)        SERVER_LIST=${OPTARG}                         ;;
+        d)               DEST=${OPTARG}                         ;;
+        e)       USER_TO_EXEC=${OPTARG}                         ;;
+        f)       FILE_TO_COPY=${OPTARG}                         ;;
+        g)         GROUP_FILE=${OPTARG}                         ;;
+        l)        USER_TO_LOG=${OPTARG}                         ;;
+        o)       SHOW_OPTIONS="yes"                             ;;
+        x)             SCRIPT=${OPTARG}                         ;;
+        h)      usage                                           ;;
+        \?) echo "Invalid option: -$OPTARG" >&2; usage          ;;
+        esac
+done
+
+if [[ -n ${GROUP_FILE} && -n ${SERVER_LIST} ]]
+then
+        printf "\n\033[1;33m%s\033[m\n" "Info: when both a server list (-c) and a group file (-g) are specified, the group file is used."           ;
+fi
+
+if [[ -n ${GROUP_FILE} ]]               # A group file is specifiedm we will use the hosts from it
+then
+        if [[ -f ${GROUP_FILE} ]]
+        then
+                SERVER_LIST=`cat ${GROUP_FILE} | awk '{printf("%s,",$1)}' | sed s'/,$//'`
+        else
+                printf "\n\t\033[1;31m%s\033[m\n\n" "Cannot find ${GROUP_FILE}, cannot continue."           ;
+                exit 669
+        fi
+fi
+
 #
 # Show the value of the options with the current setting -- do not do anythongm just show and exit
 #
 if [[ "${SHOW_OPTIONS}" = "yes" ]]
 then
-        if (( ${#LIST} > 0 ))
+        if (( ${#SERVER_LIST} > 0 ))
         then
-                COL2=$(( ${#LIST}+1 ))                                                          ;
+                COL2=$(( ${#SERVER_LIST}+1 ))                                                          ;
         else    COL2=20                                                                         ;
         fi
         SIZE=$(( 24 + ${COL2} ))                                                                ;
@@ -155,14 +165,15 @@ then
 
         printf "${FORMAT_TITLE}" "Option"               "Value"                                 ;
         print_a_line $SIZE                                                                      ;
-        printf "${FORMAT_VALUE}" "-a: After"            $AFTER                                  ;
-        printf "${FORMAT_VALUE}" "-b: Before"           $BEFORE                                 ;
-        printf "${FORMAT_VALUE}" "-c: User to copy"     $USER_TO_COPY                           ;
+        printf "${FORMAT_VALUE}" "-a: After"            "$AFTER"                                ;
+        printf "${FORMAT_VALUE}" "-b: Before"           "$BEFORE"                               ;
+        printf "${FORMAT_VALUE}" "-c: Servers List"     $SERVER_LIST                            ;
+        printf "${FORMAT_VALUE}" "-d: Dest"             $DEST                                   ;
         printf "${FORMAT_VALUE}" "-e: User to exec"     $USER_TO_EXEC                           ;
-        printf "${FORMAT_VALUE}" "-j: Just copy"        $JUST_COPY                              ;
-        printf "${FORMAT_VALUE}" "-l: List"             $LIST                                   ;
-        printf "${FORMAT_VALUE}" "-s: Script"           $SCRIPT                                 ;
-        printf "${FORMAT_VALUE}" "-t: Target"           $TARGET                                 ;
+        printf "${FORMAT_VALUE}" "-f: File to copy"     $FILE_TO_COPY                           ;
+        printf "${FORMAT_VALUE}" "-g: Group File"       $GROUP_FILE                             ;
+        printf "${FORMAT_VALUE}" "-l: User to login"    $USER_TO_LOG                            ;
+        printf "${FORMAT_VALUE}" "-x: Script to exec"   $SCRIPT                                 ;
         printf "${FORMAT_VALUE}" "    Config File"      $CONFIG_FILE                            ;
         print_a_line $SIZE                                                                      ;
         printf "\n\n"                                                                           ;
@@ -170,40 +181,66 @@ then
         exit 555
 fi
 
-TO=${TARGET}"/"${SCRIPT}                                        # for better visibility below
+#
+# Input checks
+#
+if [[ -n ${SCRIPT} && ! -f ${SCRIPT} ]]
+then
+        printf "\n\t\033[1;31m%s\033[m\n\n" "Cannot find ${SCRIPT}, cannot continue."           ;
+        exit 666
+fi
+if [[ -n ${FILE_TO_COPY} && ! -f ${FILE_TO_COPY} ]]
+then
+        printf "\n\t\033[1;31m%s\033[m\n\n" "Cannot find ${FILE_TO_COPY}, cannot continue."           ;
+        exit 667
+fi
+if [[ -n ${SCRIPT} ]]
+then
+        FILE_TO_COPY=${SCRIPT}
+fi
+if [[ -z ${USER_TO_LOG} ]]
+then
+        printf "\n\t\033[1;31m%s\033[m\n\n" "A user to log in is needed (option -l), cannot continue."           ;
+        exit 668
+fi
+
+
+TO=${TARGET}"/"${FILE_TO_COPY}                                        # for better visibility below
 
 #
 # Let's go
 #
-for X in `echo ${LIST} | awk 'BEGIN {FS="[,;]"} {for (i=1;i<=NF;i++) { print $i}}'`
-do      if [[ -n ${HEADER} ]]
+for X in `echo ${SERVER_LIST} | awk 'BEGIN {FS="[,;]"} {for (i=1;i<=NF;i++) { print $i}}'`
+do      if [[ -n "${HEADER}" ]]
         then
-                ssh -qT ${USER_TO_COPY}@${X} << END_SSH
-                ${HEADER}
+                ssh -qT ${USER_TO_LOG}@${X} << END_SSH
+                echo -ne "\e[36m"                               ;
+                eval "${HEADER}"                                ;
+                echo -ne "\e[0m"                                ;
 END_SSH
         fi
-        if [[ -n ${BEFORE} ]]                   # A command to execute
+        if [[ -n "${BEFORE}" ]]                   # A command to execute
         then
-                ssh -qT ${USER_TO_COPY}@${X} << END_SSH
-                if [[ -n ${USER_TO_EXEC} ]]
+                ssh -qT ${USER_TO_LOG}@${X} << END_SSH
+                if [[ -n \${USER_TO_EXEC} ]]
                 then
                         sudo su - ${USER_TO_EXEC} << END_SU
-                        ${BEFORE}
+                        eval "${BEFORE}"
 END_SU
                 else
-                        ${BEFORE}
+                        eval "${BEFORE}"
                 fi
 END_SSH
         fi
-        if [[ -n ${SCRIPT} ]]                   # A script to execute
+        if [[ -f ${FILE_TO_COPY} ]]                   # A file to copy
         then
-                scp  ${SCRIPT} ${USER_TO_COPY}@${X}:${TO}
+                scp  ${FILE_TO_COPY} ${USER_TO_LOG}@${X}:${TO}
 
-                if [[ "$JUST_COPY" = "no" ]]
+                if [[ -f ${SCRIPT} ]]
                 then
-                        ssh -qT ${USER_TO_COPY}@${X} << END_SSH
+                        ssh -qT ${USER_TO_LOG}@${X} << END_SSH
                         chmod 777 ${TO}
-                        if [[ -n ${USER_TO_EXEC} ]]
+                        if [[ -n \${USER_TO_EXEC} ]]
                         then
                                 sudo su - ${USER_TO_EXEC} << END_SU
                                 . ${TO}
@@ -218,23 +255,25 @@ END_SU
 END_SSH
                 fi
         fi
-        if [[ -n ${AFTER} ]]                    # A command to execute
+        if [[ -n "${AFTER}" ]]                    # A command to execute
         then
-                ssh -qT ${USER_TO_COPY}@${X} << END_SSH
-                if [[ -n ${USER_TO_EXEC} ]]
+                ssh -qT ${USER_TO_LOG}@${X} << END_SSH
+                if [[ -n \${USER_TO_EXEC} ]]
                 then
                         sudo su - ${USER_TO_EXEC} << END_SU
-                        ${AFTER}
+                        eval "${AFTER}"
 END_SU
                 else
-                        ${AFTER}
+                        eval "${AFTER}"
                 fi
 END_SSH
         fi
-        if [[ -n ${FOOTER} ]]
+        if [[ -n "${FOOTER}" ]]
         then
-                ssh -qT ${USER_TO_COPY}@${X} << END_SSH
-                ${FOOTER}
+                ssh -qT ${USER_TO_LOG}@${X} << END_SSH
+                echo -ne "\e[36m"                               ;
+                eval "${FOOTER}"
+                echo -ne "\e[0m"                                ;
 END_SSH
         fi
 done
