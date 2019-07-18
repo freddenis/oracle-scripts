@@ -211,7 +211,7 @@ then
 fi
 
 
-TO=${TARGET}"/"${FILE_TO_COPY}                                        # for better visibility below
+TO=${DEST}"/"${FILE_TO_COPY}                                        # for better visibility below
 
 #
 # Let's go
@@ -228,9 +228,9 @@ END_SSH
         if [[ -n "${BEFORE}" ]]                   # A command to execute
         then
                 ssh ${SSH_OPTIONS} ${USER_TO_LOG}@${X} << END_SSH
-                if [[ -n \${USER_TO_EXEC} ]]
+                if [[ -n ${USER_TO_EXEC} ]]
                 then
-                        sudo su - \${USER_TO_EXEC} << END_SU
+                        sudo su - ${USER_TO_EXEC} << END_SU
                         eval "${BEFORE}"
 END_SU
                 else
@@ -246,9 +246,9 @@ END_SSH
                 then
                         ssh ${SSH_OPTIONS} ${USER_TO_LOG}@${X} << END_SSH
                         chmod 777 ${TO}
-                        if [[ -n \${USER_TO_EXEC} ]]
+                        if [[ -n ${USER_TO_EXEC} ]]
                         then
-                                sudo su - \${USER_TO_EXEC} << END_SU
+                                sudo su - ${USER_TO_EXEC} << END_SU
                                 . ${TO}
 END_SU
                         else
@@ -264,9 +264,9 @@ END_SSH
         if [[ -n "${AFTER}" ]]                    # A command to execute
         then
                 ssh ${SSH_OPTIONS} ${USER_TO_LOG}@${X} << END_SSH
-                if [[ -n \${USER_TO_EXEC} ]]
+                if [[ -n ${USER_TO_EXEC} ]]
                 then
-                        sudo su - \${USER_TO_EXEC} << END_SU
+                        sudo su - ${USER_TO_EXEC} << END_SU
                         eval "${AFTER}"
 END_SU
                 else
