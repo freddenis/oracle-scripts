@@ -1,7 +1,8 @@
 #!/bin/bash
 # Fred Denis -- July 2019 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
 #
-# Execute a script and/or some commands on many targets; use the -h option to show the usage function for more information
+# yal.sh -- Yet Another Launcher !
+# Copy and/or execute a script and/or some commands on many hosts; use the -h option to show the usage function for more information
 #
 # https://unix.stackexchange.com/questions/122616/why-do-i-need-a-tty-to-run-sudo-if-i-can-sudo-without-a-password/122624
 #
@@ -27,12 +28,13 @@ DEFAULT_FILE_TO_COPY=""                                         # A file to copy
       DEFAULT_SCRIPT=""                                         # A file containing a list of target servers (1 server per line)
  DEFAULT_USER_TO_LOG=""                                         # User used to connect to the target server
 
-              HEADER="echo BEGIN on `hostname` : `date`"        # Header to print before execution on  target
-              FOOTER="echo END\ \ \ on `hostname` : `date`"     # Footer to print after  execution on a target
+              HEADER="echo BEGIN on \`hostname\` : \`date\`"    # Header to print before execution on  target
+              FOOTER="echo END\ \ \ on \`hostname\` : \`date\`" # Footer to print after  execution on a target
 
          CONFIG_FILE=".yal.config"                              # Default config file containing default values overwritting these ones
         SHOW_OPTIONS="no"                                       # Show the options that would be used and exit -- do not do anything else (-o)
          SSH_OPTIONS="-qT"                                      # SSH options when connecting to the hosts
+         SCP_OPTIONS="-q"                                       # SCP options when there is a file to copy and/or execute
 
 #
 # Get values from the config file
@@ -80,9 +82,10 @@ END
 
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"                                 ;
 cat << END
-        `basename $0` needs SSH equivalence already set between the user executing it and the target user (option -c)
+        `basename $0` needs SSH equivalence already set between the user executing it and the target user (option -l)
         `basename $0` does not support different users to connect and execute per host (yet)
-        With no option, `basename $0` use the values defined in the Default section on top of the script
+        `basename $0` can also sudo to a user to execute a script (option -e)
+        With no option, `basename $0` use the values defined in the config file and if not, the default values from the top of the script
 
         Options precedence is:
                 1/ Option through the command line
@@ -93,8 +96,8 @@ END
 
 printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"                                     ;
 cat << END
-        -a      Commands to execute before executing the script
-        -b      Commands to execute after  executing the script
+        -a      Commands to execute before copying and/or executing the script
+        -b      Commands to execute after  copying and/or executing the script
         -c      Comma separated list of target servers to log in to
         -d      Destination of the file on the target servers
         -e      User to use to Execute the script and the commands on the target server (sudo to this user privilege is needed)
@@ -102,7 +105,7 @@ cat << END
         -g      Specify a file containing a list of target servers to connect to (1 server per line)
         -l      User to use to Login to the target servers
         -o      Only shows the values of the options and exit (do not do anything else)
-        -x      Copy and eXecute the script on the target hosts
+        -x      Copy and eXecute the script on the target hosts (see -f to only copy a file)
         -h      Shows this help
 
         Experiment and enjoy  !
@@ -118,9 +121,8 @@ print_a_line()
         done
 }
 
-
 #
-# Options (overwrite default)
+# Options (overwrite the default values)
 #
 while getopts "a:b:c:d:e:f:g:l:ox:h" OPT; do
         case ${OPT} in
@@ -160,11 +162,17 @@ fi
 #
 if [[ "${SHOW_OPTIONS}" = "yes" ]]
 then
-        if (( ${#SERVER_LIST} > 0 ))
-        then
-                COL2=$(( ${#SERVER_LIST}+1 ))                                                          ;
-        else    COL2=20                                                                         ;
-        fi
+        # Adapt the colum size to the longest value of the variales
+        COL2=10
+        for X in AFTER BEFORE SERVER_LIST DEST USER_TO_EXEC FILE_TO_COPY GROUP_FILE USER_TO_LOG SCRIPT CONFIG_FILE
+        do
+                A="${!X}"                                                                       ;
+                if (( ${#A} > $COL2 ))
+                then
+                        COL2=$(( ${#A}+1 ))                                                     ;
+                fi
+        done
+
         SIZE=$(( 24 + ${COL2} ))                                                                ;
         FORMAT_TITLE="\n\033[1;37m%-20s\033[m\033[1;37m| %-${COL2}s |\033[m"                    ;
         FORMAT_VALUE="\n\033[1;34m%-20s\033[m\033[1;37m|\033[m %-${COL2}s \033[1;37m|\033[m"    ;
@@ -197,7 +205,7 @@ then
 fi
 if [[ -n ${FILE_TO_COPY} && ! -f ${FILE_TO_COPY} ]]
 then
-        printf "\n\t\033[1;31m%s\033[m\n\n" "Cannot find ${FILE_TO_COPY}, cannot continue."           ;
+        printf "\n\t\033[1;31m%s\033[m\n\n" "Cannot find ${FILE_TO_COPY}, cannot continue."      ;
         exit 667
 fi
 if [[ -n ${SCRIPT} ]]
@@ -210,8 +218,7 @@ then
         exit 668
 fi
 
-
-TO=${DEST}"/"${FILE_TO_COPY}                                        # for better visibility below
+TO=${DEST}"/"${FILE_TO_COPY}                       # for better visibility below
 
 #
 # Let's go
@@ -240,7 +247,7 @@ END_SSH
         fi
         if [[ -f ${FILE_TO_COPY} ]]                   # A file to copy
         then
-                scp  ${FILE_TO_COPY} ${USER_TO_LOG}@${X}:${TO}
+                scp ${SCP_OPTIONS} ${FILE_TO_COPY} ${USER_TO_LOG}@${X}:${TO}
 
                 if [[ -f ${SCRIPT} ]]
                 then
