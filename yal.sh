@@ -33,6 +33,7 @@ DEFAULT_FILE_TO_COPY=""                                         # A file to copy
 
          CONFIG_FILE=".yal.config"                              # Default config file containing default values overwritting these ones
         SHOW_OPTIONS="no"                                       # Show the options that would be used and exit -- do not do anything else (-o)
+        SHOW_ELAPSED="yes"                                      # Show the elapsed time
          SSH_OPTIONS="-qT"                                      # SSH options when connecting to the hosts
          SCP_OPTIONS="-q"                                       # SCP options when there is a file to copy and/or execute
 
@@ -225,11 +226,14 @@ TO=${DEST}"/"${FILE_TO_COPY}                       # for better visibility below
 #
 for X in `echo ${SERVER_LIST} | awk 'BEGIN {FS="[,;]"} {for (i=1;i<=NF;i++) { print $i}}'`
 do 
-        if [[ -f "${FILE_TO_COPY}" ]]                   # A file to copy
+        if [[ "${SHOW_ELAPSED}" = "yes" ]]
         then
-                scp ${SCP_OPTIONS} ${FILE_TO_COPY} ${USER_TO_LOG}@${X}:${TO}
+                START_TIME="$(date -u +%s)"
         fi
-        if [[ -n "${HEADER}" || -n "${BEFORE}" || -n "${SCRIPT}" || -n "${AFTER}" || -n "${FOOTER}" ]]
+        #
+        # Header and Before
+        #
+        if [[ -n "${HEADER}" || -n "${BEFORE}" ]]       #|| -n "${SCRIPT}" || -n "${AFTER}" || -n "${FOOTER}" ]]
         then
                 ssh ${SSH_OPTIONS} ${USER_TO_LOG}@${X} << END_SSH
                         if [[ -n "${HEADER}" ]]
@@ -249,6 +253,23 @@ END_SU
                                         eval "${BEFORE}"                        ;
                                 fi
                         fi
+END_SSH
+        fi
+
+        #
+        # Script copy
+        #
+        if [[ -f "${FILE_TO_COPY}" ]]                   # A file to copy
+        then
+                scp ${SCP_OPTIONS} ${FILE_TO_COPY} ${USER_TO_LOG}@${X}:${TO}
+        fi
+
+        #
+        # Script execution, After and Footer
+        #
+        if [[ -n "${SCRIPT}" || -n "${AFTER}" || -n "${FOOTER}" ]]
+        then
+                ssh ${SSH_OPTIONS} ${USER_TO_LOG}@${X} << END_SSH
                         if [[ -n "${SCRIPT}" ]]
                         then
                                 chmod 777 ${TO}
@@ -283,6 +304,12 @@ END_SU
                                 echo -ne "\e[0m"                                ;
                         fi
 END_SSH
+        fi
+        if [[ "${SHOW_ELAPSED}" = "yes" ]] 
+        then
+                END_TIME="$(date -u +%s)"                                               ;
+                 ELAPSED="$(($END_TIME-$START_TIME))"                                   ;
+                printf "\033[0;36m%-8s: %s\033[m\n" "ELAPSED" "$ELAPSED seconds"        ;
         fi
 done
 
