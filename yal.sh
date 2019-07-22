@@ -224,69 +224,64 @@ TO=${DEST}"/"${FILE_TO_COPY}                       # for better visibility below
 # Let's go
 #
 for X in `echo ${SERVER_LIST} | awk 'BEGIN {FS="[,;]"} {for (i=1;i<=NF;i++) { print $i}}'`
-do      if [[ -n "${HEADER}" ]]
-        then
-                ssh ${SSH_OPTIONS} ${USER_TO_LOG}@${X} << END_SSH
-                echo -ne "\e[36m"                               ;
-                eval "${HEADER}"                                ;
-                echo -ne "\e[0m"                                ;
-END_SSH
-        fi
-        if [[ -n "${BEFORE}" ]]                   # A command to execute
-        then
-                ssh ${SSH_OPTIONS} ${USER_TO_LOG}@${X} << END_SSH
-                if [[ -n ${USER_TO_EXEC} ]]
-                then
-                        sudo su - ${USER_TO_EXEC} << END_SU
-                        eval "${BEFORE}"
-END_SU
-                else
-                        eval "${BEFORE}"
-                fi
-END_SSH
-        fi
-        if [[ -f ${FILE_TO_COPY} ]]                   # A file to copy
+do 
+        if [[ -f "${FILE_TO_COPY}" ]]                   # A file to copy
         then
                 scp ${SCP_OPTIONS} ${FILE_TO_COPY} ${USER_TO_LOG}@${X}:${TO}
-
-                if [[ -f ${SCRIPT} ]]
-                then
-                        ssh ${SSH_OPTIONS} ${USER_TO_LOG}@${X} << END_SSH
-                        chmod 777 ${TO}
-                        if [[ -n ${USER_TO_EXEC} ]]
-                        then
-                                sudo su - ${USER_TO_EXEC} << END_SU
-                                . ${TO}
-END_SU
-                        else
-                                . ${TO}
-                        fi
-                        if [[ -f ${TO} ]]
-                        then
-                                rm -f ${TO}
-                        fi
-END_SSH
-                fi
         fi
-        if [[ -n "${AFTER}" ]]                    # A command to execute
+        if [[ -n "${HEADER}" || -n "${BEFORE}" || -n "${SCRIPT}" || -n "${AFTER}" || -n "${FOOTER}" ]]
         then
                 ssh ${SSH_OPTIONS} ${USER_TO_LOG}@${X} << END_SSH
-                if [[ -n ${USER_TO_EXEC} ]]
-                then
-                        sudo su - ${USER_TO_EXEC} << END_SU
-                        eval "${AFTER}"
+                        if [[ -n "${HEADER}" ]]
+                        then
+                                echo -ne "\e[36m"                               ;
+                                eval "${HEADER}"                                ;
+                                echo -ne "\e[0m"                                ;
+                        fi
+                        if [[ -n "${BEFORE}" ]]        
+                        then
+                                if [[ -n "${USER_TO_EXEC}" ]]
+                                then
+                                        sudo su - ${USER_TO_EXEC} << END_SU
+                                        eval "${BEFORE}"                        ;
 END_SU
-                else
-                        eval "${AFTER}"
-                fi
-END_SSH
-        fi
-        if [[ -n "${FOOTER}" ]]
-        then
-                ssh ${SSH_OPTIONS} ${USER_TO_LOG}@${X} << END_SSH
-                echo -ne "\e[36m"                               ;
-                eval "${FOOTER}"
-                echo -ne "\e[0m"                                ;
+                                else
+                                        eval "${BEFORE}"                        ;
+                                fi
+                        fi
+                        if [[ -n "${SCRIPT}" ]]
+                        then
+                                chmod 777 ${TO}
+                                if [[ -n "${USER_TO_EXEC}" ]]
+                                then
+                                        sudo su - ${USER_TO_EXEC} << END_SU
+                                        . ${TO}                                 ;
+END_SU
+                                else
+                                        . ${TO}                                 ;
+                                fi
+                                if [[ -f "${TO}" ]]                             ;
+                                then
+                                        rm -f ${TO}                             ;
+                                fi
+                        fi
+                        if [[ -n "${AFTER}" ]]                    
+                        then
+                                if [[ -n "${USER_TO_EXEC}" ]]
+                                then
+                                        sudo su - ${USER_TO_EXEC} << END_SU
+                                        eval "${AFTER}"                         ;
+END_SU
+                                else
+                                        eval "${AFTER}"                         ;
+                                fi
+                        fi
+                        if [[ -n "${FOOTER}" ]]
+                        then
+                                echo -ne "\e[36m"                               ;
+                                eval "${FOOTER}"                                ;
+                                echo -ne "\e[0m"                                ;
+                        fi
 END_SSH
         fi
 done
