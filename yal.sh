@@ -2,6 +2,7 @@
 # Fred Denis -- July 2019 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
 #
 # yal.sh -- Yet Another Launcher !
+#
 # Copy and/or execute a script and/or some commands on many hosts; use the -h option to show the usage function for more information
 #
 # https://unix.stackexchange.com/questions/122616/why-do-i-need-a-tty-to-run-sudo-if-i-can-sudo-without-a-password/122624
@@ -28,14 +29,20 @@ DEFAULT_FILE_TO_COPY=""                                         # A file to copy
       DEFAULT_SCRIPT=""                                         # A file containing a list of target servers (1 server per line)
  DEFAULT_USER_TO_LOG=""                                         # User used to connect to the target server
 
-              HEADER="echo BEGIN on \`hostname\` : \`date\`"    # Header to print before execution on  target
-              FOOTER="echo END\ \ \ on \`hostname\` : \`date\`" # Footer to print after  execution on a target
+              HEADER="echo BEGIN on \`hostname -s\` : \`date\`"    # Header to print before execution on  target
+              FOOTER="echo END\ \ \ on \`hostname -s\` : \`date\`" # Footer to print after  execution on a target
 
          CONFIG_FILE=".yal.config"                              # Default config file containing default values overwritting these ones
         SHOW_OPTIONS="no"                                       # Show the options that would be used and exit -- do not do anything else (-o)
         SHOW_ELAPSED="yes"                                      # Show the elapsed time
          SSH_OPTIONS="-qT"                                      # SSH options when connecting to the hosts
          SCP_OPTIONS="-q"                                       # SCP options when there is a file to copy and/or execute
+
+
+	# Used for the header, footer and elapsed
+	BLUE_BOLD="1;34m"
+	    BLUE="34m"
+	   COLOR=${BLUE_BOLD}
 
 #
 # Get values from the config file
@@ -238,7 +245,7 @@ do
                 ssh ${SSH_OPTIONS} ${USER_TO_LOG}@${X} << END_SSH
                         if [[ -n "${HEADER}" ]]
                         then
-                                echo -ne "\e[36m"                               ;
+                                echo -ne "\e[${COLOR}"                          ;
                                 eval "${HEADER}"                                ;
                                 echo -ne "\e[0m"                                ;
                         fi
@@ -246,7 +253,7 @@ do
                         then
                                 if [[ -n "${USER_TO_EXEC}" ]]
                                 then
-                                        sudo su - ${USER_TO_EXEC} << END_SU
+                                        sudo su - ${USER_TO_EXEC} << END_SU 
                                         eval "${BEFORE}"                        ;
 END_SU
                                 else
@@ -299,7 +306,7 @@ END_SU
                         fi
                         if [[ -n "${FOOTER}" ]]
                         then
-                                echo -ne "\e[36m"                               ;
+                                echo -ne "\e[${COLOR}"                          ;
                                 eval "${FOOTER}"                                ;
                                 echo -ne "\e[0m"                                ;
                         fi
@@ -309,7 +316,7 @@ END_SSH
         then
                 END_TIME="$(date -u +%s)"                                               ;
                  ELAPSED="$(($END_TIME-$START_TIME))"                                   ;
-                printf "\033[0;36m%-8s: %s\033[m\n" "ELAPSED" "$ELAPSED seconds"        ;
+                printf "\033[${COLOR}%-8s: %s\033[m\n" "ELAPSED" "$ELAPSED seconds"        ;
         fi
 done
 
