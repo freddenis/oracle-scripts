@@ -8,10 +8,12 @@
 # Please have a look at http://bit.ly/2MFkzDw  for some details and screenshots
 # The latest version of the script can be downloaded here : http://bit.ly/2XEXa6j
 #
-# The current script version is 20190701
+# The current script version is 20190725
 #
 # History :
 #
+# 20190725 - Fred Denis - When STATUS and TARGET are different, shows with a WITH_BACK2 background color and a legend
+#			  Fixed a bug where the recently restarted legend was shown when it should not
 # 20190701 - Fred Denis - Minor fixes, alignements issues with the sorting
 # 20190626 - Fred Denis - Better sorting, better recently restarted legend
 # 20190621 - Fred Denis - Fixed a bug on the sorting when version was different as other (12.1 instead of 12.1.0.0)
@@ -346,23 +348,23 @@ then
         printf "\n"
 
         # Get the info we want
-        cat /dev/null                                                   >  $TMP
+        cat /dev/null                                                   	>  $TMP
         if [ "$SHOW_DB" = "YES" ]
         then
-                        crsctl stat res -p -w "TYPE = ora.database.type"                >> $TMP
-                        crsctl stat res -v -w "TYPE = ora.database.type"                >> $TMP
+                        crsctl stat res -p -w "TYPE = ora.database.type"        >> $TMP
+                        crsctl stat res -v -w "TYPE = ora.database.type"        >> $TMP
         fi
         if [ "$SHOW_LSNR" = "YES" ]
         then
-                        crsctl stat res -v -w "TYPE = ora.listener.type"                >> $TMP
+                        crsctl stat res -v -w "TYPE = ora.listener.type"        >> $TMP
                         crsctl stat res -p -w "TYPE = ora.listener.type"        >> $TMP
                         crsctl stat res -v -w "TYPE = ora.scan_listener.type"   >> $TMP
                         crsctl stat res -p -w "TYPE = ora.scan_listener.type"   >> $TMP
         fi
         if [ "$SHOW_SVC" = "YES" ]
         then
-                        crsctl stat res -v -w "TYPE = ora.service.type"                 >> $TMP
-                        #crsctl stat res -p -w "TYPE = ora.service.type"                >> $TMP         # not used, in case we need it one day
+                        crsctl stat res -v -w "TYPE = ora.service.type"          >> $TMP
+                        #crsctl stat res -p -w "TYPE = ora.service.type"         >> $TMP         # not used, in case we need it one day
         fi
 
         # Easiest way to manage the different versions of crsctl outputs
@@ -402,7 +404,7 @@ fi
                        n = split(NODES, nodes, ",")     ;       # Make a table with the nodes of the cluster
                 # some colors
              COLOR_BEGIN =       "\033[1;"              ;
-             #COLOR_BEGIN =       "\033["              ;
+             #COLOR_BEGIN =       "\033["               ;
                COLOR_END =       "\033[m"               ;
                      RED =       "31m"                  ;
                    GREEN =       "32m"                  ;
@@ -410,8 +412,9 @@ fi
                     BLUE =       "34m"                  ;
                     TEAL =       "36m"                  ;
                    WHITE =       "37m"                  ;
-               WITH_BACK =       "43m"                  ;
-               WITH_BACK2=       "41m"                  ;
+               WITH_BACK =       "43m"                  ;	# Yellow background
+               WITH_BACK2=       "44m"                  ;	# Blue background
+               WITH_BACK2=       "41m"                  ;	# Red background
                 if (REVERSE == "YES")
                 {
                    WHITE =       "30m"                  ;       # Black
@@ -432,6 +435,7 @@ fi
                COL_GROUP = 3                            ;       # to print owner:group
              COL_DEFAULT = BLUE                         ;       # for the "-"
         RECENT_RESTARTED = 0                            ;       # To show a legend if we found a recent restarted
+            STATUS_ISSUE = 0                            ;       # To show a legend if we found an issue with the status
         }
 
         #
@@ -442,41 +446,49 @@ fi
                 left  = n - length(str) - right                                                                 ;
                 return sprintf(COLOR_BEGIN color "%" left "s%s%" right "s" COLOR_END "|", "", str, "" )         ;
         }
+        #
+        # Get a date in format MM/DD/YYYY HH24:MI:SS and return the rounded number hours difference between this date and the current date
 	#
-	# Get s string and return it with a nice case: first character in upper case ad the others in lower case (ABCD => Abcd)
+        function diff_hours(a_date)
+        {       split(a_date, temp, /[\/ :]/)                                                                   ;
+                return (systime()-mktime (temp[3]" "temp[1]" "temp[2]" "temp[4]" "temp[5]" "temp[6]))/(60*60)   ;
+        }
+	#
+	# Get a string and return it with a nice case: first character in upper case ad the others in lower case (ABCD => Abcd)
 	#
 	function nice_case(str)
 	{
-#		print toupper(substr(str,1,1)) tolower(substr(str,2,length(str)))					;
-		return sprintf("%s", toupper(substr(str,1,1)) tolower(substr(str,2,length(str))))			;
+		return sprintf("%s", toupper(substr(str,1,1)) tolower(substr(str,2,length(str))))		;
 	}
-        #
-        # Get a date in format MM/DD/YYYY HH24:MI:SS and return the rounded number hours difference
-        # between this date and the current date
-        function diff_hours(a_date)
-        {       split(a_date, temp, /[\/ :]/)                                                                   ;
-                #return sprintf("%d",(systime()-mktime (temp[3]" "temp[1]" "temp[2]" "temp[4]" "temp[5]" "temp[6]))/(60*60))     ;
-                return (systime()-mktime (temp[3]" "temp[1]" "temp[2]" "temp[4]" "temp[5]" "temp[6]))/(60*60)     ;
-        }
         #
         # Print a legend for the recent restarted instances, listeners and services
         #
         function print_legend_recent_restarted()
         {
                 if (RECENT_RESTARTED == 1)
-                {       #IN_DAYS=sprintf("%.2f", DIFF_HOURS/24)                                 ;       # Round nb of days
-                        printf ("\n")                                                           ;
-                        printf(COLOR_BEGIN WITH_BACK " %-"3"s" COLOR_END, " ")                  ;
+                {  
+			printf("%s", " ")									;
+                        printf(COLOR_BEGIN WITH_BACK "%3-s" COLOR_END, " ")                  			;
                         if (DIFF_HOURS_UNIT == "h")     { UNIT="hour"           }
                         if (DIFF_HOURS_UNIT == "d")     { UNIT="day"            }
                         if (DIFF_HOURS_UNIT == "w")     { UNIT="week"           }
                         if (DIFF_HOURS_UNIT == "m")     { UNIT="month"          }
                         if (DIFF_HOURS_UNIT == "y")     { UNIT="year"           }
                         if (HOURS > 1)                  { UNIT=UNIT"s"          }
-                        printf(COLOR_BEGIN WHITE " %-"12"s\n " COLOR_END, ": Has been restarted less than "HOURS" "UNIT" ago.")             ;
-                        RECENT_RESTARTED = 0                                                    ;
+                        printf(COLOR_BEGIN WHITE " %-s\n " COLOR_END, ": Has been restarted less than "HOURS" "UNIT" ago")             ;
                 }
         }
+        #
+        # Print a legend if we found an issue in the status (STATUS != TARGET)
+        #
+	function print_legend_status_issue()
+	{	
+		if (STATUS_ISSUE == 1)
+		{
+                        printf(COLOR_BEGIN WITH_BACK2 "%-3s" COLOR_END, " ")                  			;
+                        printf(COLOR_BEGIN WHITE " %-s\n " COLOR_END, ": STATUS and TARGET are different")      ;
+		}
+	}
         #
         # A function that just print a "---" white line
         #
@@ -568,37 +580,42 @@ fi
                         {           NB = 0      ;       # Number of instance as CARDINALITY_ID is sometimes irrelevant
                                 SERVER = $2     ;
                                 if (length(SERVER) > COL_NODE)
-                                {       COL_NODE = length(SERVER) + COL_NODE_OFFSET     ;
+                                {       COL_NODE = length(SERVER) + COL_NODE_OFFSET     			;
                                 }
                                 while (getline)
                                 {
                                         if ($1 == "LAST_SERVER")        {       SERVER = $2                             ; }
                                         if ($1 == "STATE")              {       gsub(" on .*$", "", $2)                 ;
-										STATE=nice_case($2)			;
-                                                                               # if ($2 ~ /ONLINE/ ) {STATE="Online"     ;
-                                                                               #                      if (length(STATE) > COL_NODE) { COL_NODE = length(STATE) + COL_NODE_OFFSET;}
-                                                                               #                     }
-                                                                               # if ($2 ~ /OFFLINE/) {STATE=""           ;}
-									        if (length(STATE) > COL_NODE) { COL_NODE = length(STATE) + COL_NODE_OFFSET;}
+                                                                                #if ($2 ~ /ONLINE/ ) {STATE="Online"     ;
+                                                                                #                     if (length(STATE) > COL_NODE) { COL_NODE = length(STATE) + COL_NODE_OFFSET;}
+                                                                                #                    }
+                                                                                #if ($2 ~ /OFFLINE/) {STATE=""           ;}
+										status[DB,SERVER] = $2			;
+										if (length(status[DB,SERVER]) > COL_NODE) { COL_NODE = length(status[DB,SERVER]) + COL_NODE_OFFSET;}
                                                                         }
-                                        if ($1 == "TARGET")             {       target[DB,SERVER] = nice_case($2)       ;}
+                                        if ($1 == "TARGET")             {       target[DB,SERVER]=$2			;}
                                         if ($1 == "LAST_RESTART")       {       started[DB,SERVER]=diff_hours($2" "$3)  ;}
                                         if ($1 == "STATE_DETAILS")      {       NB++                                    ;       # Number of instances we came through
                                                                                 sub("STATE_DETAILS=", "", $0)           ;
                                                                                 sub(",HOME=.*$", "", $0)                ;       # Manage the 12cR2 new feature, check 20170606 for more details
                                                                                 sub("),.*$", ")", $0)                   ;       # To make clear multi status like "Mounted (Closed),Readonly,Open Initiated"
-                                                                                if ($0 == "")
-                                                                                {       status[DB,SERVER] = STATE       ;}
-                                                                                else {
-                                                                                        if ($0 == "Instance Shutdown")  {  status[DB,SERVER] = "Shutdown"       ;       } else
-                                                                                        if ($0 ~  "Readonly")           {  status[DB,SERVER] = "Readonly"       ;       } else
-                                                                                        if ($0 ~  /Mount/)              {  status[DB,SERVER] = "Mounted"        ;       } else
-                                                                                                                        {  status[DB,SERVER] = $0               ;       }
-
-											target[DB,SERVER] = status[DB,SERVER]	;
-                                                                                        if (length(status[DB,SERVER]) > COL_NODE)
-                                                                                        {       COL_NODE = length(status[DB,SERVER]) + COL_NODE_OFFSET  ;
-                                                                                        }
+                                                                                #if ($0 == "")
+                                                                                #{       status[DB,SERVER] = STATE       ;}
+                                                                                #else {
+                                                                                #        if ($0 == "Instance Shutdown")  {  status[DB,SERVER] = "Shutdown"       ;       } else
+                                                                                #        if ($0 ~  "Readonly")           {  status[DB,SERVER] = "Readonly"       ;       } else
+                                                                                #        if ($0 ~  /Mount/)              {  status[DB,SERVER] = "Mounted"        ;       } else
+                                                                                #                                        {  status[DB,SERVER] = $0               ;       }
+                                                                                #        if (length(status[DB,SERVER]) > COL_NODE)
+                                                                                #        {       COL_NODE = length(status[DB,SERVER]) + COL_NODE_OFFSET  ;
+                                                                                #        }
+                                                                                #}
+										if ($0 == "Instance Shutdown")  {  status_details[DB,SERVER] = "Shutdown"       ;       } else
+										if ($0 ~  "Readonly")           {  status_details[DB,SERVER] = "Readonly"       ;       } else
+										if ($0 ~  /Mount/)              {  status_details[DB,SERVER] = "Mounted"        ;       } else
+														{  status_details[DB,SERVER] = $0               ;       }
+                                                                                if (length(status_details[DB,SERVER]) > COL_NODE)
+                                                                                {       COL_NODE = length(status_details[DB,SERVER]) + COL_NODE_OFFSET  ;
                                                                                 }
                                                                         }
                                                                         if ($1 == "BREAK_HERE") { break;}
@@ -606,7 +623,10 @@ fi
                         }
                 }       # End of if ($1 ~ /^NAME/)
             }
-            END {       if (length(tab_lsnr) > 0)                # We print only if we have something to show
+            END {       #
+			# Listeners
+			#
+			if (length(tab_lsnr) > 0)                # We print only if we have something to show
                         {
                                 # A header for the listeners
                                 printf("%s", center("Listener" ,  COL_DB, WHITE))                               ;
@@ -638,18 +658,25 @@ fi
 
                                         for (i = 1; i <= n; i++)
                                         {
-                                                dbstatus = status[lsnr_sorted[j],nodes[i]]                      ;
+                                                dbstatus = 	   status[lsnr_sorted[j],nodes[i]]		;
+                                                dbtarget = 	   target[lsnr_sorted[j],nodes[i]]		;
+                                                dbdetail = status_details[lsnr_sorted[j],nodes[i]]		;
                                                 if ((started[lsnr_sorted[j],nodes[i]] < DIFF_HOURS) && (started[lsnr_sorted[j],nodes[i]]))
-                                                {         COL_ONLINE=WITH_BACK                          ;
-                                                           COL_OTHER=WITH_BACK                          ;
-                                                    RECENT_RESTARTED=1                                  ;
+                                                {         COL_ONLINE=WITH_BACK					;
+                                                           COL_OTHER=WITH_BACK					;
+                                                    RECENT_RESTARTED=1						;
                                                 } else {
-                                                          COL_ONLINE=GREEN                              ;
-                                                           COL_OTHER=RED                                ;
+                                                          COL_ONLINE=GREEN					;
+                                                           COL_OTHER=RED					;
                                                 }
-                                                if (dbstatus == "")             {printf("%s", center(UNKNOWN , COL_NODE, COL_DEFAULT    ))      ;}      else
-                                                if (dbstatus == "Online")       {printf("%s", center(dbstatus, COL_NODE, COL_ONLINE     ))      ;}
-                                                else                            {printf("%s", center(dbstatus, COL_NODE, COL_OTHER      ))      ;}
+						if (dbstatus != dbtarget)
+						{  	  COL_ONLINE=WITH_BACK2                         	;
+                                                           COL_OTHER=WITH_BACK2         			;
+							STATUS_ISSUE=1						;
+						}
+                                                if (dbstatus == "")             {printf("%s", center(UNKNOWN,             COL_NODE, COL_DEFAULT    ))      ;}      else
+                                                if (dbstatus == "ONLINE")       {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_ONLINE     ))      ;}
+                                                else                            {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_OTHER      ))      ;}
                                         }
                                         if (toupper(lsnr_sorted[j]) ~ /SCAN/)
                                         {       LSNR_TYPE = "SCAN"                                              ;
@@ -668,6 +695,9 @@ fi
                                 printf("\n")                                                                    ;
                         }
 
+			#
+			# Services
+			#
                         if (length(tab_svc) > 0)                # We print only if we have something to show
                         {
                                 # A header for the services
@@ -680,7 +710,7 @@ fi
                                 printf("\n")
 
                                 # a "---" line under the header
-                                print_a_line(COL_DB+COL_NODE*n+COL_VER+n+2)                                    ;
+                                print_a_line(COL_DB+COL_NODE*n+COL_VER+n+2)                                    	;
 
                                 # Print the Services
                                 x=asorti(tab_svc, svc_sorted)                                                   ;
@@ -700,18 +730,26 @@ fi
 
                                         for (i = 1; i <= n; i++)
                                         {
-                                                dbstatus = status[svc_sorted[j],nodes[i]]               ;
-                                                if ((started[svc_sorted[j],nodes[i]] < DIFF_HOURS) && (started[svc_sorted[j],nodes[i]] < DIFF_HOURS))
-                                                {         COL_ONLINE=WITH_BACK                          ;
-                                                           COL_OTHER=WITH_BACK                          ;
-                                                    RECENT_RESTARTED=1                                  ;
+                                                dbstatus = 	     status[svc_sorted[j],nodes[i]]             ;
+						dbtarget = 	     target[svc_sorted[j],nodes[i]]		;
+						dbdetail =   status_details[svc_sorted[j],nodes[i]]		;
+                                                if ((started[svc_sorted[j],nodes[i]] < DIFF_HOURS) && (started[svc_sorted[j],nodes[i]]))
+                                                {         COL_ONLINE=WITH_BACK                          	;
+                                                           COL_OTHER=WITH_BACK                          	;
+                                                    RECENT_RESTARTED=1                                  	;
                                                 } else {
-                                                          COL_ONLINE=GREEN                              ;
-                                                           COL_OTHER=RED                                ;
+                                                          COL_ONLINE=GREEN                              	;
+                                                           COL_OTHER=RED					;
                                                 }
-                                                if (dbstatus == "")             {printf("%s", center(UNKNOWN , COL_NODE, COL_DEFAULT   ))      ;}      else
-                                                if (dbstatus == "Online")       {printf("%s", center(dbstatus, COL_NODE, COL_ONLINE    ))      ;}
-                                                else                            {printf("%s", center(dbstatus, COL_NODE, COL_OTHER     ))      ;}
+						if (dbstatus != dbtarget)
+						{	
+                                                          COL_ONLINE=WITH_BACK2					;
+                                                           COL_OTHER=WITH_BACK2					;
+							STATUS_ISSUE=1						;
+						}
+                                                if (dbstatus == "")             {printf("%s", center(UNKNOWN,             COL_NODE, COL_DEFAULT   ))      ;}      else
+                                                if (dbstatus == "ONLINE")       {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_ONLINE    ))      ;}
+                                                else                            {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_OTHER     ))      ;}
                                         }
                                         printf("\n")                                                             ;
                                 }
@@ -721,7 +759,7 @@ fi
                         }
 
 			#
-			#	Databases
+			# Databases
 			#
                         if (length(version) > 0)                # We print only if we have something to show
                         {
@@ -751,46 +789,40 @@ fi
                                         printf(COLOR_BEGIN WHITE " %-"COL_VER-6"s" COLOR_END, version[version_sorted[j]], COL_VER, WHITE)         ;       # Version
                                         printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")            ;       # OH id
 
-                                        for (i = 1; i <= n; i++) {
-                                                dbstatus = status[version_sorted[j],nodes[i]]                    ;
-						dbtarget = target[version_sorted[j],nodes[i]]                    ;
-						print "avant"dbstatus":"dbtarget	;
+                                        for (i = 1; i <= n; i++)
+					{
+                                                dbstatus = 	     status[version_sorted[j],nodes[i]]		;
+						dbtarget = 	     target[version_sorted[j],nodes[i]]		;
+						dbdetail =   status_details[version_sorted[j],nodes[i]]		;
                                                 #
                                                 # Print the status here, all that are not listed in that if ladder will appear in RED
                                                 #
                                                 if ((started[version_sorted[j],nodes[i]] < DIFF_HOURS) && (started[version_sorted[j],nodes[i]]))
-                                                {           COL_OPEN=WITH_BACK                          ;
-                                                        COL_READONLY=WITH_BACK                          ;
-                                                            COL_SHUT=WITH_BACK                          ;
-                                                           COL_OTHER=WITH_BACK                          ;
-                                                    RECENT_RESTARTED=1                                  ;
-                                                } else {
-                                                            COL_OPEN=GREEN                              ;
-                                                        COL_READONLY=WHITE                              ;
-                                                            COL_SHUT=YELLOW                             ;
-                                                           COL_OTHER=RED                                ;
+                                                {           COL_OPEN=WITH_BACK                          	;
+                                                        COL_READONLY=WITH_BACK                          	;
+                                                            COL_SHUT=WITH_BACK                          	;
+                                                           COL_OTHER=WITH_BACK                          	;
+                                                    RECENT_RESTARTED=1                                  	;
+                                                } else 	{
+                                                            COL_OPEN=GREEN                              	;
+                                                        COL_READONLY=WHITE                              	;
+                                                            COL_SHUT=YELLOW					;
+                                                           COL_OTHER=RED                                	;
                                                 }
 						if (dbstatus != dbtarget)
-						{
-							print "hey" dbstatus":" dbtarget	;
-                                                            COL_OPEN=WITH_BACK2				;
-                                                        COL_READONLY=WITH_BACK2				;
-                                                            COL_SHUT=WITH_BACK2				;
-                                                           COL_OTHER=WITH_BACK2				;
+						{	
+                                                            COL_OPEN=WITH_BACK2					;
+                                                        COL_READONLY=WITH_BACK2					;
+                                                            COL_SHUT=WITH_BACK2					;
+                                                           COL_OTHER=WITH_BACK2					;
+							STATUS_ISSUE=1						;
 						}
-				#		 else
-				#		{	if (dbstatus == "Offline")
-				#			{	dbstatus = ""				;
-				#			}
-				#		}
-						print "apres"dbstatus":"dbtarget	;
 						
-                                                if (dbstatus == "")                     {printf("%s", center(UNKNOWN , COL_NODE, COL_DEFAULT ))  ;}      else
-                                                if (dbstatus == "Open")                 {printf("%s", center(dbstatus, COL_NODE, COL_OPEN    ))  ;}      else
-                                                if (dbstatus ~  /Readonly/)             {printf("%s", center(dbstatus, COL_NODE, COL_READONLY))  ;}      else
-                                                if (dbstatus ~  /Shut/)                 {printf("%s", center(dbstatus, COL_NODE, COL_SHUT    ))  ;}      else
-                                                                                        {printf("%s", center(dbstatus, COL_NODE, COL_OTHER   ))  ;}
-
+                                                if (dbdetail == "")                     {printf("%s", center(UNKNOWN,             COL_NODE, COL_DEFAULT ))  ;}      else
+                                                if (dbdetail == "Open")                 {printf("%s", center(nice_case(dbdetail), COL_NODE, COL_OPEN    ))  ;}      else
+                                                if (dbdetail ~  /Readonly/)             {printf("%s", center(nice_case(dbdetail), COL_NODE, COL_READONLY))  ;}      else
+                                                if (dbdetail ~  /Shut/)                 {printf("%s", center(nice_case(dbdetail), COL_NODE, COL_SHUT    ))  ;}      else
+                                                                                        {printf("%s", center(nice_case(dbdetail),             COL_NODE, COL_OTHER   ))  ;}
                                         }
                                         #
                                         # Color the DB Type column depending on the ROLE of the database (20170619)
@@ -805,49 +837,50 @@ fi
                                 print_a_line()                                                                  ;
 
                                 # Print the OH list and a legend for the DB Type colors underneath the table
-                                printf ("%s", "ORACLE_HOME references listed in the Version column ")         ;
+                                printf ("%s", "ORACLE_HOME references listed in the Version column ")         	;
                                 if (oh_ref > 1)
                                 {
-                                        printf ("(%s)", "\"" sprintf(COLOR_BEGIN TEAL "%s" COLOR_END, "\47\47") "\" means \"same as above\"")     ;
+                                        printf ("(%s)", "\"" sprintf(COLOR_BEGIN TEAL "%s" COLOR_END, "\47\47") "\" means \"same as above\"")     	;
                                 }
                                 printf ("\n\n")                                                                 ;
 
-                                previous_group = ""                     ;
-                                previous_owner = ""                     ;
+                                previous_group = ""                     					;
+                                previous_owner = ""                     					;
                                 if (COL_OWNER%2) { COL_OWNER++  }
                                 if (COL_GROUP%2) { COL_GROUP++  }
-                                g_same_as_above=sprintf(COLOR_BEGIN TEAL "%"(COL_GROUP/2)-1"s%s" COLOR_END, "", "\47\47");
-                                o_same_as_above=sprintf(COLOR_BEGIN TEAL "%"(COL_OWNER/2)-1"s%s%"(COL_OWNER/2)-1"s" COLOR_END, "", "\47\47", "");
+                                g_same_as_above=sprintf(COLOR_BEGIN TEAL "%"(COL_GROUP/2)-1"s%s" COLOR_END, "", "\47\47")				;
+                                o_same_as_above=sprintf(COLOR_BEGIN TEAL "%"(COL_OWNER/2)-1"s%s%"(COL_OWNER/2)-1"s" COLOR_END, "", "\47\47", "")	;
 
                                 # to ease the ORACLE_HOME sorting
                                 for (x in oh_list)
                                 {
-                                        to_print[oh_list[x]] = x        ;
+                                        to_print[oh_list[x]] = x        					;
                                 }
                                 for (i=1; i<=oh_ref; i++)
                                 {
                                         # to ease the naming
-                                        the_oh=to_print[i]              ;
-                                         owner=o_list[to_print[i]]      ;
-                                         group=g_list[to_print[i]]      ;
+                                        the_oh=to_print[i]              					;
+                                         owner=o_list[to_print[i]]      					;
+                                         group=g_list[to_print[i]]      					;
                                         if (group == previous_group) {  group_to_print = g_same_as_above        ;       } else {        group_to_print = group  ;       }
                                         if (owner == previous_owner) {  owner_to_print = o_same_as_above        ;       } else {        owner_to_print = owner  ;       }
 
                                         printf("\t%2d : %-"COL_OH"s\t%-"COL_OWNER"s %s\n", i, the_oh, owner_to_print, group_to_print) ;
-                                        previous_group = group          ;
-                                        previous_owner = owner          ;
+                                        previous_group = group          					;
+                                        previous_owner = owner          					;
                                 }
                         }
-        }
-        END {  print_legend_recent_restarted();
+			printf ("\n")                                                                 		;
+        		print_legend_recent_restarted()								;
+			print_legend_status_issue()								;
         } ' $TMP | ${AWK} -v GREP="$GREP" -v UNGREP="$UNGREP" ' BEGIN {FS="|"}                                              # AWK used to grep and ungrep
                       {         if ((NF >= 3) && ($(NF-1) !~ /Type/) && ($2 !~ /Service/))
                                 {       if (($0 ~ GREP) && ($0 !~ UNGREP))
                                         {
-                                                print $0                                                          ;
+                                                print $0                                                        ;
                                         }
                                 } else {
-                                        print  $0                                                                 ;
+                                        print  $0                                                               ;
                                 }
                         }' | sed s'/^/  /'              > ${TMP2}                       # We can reuse TMP2 here
 
