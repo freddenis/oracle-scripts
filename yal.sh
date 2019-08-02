@@ -7,11 +7,13 @@
 #
 # https://unix.stackexchange.com/questions/122616/why-do-i-need-a-tty-to-run-sudo-if-i-can-sudo-without-a-password/122624
 #
-# The current version of the script is 20190710
+# The current version of the script is DEV20190802
 #
 # History:
 #
-# 20190710 - Fred Denis - Initial release
+# DEV20190802 - Fred Denis - -s for ssh option ans -S for scp options
+#                            SSH_OPTIONS and SCP_OPTIONS are supported on the config file
+#
 #
 
 #
@@ -35,36 +37,69 @@ DEFAULT_FILE_TO_COPY=""                                         # A file to copy
          CONFIG_FILE=".yal.config"                              # Default config file containing default values overwritting these ones
         SHOW_OPTIONS="no"                                       # Show the options that would be used and exit -- do not do anything else (-o)
         SHOW_ELAPSED="yes"                                      # Show the elapsed time
-         SSH_OPTIONS="-qT"                                      # SSH options when connecting to the hosts
-         SCP_OPTIONS="-q"                                       # SCP options when there is a file to copy and/or execute
+ DEFAULT_SSH_OPTIONS="-qT"                                      # SSH options when connecting to the hostsa (you may not want to modify this one)
+ DEFAULT_SCP_OPTIONS="-q"                                       # SCP options when there is a file to copy and/or execute (you may not want to modify this one)
 
 
-	# Used for the header, footer and elapsed
-	BLUE_BOLD="1;34m"
-	    BLUE="34m"
-	   COLOR=${BLUE_BOLD}
+        # Used for the header, footer and elapsed
+        BLUE_BOLD="1;34m"
+            BLUE="34m"
+           COLOR=${BLUE_BOLD}
 
 #
-# Get values from the config file
+# Function to get values from the config file, receive a pattenr and retuen the value specified in the config file
+# Form should be : PATTERN=value or PATTERN="list of values"
 #
-if [[ -f ${CONFIG_FILE} ]]
-then
-               AFTER=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^AFTER"        | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-              BEFORE=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^BEFORE"       | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-         SERVER_LIST=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^SERVER_LIST"  | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-                DEST=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^DEST"         | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-        USER_TO_EXEC=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^USER_TO_EXEC" | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-        FILE_TO_COPY=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^FILE_TO_COPY" | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-          GROUP_FILE=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^GROUP_FILE"   | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-         USER_TO_LOG=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^USER_TO_LOG"  | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-              SCRIPT=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^SCRIPT"       | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-fi
+get_from_config_file()
+{
+        A=$(grep "$1" ${CONFIG_FILE} | grep -v "^#" | sed s'/^[[:space:]]*//g' | sed s'/#.*$//' | sed s'/^.*=[[:space:]]*//' | sed s'/[[:space:]]*$//' | sed s'/"//g')
+        echo "$A"
+}
+
+#
+# Get the values from the config file -- working on it
+#
+#for NAME in AFTER BEFORE SERVER_LIST DEST USER_TO_EXEC FILE_TO_COPY GROUP_FILE USER_TO_LOG SCRIPT CONFIG_FILE SSH_OPTIONS SCP_OPTIONS
+#do
+#       #A="${!X}"                                                                       ;
+#       #echo $A
+#       VALUE=$(get_from_config_file "$NAME")
+#       echo $NAME, $VALUE
+#       declare "$NAME"=$(echo ${VALUE})
+#done
+
+       AFTER=$(get_from_config_file "AFTER")
+      BEFORE=$(get_from_config_file "BEFORE")
+ SERVER_LIST=$(get_from_config_file "SERVER_LIST")
+        DEST=$(get_from_config_file "DEST")
+USER_TO_EXEC=$(get_from_config_file "USER_TO_EXEC")
+FILE_TO_COPY=$(get_from_config_file "FILE_TO_COPY")
+  GROUP_FILE=$(get_from_config_file "GROUP_FILE")
+ USER_TO_LOG=$(get_from_config_file "USER_TO_LOG")
+      SCRIPT=$(get_from_config_file "SCRIPT")
+ SSH_OPTIONS=$(get_from_config_file "SSH_OPTIONS")
+ SCP_OPTIONS=$(get_from_config_file "SCP_OPTIONS")
+
+#if [[ -f ${CONFIG_FILE} ]]
+#then
+#               AFTER=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^AFTER"        | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
+#              BEFORE=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^BEFORE"       | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
+#         SERVER_LIST=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^SERVER_LIST"  | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
+#                DEST=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^DEST"         | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
+#        USER_TO_EXEC=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^USER_TO_EXEC" | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
+#        FILE_TO_COPY=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^FILE_TO_COPY" | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
+#          GROUP_FILE=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^GROUP_FILE"   | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
+#         USER_TO_LOG=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^USER_TO_LOG"  | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
+#              SCRIPT=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^SCRIPT"       | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
+#         SSH_OPTIONS=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^SSH_OPTIONS"  | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
+#         SCP_OPTIONS=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^SCP_OPTIONS"  | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
+#fi
 
 #
 # Use default values if not specified in the config file
 #
-if [[ -z ${AFTER}        ]]     ; then        AFTER=$DEFAULT_AFTER              ; fi
-if [[ -z ${BEFORE}       ]]     ; then       BEFORE=$DEFAULT_BEFORE             ; fi
+if [[ -z ${AFTER}        ]]     ; then        AFTER="$DEFAULT_AFTER"            ; fi
+if [[ -z ${BEFORE}       ]]     ; then       BEFORE="$DEFAULT_BEFORE"           ; fi
 if [[ -z ${SERVER_LIST}  ]]     ; then  SERVER_LIST=$DEFAULT_SERVER_LIST        ; fi
 if [[ -z ${DEST}         ]]     ; then         DEST=$DEFAULT_DEST               ; fi
 if [[ -z ${USER_TO_EXEC} ]]     ; then USER_TO_EXEC=$DEFAULT_USER_TO_EXEC       ; fi
@@ -72,6 +107,8 @@ if [[ -z ${FILE_TO_COPY} ]]     ; then FILE_TO_COPY=$DEFAULT_FILE_TO_COPY       
 if [[ -z ${GROUP_FILE}   ]]     ; then   GROUP_FILE=$DEFAULT_GROUP_FILE         ; fi
 if [[ -z ${USER_TO_LOG}  ]]     ; then  USER_TO_LOG=$DEFAULT_USER_TO_LOG        ; fi
 if [[ -z ${SCRIPT}       ]]     ; then       SCRIPT=$DEFAULT_SCRIPT             ; fi
+if [[ -z ${SSH_OPTIONS}  ]]     ; then  SSH_OPTIONS="$DEFAULT_SSH_OPTIONS"      ; fi
+if [[ -z ${SCP_OPTIONS}  ]]     ; then  SCP_OPTIONS="$DEFAULT_SCP_OPTIONS"      ; fi
 
 #
 # An usage function
@@ -85,7 +122,7 @@ END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"                                    ;
 cat << END
-        $0 [-a] [-b] [-c] [-d] [-e] [-f] [-g] [-l] [-o] [-x] [-h]
+        $0 [-a] [-b] [-c] [-d] [-e] [-f] [-g] [-l] [-o] [-x] [-s] [-S] [-h]
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"                                 ;
@@ -113,6 +150,8 @@ cat << END
         -g      Specify a file containing a list of target servers to connect to (1 server per line)
         -l      User to use to Login to the target servers
         -o      Only shows the values of the options and exit (do not do anything else)
+        -s      SSH options
+        -S      SCP options
         -x      Copy and eXecute the script on the target hosts (see -f to only copy a file)
         -h      Shows this help
 
@@ -132,7 +171,7 @@ print_a_line()
 #
 # Options (overwrite the default values)
 #
-while getopts "a:b:c:d:e:f:g:l:ox:h" OPT; do
+while getopts "a:b:c:d:e:f:g:l:ox:hs:S:" OPT; do
         case ${OPT} in
         a)              AFTER=${OPTARG}                         ;;
         b)             BEFORE=${OPTARG}                         ;;
@@ -143,6 +182,8 @@ while getopts "a:b:c:d:e:f:g:l:ox:h" OPT; do
         g)         GROUP_FILE=${OPTARG}                         ;;
         l)        USER_TO_LOG=${OPTARG}                         ;;
         o)       SHOW_OPTIONS="yes"                             ;;
+        s)        SSH_OPTIONS=${OPTARG}                         ;;
+        S)        SCP_OPTIONS=${OPTARG}                         ;;
         x)             SCRIPT=${OPTARG}                         ;;
         h)      usage                                           ;;
         \?) echo "Invalid option: -$OPTARG" >&2; usage          ;;
@@ -172,7 +213,7 @@ if [[ "${SHOW_OPTIONS}" = "yes" ]]
 then
         # Adapt the colum size to the longest value of the variales
         COL2=10
-        for X in AFTER BEFORE SERVER_LIST DEST USER_TO_EXEC FILE_TO_COPY GROUP_FILE USER_TO_LOG SCRIPT CONFIG_FILE
+        for X in AFTER BEFORE SERVER_LIST DEST USER_TO_EXEC FILE_TO_COPY GROUP_FILE USER_TO_LOG SCRIPT CONFIG_FILE SSH_OPTIONS SCP_OPTIONS
         do
                 A="${!X}"                                                                       ;
                 if (( ${#A} > $COL2 ))
@@ -195,6 +236,8 @@ then
         printf "${FORMAT_VALUE}" "-f: File to copy"     $FILE_TO_COPY                           ;
         printf "${FORMAT_VALUE}" "-g: Group File"       $GROUP_FILE                             ;
         printf "${FORMAT_VALUE}" "-l: User to login"    $USER_TO_LOG                            ;
+        printf "${FORMAT_VALUE}" "-s: SSH Options"      "$SSH_OPTIONS"                          ;
+        printf "${FORMAT_VALUE}" "-S: SCP Options"      "$SCP_OPTIONS"                          ;
         printf "${FORMAT_VALUE}" "-x: Script to exec"   $SCRIPT                                 ;
         printf "${FORMAT_VALUE}" "    Config File"      $CONFIG_FILE                            ;
         print_a_line $SIZE                                                                      ;
