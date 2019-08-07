@@ -7,10 +7,11 @@
 #
 # https://unix.stackexchange.com/questions/122616/why-do-i-need-a-tty-to-run-sudo-if-i-can-sudo-without-a-password/122624
 #
-# The current version of the script is DEV20190802
+# The current version of the script is DEV20190807
 #
 # History:
 #
+# DEV20190807 - Fred Denis - Better parameter search in the config file
 # DEV20190802 - Fred Denis - -s for ssh option ans -S for scp options
 #                            SSH_OPTIONS and SCP_OPTIONS are supported on the config file
 #
@@ -40,9 +41,14 @@ DEFAULT_FILE_TO_COPY=""                                         # A file to copy
  DEFAULT_SSH_OPTIONS="-qT"                                      # SSH options when connecting to the hostsa (you may not want to modify this one)
  DEFAULT_SCP_OPTIONS="-q"                                       # SCP options when there is a file to copy and/or execute (you may not want to modify this one)
 
+#
+# List of parameters that can be modified (config file, top of the script or command line option)
+#
+list_param=('AFTER' 'BEFORE' 'SERVER_LIST' 'DEST' 'USER_TO_EXEC' 'FILE_TO_COPY' 'GROUP_FILE' 'USER_TO_LOG' 'SCRIPT' 'SSH_OPTIONS' 'SCP_OPTIONS')
+
 
         # Used for the header, footer and elapsed
-        BLUE_BOLD="1;34m"
+       BLUE_BOLD="1;34m"
             BLUE="34m"
            COLOR=${BLUE_BOLD}
 
@@ -57,43 +63,15 @@ get_from_config_file()
 }
 
 #
-# Get the values from the config file -- working on it
+# Get the values from the config file
 #
-#for NAME in AFTER BEFORE SERVER_LIST DEST USER_TO_EXEC FILE_TO_COPY GROUP_FILE USER_TO_LOG SCRIPT CONFIG_FILE SSH_OPTIONS SCP_OPTIONS
-#do
-#       #A="${!X}"                                                                       ;
-#       #echo $A
-#       VALUE=$(get_from_config_file "$NAME")
-#       echo $NAME, $VALUE
-#       declare "$NAME"=$(echo ${VALUE})
-#done
-
-       AFTER=$(get_from_config_file "AFTER")
-      BEFORE=$(get_from_config_file "BEFORE")
- SERVER_LIST=$(get_from_config_file "SERVER_LIST")
-        DEST=$(get_from_config_file "DEST")
-USER_TO_EXEC=$(get_from_config_file "USER_TO_EXEC")
-FILE_TO_COPY=$(get_from_config_file "FILE_TO_COPY")
-  GROUP_FILE=$(get_from_config_file "GROUP_FILE")
- USER_TO_LOG=$(get_from_config_file "USER_TO_LOG")
-      SCRIPT=$(get_from_config_file "SCRIPT")
- SSH_OPTIONS=$(get_from_config_file "SSH_OPTIONS")
- SCP_OPTIONS=$(get_from_config_file "SCP_OPTIONS")
-
-#if [[ -f ${CONFIG_FILE} ]]
-#then
-#               AFTER=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^AFTER"        | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-#              BEFORE=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^BEFORE"       | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-#         SERVER_LIST=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^SERVER_LIST"  | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-#                DEST=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^DEST"         | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-#        USER_TO_EXEC=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^USER_TO_EXEC" | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-#        FILE_TO_COPY=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^FILE_TO_COPY" | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-#          GROUP_FILE=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^GROUP_FILE"   | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-#         USER_TO_LOG=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^USER_TO_LOG"  | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-#              SCRIPT=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^SCRIPT"       | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-#         SSH_OPTIONS=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^SSH_OPTIONS"  | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-#         SCP_OPTIONS=`cat ${CONFIG_FILE} | grep -v "^#" | sed s'/^ *//g' | grep "^SCP_OPTIONS"  | sed s'/"//g' | awk -F "=" '{print $2}' | sed s'/ .*$//g'`
-#fi
+if [[ -f ${CONFIG_FILE} ]]
+then
+        for name in "${list_param[@]}"
+        do
+                declare -x "$name"="$(get_from_config_file "$name")"
+        done
+fi
 
 #
 # Use default values if not specified in the config file
@@ -160,6 +138,9 @@ cat << END
 END
         exit 123
 }
+#
+# Print a line of "-"
+#
 print_a_line()
 {
         printf "\n"                                                                             ;
@@ -167,7 +148,6 @@ print_a_line()
         do      printf "\033[1;37m%1s\033[m" "-"                                                ;
         done
 }
-
 #
 # Options (overwrite the default values)
 #
@@ -212,8 +192,8 @@ fi
 if [[ "${SHOW_OPTIONS}" = "yes" ]]
 then
         # Adapt the colum size to the longest value of the variales
-        COL2=10
-        for X in AFTER BEFORE SERVER_LIST DEST USER_TO_EXEC FILE_TO_COPY GROUP_FILE USER_TO_LOG SCRIPT CONFIG_FILE SSH_OPTIONS SCP_OPTIONS
+        COL2=${#CONFIG_FILE}
+        for X in "${list_param[@]}"
         do
                 A="${!X}"                                                                       ;
                 if (( ${#A} > $COL2 ))
@@ -230,16 +210,16 @@ then
         print_a_line $SIZE                                                                      ;
         printf "${FORMAT_VALUE}" "-a: After"            "$AFTER"                                ;
         printf "${FORMAT_VALUE}" "-b: Before"           "$BEFORE"                               ;
-        printf "${FORMAT_VALUE}" "-c: Servers List"     $SERVER_LIST                            ;
-        printf "${FORMAT_VALUE}" "-d: Dest"             $DEST                                   ;
-        printf "${FORMAT_VALUE}" "-e: User to exec"     $USER_TO_EXEC                           ;
-        printf "${FORMAT_VALUE}" "-f: File to copy"     $FILE_TO_COPY                           ;
-        printf "${FORMAT_VALUE}" "-g: Group File"       $GROUP_FILE                             ;
-        printf "${FORMAT_VALUE}" "-l: User to login"    $USER_TO_LOG                            ;
+        printf "${FORMAT_VALUE}" "-c: Servers List"     "$SERVER_LIST"                          ;
+        printf "${FORMAT_VALUE}" "-d: Dest"             "$DEST"                                 ;
+        printf "${FORMAT_VALUE}" "-e: User to exec"     "$USER_TO_EXEC"                         ;
+        printf "${FORMAT_VALUE}" "-f: File to copy"     "$FILE_TO_COPY"                         ;
+        printf "${FORMAT_VALUE}" "-g: Group File"       "$GROUP_FILE"                           ;
+        printf "${FORMAT_VALUE}" "-l: User to login"    "$USER_TO_LOG"                          ;
         printf "${FORMAT_VALUE}" "-s: SSH Options"      "$SSH_OPTIONS"                          ;
         printf "${FORMAT_VALUE}" "-S: SCP Options"      "$SCP_OPTIONS"                          ;
-        printf "${FORMAT_VALUE}" "-x: Script to exec"   $SCRIPT                                 ;
-        printf "${FORMAT_VALUE}" "    Config File"      $CONFIG_FILE                            ;
+        printf "${FORMAT_VALUE}" "-x: Script to exec"   "$SCRIPT"                               ;
+        printf "${FORMAT_VALUE}" "    Config File"      "$CONFIG_FILE"                          ;
         print_a_line $SIZE                                                                      ;
         printf "\n\n"                                                                           ;
 
@@ -283,24 +263,24 @@ do
         #
         # Header and Before
         #
-        if [[ -n "${HEADER}" || -n "${BEFORE}" ]]       #|| -n "${SCRIPT}" || -n "${AFTER}" || -n "${FOOTER}" ]]
+        if [[ -n "${HEADER}" || -n "${BEFORE}" ]]     
         then
                 ssh ${SSH_OPTIONS} ${USER_TO_LOG}@${X} << END_SSH
                         if [[ -n "${HEADER}" ]]
                         then
-                                echo -ne "\e[${COLOR}"                          ;
-                                eval "${HEADER}"                                ;
-                                echo -ne "\e[0m"                                ;
+                                echo -ne "\e[${COLOR}"                                  ;
+                                eval "${HEADER}"                                        ;
+                                echo -ne "\e[0m"                                        ;
                         fi
                         if [[ -n "${BEFORE}" ]]        
                         then
                                 if [[ -n "${USER_TO_EXEC}" ]]
                                 then
                                         sudo su - ${USER_TO_EXEC} << END_SU 
-                                        eval "${BEFORE}"                        ;
+                                        eval "${BEFORE}"                                ;
 END_SU
                                 else
-                                        eval "${BEFORE}"                        ;
+                                        eval "${BEFORE}"                                ;
                                 fi
                         fi
 END_SSH
@@ -326,14 +306,14 @@ END_SSH
                                 if [[ -n "${USER_TO_EXEC}" ]]
                                 then
                                         sudo su - ${USER_TO_EXEC} << END_SU
-                                        . ${TO}                                 ;
+                                        . ${TO}                                         ;
 END_SU
                                 else
-                                        . ${TO}                                 ;
+                                        . ${TO}                                         ;
                                 fi
-                                if [[ -f "${TO}" ]]                             ;
+                                if [[ -f "${TO}" ]]                             
                                 then
-                                        rm -f ${TO}                             ;
+                                        rm -f ${TO}                                     ;
                                 fi
                         fi
                         if [[ -n "${AFTER}" ]]                    
@@ -341,17 +321,17 @@ END_SU
                                 if [[ -n "${USER_TO_EXEC}" ]]
                                 then
                                         sudo su - ${USER_TO_EXEC} << END_SU
-                                        eval "${AFTER}"                         ;
+                                        eval "${AFTER}"                                 ;
 END_SU
                                 else
-                                        eval "${AFTER}"                         ;
+                                        eval "${AFTER}"                                 ;
                                 fi
                         fi
                         if [[ -n "${FOOTER}" ]]
                         then
-                                echo -ne "\e[${COLOR}"                          ;
-                                eval "${FOOTER}"                                ;
-                                echo -ne "\e[0m"                                ;
+                                echo -ne "\e[${COLOR}"                                  ;
+                                eval "${FOOTER}"                                        ;
+                                echo -ne "\e[0m"                                        ;
                         fi
 END_SSH
         fi
@@ -359,7 +339,7 @@ END_SSH
         then
                 END_TIME="$(date -u +%s)"                                               ;
                  ELAPSED="$(($END_TIME-$START_TIME))"                                   ;
-                printf "\033[${COLOR}%-8s: %s\033[m\n" "ELAPSED" "$ELAPSED seconds"        ;
+                printf "\033[${COLOR}%-8s: %s\033[m\n" "ELAPSED" "$ELAPSED seconds"     ;
         fi
 done
 
