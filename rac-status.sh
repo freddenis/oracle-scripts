@@ -8,10 +8,11 @@
 # Please have a look at http://bit.ly/2MFkzDw  for some details and screenshots
 # The latest version of the script can be downloaded here : http://bit.ly/2XEXa6j
 #
-# The current script version is 20190828
+# The current script version is 20190829
 #
 # History :
 #
+# 20190829 - Fred Denis - Show a red "x" if a service is disabled as well as a legend below the services table
 # 20190828 - Fred Denis - Option -L to always show full hostnames; also fixed a bug with the name of the cluster shown
 # 20190725 - Fred Denis - When STATUS and TARGET are different, shows with a WITH_BACK2 background color and a legend
 #                         Fixed a bug where the recently restarted legend was shown when it should not
@@ -369,7 +370,7 @@ then
         if [ "$SHOW_SVC" = "YES" ]
         then
                         crsctl stat res -v -w "TYPE = ora.service.type"          >> $TMP
-                        #crsctl stat res -p -w "TYPE = ora.service.type"         >> $TMP         # not used, in case we need it one day
+                        crsctl stat res -p -w "TYPE = ora.service.type"          >> $TMP         # not used, in case we need it one day
         fi
 
         # Easiest way to manage the different versions of crsctl outputs
@@ -428,9 +429,10 @@ fi
                 }
 
                  UNKNOWN = "-"                          ;       # Something to print when the status is unknown
+                DISABLED = "x"                          ;       # Something disabled
 
                 # Default columns size
-                COL_NODE =  0                           ;
+                COL_NODE = 0                            ;
          COL_NODE_OFFSET = col_node_offset * 2          ;       # Defined on top the script, have a look for explanations on this
                   COL_DB = 12                           ;
                  COL_VER = 15                           ;
@@ -441,15 +443,24 @@ fi
              COL_DEFAULT = BLUE                         ;       # for the "-"
         RECENT_RESTARTED = 0                            ;       # To show a legend if we found a recent restarted
             STATUS_ISSUE = 0                            ;       # To show a legend if we found an issue with the status
+        SERVICE_DISABLED = 0                            ;       # To show a legend of a service is disabled
+                 COL_SEP = "|"                          ;       # Column separator
         }
 
         #
         # A function to center the outputs with colors
         #
-        function center( str, n, color)
+        function center(str, n, color, sep)
         {       right = int((n - length(str)) / 2)                                                              ;
                 left  = n - length(str) - right                                                                 ;
-                return sprintf(COLOR_BEGIN color "%" left "s%s%" right "s" COLOR_END "|", "", str, "" )         ;
+                return sprintf(COLOR_BEGIN color "%" left "s%s%" right "s" COLOR_END sep, "", str, "" )         ;
+        }
+        #
+        # Colorize a string
+        #
+        function in_color(str, color)
+        {
+                return sprintf(COLOR_BEGIN color "%s" COLOR_END, str)                                           ;
         }
         #
         # Get a date in format MM/DD/YYYY HH24:MI:SS and return the rounded number hours difference between this date and the current date
@@ -473,7 +484,7 @@ fi
                 if (RECENT_RESTARTED == 1)
                 {
                         printf("%s", " ")                                                                       ;
-                        printf(COLOR_BEGIN WITH_BACK "%3-s" COLOR_END, " ")                                     ;
+                        printf(COLOR_BEGIN WITH_BACK "%-3s" COLOR_END, " ")                                     ;
                         if (DIFF_HOURS_UNIT == "h")     { UNIT="hour"           }
                         if (DIFF_HOURS_UNIT == "d")     { UNIT="day"            }
                         if (DIFF_HOURS_UNIT == "w")     { UNIT="week"           }
@@ -495,6 +506,16 @@ fi
                 }
         }
         #
+        # Print a service disabled legend
+        #
+        function print_legend_service_disabled()
+        {       if (SERVICE_DISABLED == 1)
+                {       printf("%s", " ")                                                                       ;
+                        printf("%s", center(DISABLED, 3, RED))                                                  ;
+                        printf("%-s\n", in_color(" : Service is disabled", WHITE))                              ;
+                }
+        }
+        #
         # A function that just print a "---" white line
         #
         function print_a_line(size)
@@ -509,10 +530,14 @@ fi
         {
                # Fill 2 tables with the OH and the version from "crsctl stat res -p -w "TYPE = ora.database.type""
                if ($1 == "NAME")
-               {
+               {        type = "DB"                                                                             ;
                         sub("^ora.", "", $2)                                                                    ;
                         sub(".db$",  "", $2)                                                                    ;
-                        if ($2 ~ ".lsnr"){sub(".lsnr$", "", $2); tab_lsnr[$2] = $2;}                            ;       # Listeners
+                        if ($2 ~ ".lsnr")                                                                               # Listeners
+                        {       sub(".lsnr$", "", $2)                                                           ;
+                                tab_lsnr[$2]    = $2                                                            ;
+                                type            =       "LISTENER"                                              ;
+                        }
                         if ($2 ~ ".svc")                                                                                # Services
                         {       sub(".svc$", "", $2)                                                            ;
                                 tab_svc[$2]=$2                                                                  ;
@@ -521,6 +546,7 @@ fi
                                 if (length(service) > COL_VER-1)                                                        # To adapt the column size
                                 {     COL_VER = length(service) +1                                              ;
                                 }
+                                type            =       "SERVICE"                                               ;
                         }
                         DB=$2                                                                                   ;
                         split($2, temp, ".")                                                                    ;
@@ -531,7 +557,8 @@ fi
                         getline; getline                                                                        ;
                         if ($1 == "ACL")                        # crsctl stat res -p output
                         {
-                                if ((DB in version == 0) && (DB in tab_lsnr == 0) && (DB in tab_svc == 0))
+                          #      if ((DB in version == 0) && (DB in tab_lsnr == 0) && (DB in tab_svc == 0))
+                                if (type == "DB")
                                 {
                                         # Get the owner and the group
                                         match($2, /owner:([[:alnum:]]*):.*/, OWNER)                             ;
@@ -568,8 +595,32 @@ fi
                                                         break                                                   ;
                                                 }
                                         }
-                                }
-                                if (DB in tab_lsnr == 1)
+                                }       # End if (type == "DB")
+                                if (type == "SERVICE")
+                                {       while(getline)
+                                        {
+                                                if ($1 == "ENABLED")                                                    # Service is enabled (1) or disabled (0)
+                                                {       for (i=1; i<=n; i++)                                            # n = number of nodes
+                                                        {       svc_enabled[DB,nodes[i]]= $2                    ;
+                                                        }
+                                                        while(getline)
+                                                        {       if ($1 ~ /ENABLED@SERVERNAME/ )
+                                                                {       sub("ENABLED@SERVERNAME[(]", "", $1)    ;
+                                                                        sub(")", "", $1)                        ;
+                                                                        svc_enabled[DB,$1] = $2                 ;
+                                                                } else {
+                                                                        break                                   ;
+                                                                }
+                                                        }
+                                                }
+                                                if ($0 ~ /^$/)
+                                                {       break                                                   ;
+                                                }
+                                        }
+
+                                }       # End if (type == "SERVICE")
+                                #if (DB in tab_lsnr == 1)
+                                if (type == "LISTENER")
                                 {
                                         while(getline)
                                         {
@@ -580,7 +631,7 @@ fi
                                                 }
                                         }
                                 }
-                        }
+                        }       # End if ($1 == "ACL")
                         if ($1 == "LAST_SERVER")        # crsctl stat res -v output
                         {           NB = 0      ;       # Number of instance as CARDINALITY_ID is sometimes irrelevant
                                 SERVER = $2     ;
@@ -634,13 +685,13 @@ fi
                         if (length(tab_lsnr) > 0)                # We print only if we have something to show
                         {
                                 # A header for the listeners
-                                printf("%s", center("Listener" ,  COL_DB, WHITE))                               ;
-                                printf("%s", center("Port"     , COL_VER+1, WHITE))                             ;
+                                printf("%s", center("Listener" ,  COL_DB, WHITE, COL_SEP))                      ;
+                                printf("%s", center("Port"     , COL_VER+1, WHITE, COL_SEP))                    ;
                                 n=asort(nodes)                                                                  ;       # sort array nodes
                                 for (i = 1; i <= n; i++) {
-                                        printf("%s", center(nodes[i], COL_NODE, WHITE))                         ;
+                                        printf("%s", center(nodes[i], COL_NODE, WHITE, COL_SEP))                ;
                                 }
-                                printf("%s", center("Type"    , COL_TYPE, WHITE))                               ;
+                                printf("%s", center("Type"    , COL_TYPE, WHITE, COL_SEP))                      ;
                                 printf("\n")                                                                    ;
 
                                 # a "---" line under the header
@@ -679,16 +730,16 @@ fi
                                                            COL_OTHER=WITH_BACK2                                 ;
                                                         STATUS_ISSUE=1                                          ;
                                                 }
-                                                if (dbstatus == "")             {printf("%s", center(UNKNOWN,             COL_NODE, COL_DEFAULT    ))      ;}      else
-                                                if (dbstatus == "ONLINE")       {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_ONLINE     ))      ;}
-                                                else                            {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_OTHER      ))      ;}
+                                                if (dbstatus == "")             {printf("%s", center(UNKNOWN,             COL_NODE, COL_DEFAULT, COL_SEP    ))      ;}      else
+                                                if (dbstatus == "ONLINE")       {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_ONLINE,  COL_SEP    ))      ;}
+                                                else                            {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_OTHER,   COL_SEP    ))      ;}
                                         }
                                         if (toupper(lsnr_sorted[j]) ~ /SCAN/)
                                         {       LSNR_TYPE = "SCAN"                                              ;
                                         } else {
                                                 LSNR_TYPE = "Listener"                                          ;
                                         }
-                                        printf("%s", center(LSNR_TYPE, COL_TYPE, WHITE))                        ;
+                                        printf("%s", center(LSNR_TYPE, COL_TYPE, WHITE, COL_SEP))               ;
                                         if (print_port_later)
                                         {       print_port_later = 0                                            ;
                                                 printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s" COLOR_END, port[lsnr_sorted[j]], WHITE);      # Port
@@ -706,11 +757,11 @@ fi
                         if (length(tab_svc) > 0)                # We print only if we have something to show
                         {
                                 # A header for the services
-                                printf("%s", center("DB"      ,  COL_DB, WHITE))                                ;
-                                printf("%s", center("Service" ,  COL_VER+1, WHITE))                             ;
+                                printf("%s", center("DB"      ,  COL_DB, WHITE, COL_SEP))                       ;
+                                printf("%s", center("Service" ,  COL_VER+1, WHITE, COL_SEP))                    ;
                                 n=asort(nodes)                                                                  ;       # sort array nodes
                                 for (i = 1; i <= n; i++) {
-                                        printf("%s", center(nodes[i], COL_NODE, WHITE))                         ;
+                                        printf("%s", center(nodes[i], COL_NODE, WHITE, COL_SEP))                ;
                                 }
                                 printf("\n")
 
@@ -725,12 +776,11 @@ fi
                                         sub(/^[^.]*\./, "", service)                                            ;       # Remove the DB name only
                                         if (previous_db != to_print[1])                                                 # Do not duplicate the DB names on the output
                                         {
-                                                printf(COLOR_BEGIN WHITE " %-"COL_DB-1"s" COLOR_END"|", to_print[1], WHITE);     # Database
+                                                printf(COLOR_BEGIN WHITE " %-"COL_DB-1"s" COLOR_END COL_SEP, to_print[1], WHITE);     # Database
                                                 previous_db = to_print[1]                                       ;
                                         }else {
-                                                printf("%s", center("",  COL_DB, WHITE))                        ;
+                                                printf("%s", center("",  COL_DB, WHITE, COL_SEP))               ;
                                         }
-                                        #printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s" COLOR_END"|", to_print[2], WHITE);     # Service
                                         printf(COLOR_BEGIN WHITE " %-"COL_VER"s" COLOR_END"|", service, WHITE);     # Service
 
                                         for (i = 1; i <= n; i++)
@@ -752,14 +802,30 @@ fi
                                                            COL_OTHER=WITH_BACK2                                 ;
                                                         STATUS_ISSUE=1                                          ;
                                                 }
-                                                if (dbstatus == "")             {printf("%s", center(UNKNOWN,             COL_NODE, COL_DEFAULT   ))      ;}      else
-                                                if (dbstatus == "ONLINE")       {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_ONLINE    ))      ;}
-                                                else                            {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_OTHER     ))      ;}
+                                                if (svc_enabled[svc_sorted[j],nodes[i]] == 0)                           # Service disabled
+                                                {
+                                                        SERVICE_DISABLED = 1                                    ;
+                                                        right = int((COL_NODE - length(dbstatus)) / 2)          ;
+                                                        left  = COL_NODE - length(dbstatus) - right             ;
+
+                                                        if (dbstatus == "")             {printf("%s", center(DISABLED, COL_NODE, RED, COL_SEP ))      ;} else
+                                                        if (dbstatus == "ONLINE")       {printf("%"left"s%s %s%"right-1"s", "", in_color(nice_case(dbstatus), COL_ONLINE), in_color(DISABLED, RED), COL_SEP);}
+                                                        else                            {printf("%"left"s%s %s%"right-1"s", "", in_color(nice_case(dbstatus), COL_OTHER ), in_color(DISABLED, RED), COL_SEP);}
+#                                                       else                            {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_OTHER, COL_SEP     ))      ;}
+                                                        #else                            {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_OTHER, COL_SEP     ))      ;}
+
+                                                } else {
+                                                        if (dbstatus == "")             {printf("%s", center(UNKNOWN,             COL_NODE, COL_DEFAULT, COL_SEP   ))      ;} else
+                                                        if (dbstatus == "ONLINE")       {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_ONLINE,  COL_SEP   ))      ;}
+                                                        else                            {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_OTHER,   COL_SEP   ))      ;}
+                                                }
+
                                         }
                                         printf("\n")                                                             ;
                                 }
                                 # a "---" line under the header
                                 print_a_line(COL_DB+COL_NODE*n+COL_VER+n+2)                                      ;
+                                print_legend_service_disabled()                                                  ;
                                 printf("\n")                                                                     ;
                         }
 
@@ -769,13 +835,13 @@ fi
                         if (length(version) > 0)                # We print only if we have something to show
                         {
                                 # A header for the databases
-                                printf("%s", center("DB"        , COL_DB, WHITE))                                ;
-                                printf("%s", center("Version"   , COL_VER+1, WHITE))                             ;
+                                printf("%s", center("DB"        , COL_DB, WHITE, COL_SEP))                       ;
+                                printf("%s", center("Version"   , COL_VER+1, WHITE, COL_SEP))                    ;
                                 n=asort(nodes)                                                                   ;       # sort array nodes
                                 for (i = 1; i <= n; i++) {
-                                        printf("%s", center(nodes[i], COL_NODE, WHITE))                          ;
+                                        printf("%s", center(nodes[i], COL_NODE, WHITE, COL_SEP))                 ;
                                 }
-                                printf("%s", center("DB Type"    , COL_TYPE, WHITE))                             ;
+                                printf("%s", center("DB Type"    , COL_TYPE, WHITE, COL_SEP))                    ;
                                 printf("\n")                                                                     ;
 
                                 # a "---" line under the header
@@ -823,17 +889,17 @@ fi
                                                         STATUS_ISSUE=1                                          ;
                                                 }
 
-                                                if (dbdetail == "")                     {printf("%s", center(UNKNOWN,             COL_NODE, COL_DEFAULT ))  ;}      else
-                                                if (dbdetail == "Open")                 {printf("%s", center(nice_case(dbdetail), COL_NODE, COL_OPEN    ))  ;}      else
-                                                if (dbdetail ~  /Readonly/)             {printf("%s", center(nice_case(dbdetail), COL_NODE, COL_READONLY))  ;}      else
-                                                if (dbdetail ~  /Shut/)                 {printf("%s", center(nice_case(dbdetail), COL_NODE, COL_SHUT    ))  ;}      else
-                                                                                        {printf("%s", center(nice_case(dbdetail),             COL_NODE, COL_OTHER   ))  ;}
+                                                if (dbdetail == "")                     {printf("%s", center(UNKNOWN,             COL_NODE, COL_DEFAULT, COL_SEP ))  ;}      else
+                                                if (dbdetail == "Open")                 {printf("%s", center(nice_case(dbdetail), COL_NODE, COL_OPEN,    COL_SEP ))  ;}      else
+                                                if (dbdetail ~  /Readonly/)             {printf("%s", center(nice_case(dbdetail), COL_NODE, COL_READONLY,COL_SEP ))  ;}      else
+                                                if (dbdetail ~  /Shut/)                 {printf("%s", center(nice_case(dbdetail), COL_NODE, COL_SHUT,    COL_SEP ))  ;}      else
+                                                                                        {printf("%s", center(nice_case(dbdetail), COL_NODE, COL_OTHER,   COL_SEP ))  ;}
                                         }
                                         #
                                         # Color the DB Type column depending on the ROLE of the database (20170619)
                                         #
                                         if (role[version_sorted[j]] == "PRIMARY") { ROLE_COLOR=WHITE ; ROLE_SHORT=" (P)"; } else { ROLE_COLOR=RED ; ROLE_SHORT=" (S)" }
-                                        printf("%s", center(dbtype[version_sorted[j]] ROLE_SHORT, COL_TYPE, ROLE_COLOR))           ;
+                                        printf("%s", center(dbtype[version_sorted[j]] ROLE_SHORT, COL_TYPE, ROLE_COLOR, COL_SEP))           ;
 
                                         printf("\n")                                                            ;
                                 }
