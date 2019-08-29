@@ -9,9 +9,6 @@
 # . . .
 #
 
-
-
-
   RAC_STATUS="rac-status.sh"            # rac-status.sh script
         WHAT="relocate"                 # Default action                (-w)
         FROM=""                         # Node from                     (-f) -- for relocate service
@@ -66,6 +63,7 @@ then
         if [[ -z "${FROM}" || -z "${TO}" ]]
         then
                 cat << !
+                Selected action is ${WHAT}
                 A node from and a node to are mandatory, cannot continue.
 !
                 exit 124
@@ -73,6 +71,7 @@ then
         if ! [[ "${FROM}" =~ ^[0-9]+$ ]] || ! [[ "${TO}" =~ ^[0-9]+$ ]]
         then
                 cat << !
+                Selected action is ${WHAT}
                 Nodes numbers have to be integers.
 !
                 exit 125
@@ -80,6 +79,7 @@ then
         if [[ "${FROM}" == "${TO}" ]]
         then
                 cat << !
+                Selected action is ${WHAT}
                 Source and destination are same, cannot continue.
 !
                 exit 126
@@ -88,6 +88,7 @@ else    # Then it is stop/start/disbale/enable
         if ! [[ "${NODE}" =~ ^[0-9]+$ ]]
         then
                 cat << !
+                Selected action is ${WHAT}
                 Node number has to be integers.
 !
                 exit 127
@@ -102,6 +103,16 @@ fi
                 COL_FROM = FROM+2                                       ;       # There are 2 columns before the nodes
                 COL_TO   = TO+2                                         ;       # There are 2 columns before the nodes
                 COL_NODE = NODE+2                                       ;       # There are 2 columns before the nodes
+        }
+        function print_a_tab(a_tab, a_counter, a_text)
+        {
+                if (length(a_tab) > 0)
+                {       printf("%s\n", a_text)                          ;
+                        for (i=1; i<=a_counter; i++)
+                        {
+                                printf("%s\n", a_tab[i])                ;
+                        }
+                }
         }
         {       if ($1 == "DB")
                 {       for (i=3; i<=(NF-1); i++)
@@ -125,60 +136,52 @@ fi
                                         # We relocate the service only if it is Online on the FROM node and not Online on the TO node
                                         if ($COL_FROM ~ /Online/ && $COL_TO !~ /Online/)
                                         {
-                                                reloc[nb_reloc] =  "srvctl relocate service -db "DB" -service "SERVICE" -currentnode "nodes[FROM]" -targetnode "nodes[TO]       ;
-                                           reloc_back[nb_reloc] =  "srvctl relocate service -db "DB" -service "SERVICE" -currentnode "nodes[TO]  " -targetnode "nodes[FROM]     ;
-                                                nb_reloc++                      ;
+                                                  reloc[nb_reloc] =  "srvctl relocate service -db "DB" -service "SERVICE" -currentnode "nodes[FROM]" -targetnode "nodes[TO]     ;
+                                             reloc_back[nb_reloc] =  "srvctl relocate service -db "DB" -service "SERVICE" -currentnode "nodes[TO]  " -targetnode "nodes[FROM]   ;
+                                                nb_reloc++                                                                                                                      ;
                                         }
                                         # If the service is Online on the FROM node and Online on the TO node then we just stop it on the FROM node
                                         if ($COL_FROM ~ /Online/ && $COL_TO ~ /Online/)
                                         {
                                                 stop_svc[nb_stop] = "srvctl stop  service -db "DB" -service "SERVICE" -node "nodes[FROM]                                        ;
                                                start_svc[nb_stop] = "srvctl start service -db "DB" -service "SERVICE" -node "nodes[FROM]                                        ;
-                                                nb_stop++                       ;
+                                                nb_stop++                                                                                                                       ;
                                         }
                                 }
                                 if (WHAT == "stop")
                                 {       if ($COL_NODE ~ /Online/)
                                         {
-                                                print "srvctl "WHAT" service -db "DB" -service "SERVICE" -node "nodes[NODE]                                                             ;
+                                                stop_svc[nb_stop] = "srvctl stop  service -db "DB" -service "SERVICE" -node "nodes[NODE]                                        ;
+                                               start_svc[nb_stop] = "srvctl start service -db "DB" -service "SERVICE" -node "nodes[NODE]                                        ;
+                                                nb_stop++                                                                                                                       ;
+                                        }
+                                }
+                                if (WHAT == "start")
+                                {       if ($COL_NODE !~ /Online/)
+                                        {
+                                               start_svc[nb_stop] = "srvctl start service -db "DB" -service "SERVICE" -node "nodes[NODE]                                        ;
+                                                stop_svc[nb_stop] = "srvctl stop  service -db "DB" -service "SERVICE" -node "nodes[NODE]                                        ;
+                                                nb_stop++                                                                                                                       ;
                                         }
                                 }
                         }
                 }
         } END\
         {
-                if (length(reloc) > 0)
-                {       printf("%s\n", "# Relocate services from "nodes[FROM]" to "nodes[TO])                           ;
-                        for (i=1; i<=nb_reloc; i++)
-                        {
-                                printf("%s\n", reloc[i])        ;
-                        }
+                if (WHAT == "relocate")
+                {       print_a_tab(reloc,      nb_reloc,       "# Relocate services from "nodes[FROM]" to "nodes[TO]                           )       ;
+                        print_a_tab(stop_svc,   nb_stop,        "# Stop services on "nodes[FROM]" as they are already Online on "nodes[TO]      )       ;
+                        print_a_tab(reloc_back, nb_reloc,       "# Relocate services back to "nodes[FROM]" from "nodes[TO]                      )       ;
+                        print_a_tab(start_svc,  nb_stop,        "# Restart services on "nodes[FROM]" after they have been stopped"              )       ;
                 }
-
-                if (length(stop_svc) > 0)
-                {       printf("%s\n", "# Stop services on "nodes[FROM]" as they are already Online on "nodes[TO])      ;
-                        for (i=1; i<=nb_stop; i++)
-                        {
-                                printf("%s\n", stop_svc[i])     ;
-                        }
+                if (WHAT == "stop")
+                {       print_a_tab(stop_svc,   nb_stop,        "# Stop services on "nodes[NODE]                                                )       ;
+                        print_a_tab(start_svc,  nb_stop,        "# Restart services on "nodes[NODE]                                             )       ;
                 }
-
-                if (length(reloc_back) > 0)
-                {       printf("%s\n", "# Relocate services back to "nodes[FROM]" from "nodes[TO])                       ;
-                        for (i=1; i<=nb_reloc; i++)
-                        {
-                                printf("%s\n", reloc_back[i])        ;
-                        }
+                if (WHAT == "start")
+                {       print_a_tab(start_svc,  nb_stop,        "# Start services on "nodes[NODE]                                               )       ;
+                        print_a_tab(stop_svc,   nb_stop,        "# Stop services on "nodes[NODE]                                                )       ;
                 }
-
-                if (length(start_svc) > 0)
-                {       printf("%s\n", "# Restart services on "nodes[FROM]" after they have been stopped")              ;
-                        for (i=1; i<=nb_stop; i++)
-                        {
-                                printf("%s\n", start_svc[i])     ;
-                        }
-                }
-
         } '
 
 #****************************************************************************************#
