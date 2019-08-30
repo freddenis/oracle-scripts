@@ -8,10 +8,11 @@
 # Please have a look at http://bit.ly/2MFkzDw  for some details and screenshots
 # The latest version of the script can be downloaded here : http://bit.ly/2XEXa6j
 #
-# The current script version is 20190829
+# The current script version is 20190830
 #
 # History :
 #
+# 20190830 - Fred Denis - Show a red "x" also when instances and listeners are disabled
 # 20190829 - Fred Denis - Show a red "x" if a service is disabled as well as a legend below the services table
 # 20190828 - Fred Denis - Option -L to always show full hostnames; also fixed a bug with the name of the cluster shown
 # 20190725 - Fred Denis - When STATUS and TARGET are different, shows with a WITH_BACK2 background color and a legend
@@ -506,13 +507,13 @@ fi
                 }
         }
         #
-        # Print a service disabled legend
+        # Print a legend when something is disabled
         #
-        function print_legend_service_disabled()
-        {       if (SERVICE_DISABLED == 1)
+        function print_legend_disabled(a_variable, a_text)
+        {       if (a_variable == 1)
                 {       printf("%s", " ")                                                                       ;
                         printf("%s", center(DISABLED, 3, RED))                                                  ;
-                        printf("%-s\n", in_color(" : Service is disabled", WHITE))                              ;
+                        printf("%-s\n", in_color(" : "a_text" is disabled", WHITE))                             ;
                 }
         }
         #
@@ -550,14 +551,13 @@ fi
                         }
                         DB=$2                                                                                   ;
                         split($2, temp, ".")                                                                    ;
-                        if (length(temp[1]) > COL_DB-1)                                                                   # To adapt the 1st column size
+                        if (length(temp[1]) > COL_DB-1)                                                                  # To adapt the 1st column size
                         {     COL_DB = length(temp[1]) +1                                                       ;
                         }
 
                         getline; getline                                                                        ;
                         if ($1 == "ACL")                        # crsctl stat res -p output
                         {
-                          #      if ((DB in version == 0) && (DB in tab_lsnr == 0) && (DB in tab_svc == 0))
                                 if (type == "DB")
                                 {
                                         # Get the owner and the group
@@ -577,6 +577,20 @@ fi
                                                 }
                                                 if ($1 == "ROLE")                                                       # Primary / Standby expected here
                                                 {              role[DB] = $2                                    ;
+                                                }
+                                                if ($1 == "ENABLED")                                                    # Instance is enabled (1) or disabled (0)
+                                                {       for (i=1; i<=n; i++)                                            # n = number of nodes
+                                                        {       is_enabled[DB,nodes[i]]= $2                     ;
+                                                        }
+                                                        while(getline)
+                                                        {       if ($1 ~ /ENABLED@SERVERNAME/ )
+                                                                {       sub("ENABLED@SERVERNAME[(]", "", $1)    ;
+                                                                        sub(")", "", $1)                        ;
+                                                                        is_enabled[DB,$1] = $2                  ;
+                                                                } else {
+                                                                        break                                   ;
+                                                                }
+                                                        }
                                                 }
                                                 if ($0 ~ /^$/)
                                                 {           version[DB] = VERSION                               ;
@@ -601,13 +615,13 @@ fi
                                         {
                                                 if ($1 == "ENABLED")                                                    # Service is enabled (1) or disabled (0)
                                                 {       for (i=1; i<=n; i++)                                            # n = number of nodes
-                                                        {       svc_enabled[DB,nodes[i]]= $2                    ;
+                                                        {       is_enabled[DB,nodes[i]]= $2                     ;
                                                         }
                                                         while(getline)
                                                         {       if ($1 ~ /ENABLED@SERVERNAME/ )
                                                                 {       sub("ENABLED@SERVERNAME[(]", "", $1)    ;
                                                                         sub(")", "", $1)                        ;
-                                                                        svc_enabled[DB,$1] = $2                 ;
+                                                                        is_enabled[DB,$1] = $2                  ;
                                                                 } else {
                                                                         break                                   ;
                                                                 }
@@ -623,7 +637,20 @@ fi
                                 if (type == "LISTENER")
                                 {
                                         while(getline)
-                                        {
+                                        {       if ($1 == "ENABLED")                                                    # Listener is enabled (1) or disabled (0)
+                                                {       for (i=1; i<=n; i++)                                            # n = number of nodes
+                                                        {       is_enabled[DB,nodes[i]]= $2                     ;
+                                                        }
+                                                        while(getline)
+                                                        {       if ($1 ~ /ENABLED@SERVERNAME/ )
+                                                                {       sub("ENABLED@SERVERNAME[(]", "", $1)    ;
+                                                                        sub(")", "", $1)                        ;
+                                                                        is_enabled[DB,$1] = $2                  ;
+                                                                } else {
+                                                                        break                                   ;
+                                                                }
+                                                        }
+                                                }
                                                 if ($1 == "ENDPOINTS")
                                                 {
                                                         port[DB] = $2                                           ;
@@ -642,10 +669,6 @@ fi
                                 {
                                         if ($1 == "LAST_SERVER")        {       SERVER = $2                             ; }
                                         if ($1 == "STATE")              {       gsub(" on .*$", "", $2)                 ;
-                                                                                #if ($2 ~ /ONLINE/ ) {STATE="Online"     ;
-                                                                                #                     if (length(STATE) > COL_NODE) { COL_NODE = length(STATE) + COL_NODE_OFFSET;}
-                                                                                #                    }
-                                                                                #if ($2 ~ /OFFLINE/) {STATE=""           ;}
                                                                                 status[DB,SERVER] = $2                  ;
                                                                                 if (length(status[DB,SERVER]) > COL_NODE) { COL_NODE = length(status[DB,SERVER]) + COL_NODE_OFFSET;}
                                                                         }
@@ -655,20 +678,10 @@ fi
                                                                                 sub("STATE_DETAILS=", "", $0)           ;
                                                                                 sub(",HOME=.*$", "", $0)                ;       # Manage the 12cR2 new feature, check 20170606 for more details
                                                                                 sub("),.*$", ")", $0)                   ;       # To make clear multi status like "Mounted (Closed),Readonly,Open Initiated"
-                                                                                #if ($0 == "")
-                                                                                #{       status[DB,SERVER] = STATE       ;}
-                                                                                #else {
-                                                                                #        if ($0 == "Instance Shutdown")  {  status[DB,SERVER] = "Shutdown"       ;       } else
-                                                                                #        if ($0 ~  "Readonly")           {  status[DB,SERVER] = "Readonly"       ;       } else
-                                                                                #        if ($0 ~  /Mount/)              {  status[DB,SERVER] = "Mounted"        ;       } else
-                                                                                #                                        {  status[DB,SERVER] = $0               ;       }
-                                                                                #        if (length(status[DB,SERVER]) > COL_NODE)
-                                                                                #        {       COL_NODE = length(status[DB,SERVER]) + COL_NODE_OFFSET  ;
-                                                                                #        }
-                                                                                #}
                                                                                 if ($0 == "Instance Shutdown")  {  status_details[DB,SERVER] = "Shutdown"       ;       } else
                                                                                 if ($0 ~  "Readonly")           {  status_details[DB,SERVER] = "Readonly"       ;       } else
                                                                                 if ($0 ~  /Mount/)              {  status_details[DB,SERVER] = "Mounted"        ;       } else
+                                                                                if ($0 ~  /running from old/)   {  status_details[DB,SERVER] = "Open from old OH";      } else
                                                                                                                 {  status_details[DB,SERVER] = $0               ;       }
                                                                                 if (length(status_details[DB,SERVER]) > COL_NODE)
                                                                                 {       COL_NODE = length(status_details[DB,SERVER]) + COL_NODE_OFFSET  ;
@@ -711,7 +724,6 @@ fi
                                         } else {
                                                 printf(COLOR_BEGIN WHITE " %-"COL_VER"s" COLOR_END"|", port[lsnr_sorted[j]], WHITE);      # Port
                                         }
-
                                         for (i = 1; i <= n; i++)
                                         {
                                                 dbstatus =         status[lsnr_sorted[j],nodes[i]]              ;
@@ -730,9 +742,20 @@ fi
                                                            COL_OTHER=WITH_BACK2                                 ;
                                                         STATUS_ISSUE=1                                          ;
                                                 }
-                                                if (dbstatus == "")             {printf("%s", center(UNKNOWN,             COL_NODE, COL_DEFAULT, COL_SEP    ))      ;}      else
-                                                if (dbstatus == "ONLINE")       {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_ONLINE,  COL_SEP    ))      ;}
-                                                else                            {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_OTHER,   COL_SEP    ))      ;}
+                                                if (is_enabled[lsnr_sorted[j],nodes[i]] == 0)                            # Listener disabled
+                                                {
+                                                        LISTENER_DISABLED = 1                                   ;
+                                                        right = int((COL_NODE - length(dbstatus)) / 2)          ;
+                                                        left  = COL_NODE - length(dbstatus) - right             ;
+
+                                                        if (dbstatus == "")             {printf("%s", center(DISABLED,           COL_NODE, RED, COL_SEP ))      ;} else
+                                                        if (dbstatus == "ONLINE")       {printf("%"left"s%s %s%"right-1"s", "", in_color(nice_case(dbstatus), COL_ONLINE), in_color(DISABLED, RED), COL_SEP);}
+                                                        else                            {printf("%"left"s%s %s%"right-1"s", "", in_color(nice_case(dbstatus), COL_OTHER ), in_color(DISABLED, RED), COL_SEP);}
+                                                } else {
+                                                        if (dbstatus == "")             {printf("%s", center(UNKNOWN,             COL_NODE, COL_DEFAULT, COL_SEP    ))      ;}      else
+                                                        if (dbstatus == "ONLINE")       {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_ONLINE,  COL_SEP    ))      ;}
+                                                        else                            {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_OTHER,   COL_SEP    ))      ;}
+                                                }
                                         }
                                         if (toupper(lsnr_sorted[j]) ~ /SCAN/)
                                         {       LSNR_TYPE = "SCAN"                                              ;
@@ -748,6 +771,7 @@ fi
                                 }
                                 # a "---" line under the header
                                 print_a_line()                                                                  ;
+                                print_legend_disabled(LISTENER_DISABLED, "Listener")                            ;
                                 printf("\n")                                                                    ;
                         }
 
@@ -802,7 +826,7 @@ fi
                                                            COL_OTHER=WITH_BACK2                                 ;
                                                         STATUS_ISSUE=1                                          ;
                                                 }
-                                                if (svc_enabled[svc_sorted[j],nodes[i]] == 0)                           # Service disabled
+                                                if (is_enabled[svc_sorted[j],nodes[i]] == 0)                            # Service disabled
                                                 {
                                                         SERVICE_DISABLED = 1                                    ;
                                                         right = int((COL_NODE - length(dbstatus)) / 2)          ;
@@ -811,21 +835,17 @@ fi
                                                         if (dbstatus == "")             {printf("%s", center(DISABLED, COL_NODE, RED, COL_SEP ))      ;} else
                                                         if (dbstatus == "ONLINE")       {printf("%"left"s%s %s%"right-1"s", "", in_color(nice_case(dbstatus), COL_ONLINE), in_color(DISABLED, RED), COL_SEP);}
                                                         else                            {printf("%"left"s%s %s%"right-1"s", "", in_color(nice_case(dbstatus), COL_OTHER ), in_color(DISABLED, RED), COL_SEP);}
-#                                                       else                            {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_OTHER, COL_SEP     ))      ;}
-                                                        #else                            {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_OTHER, COL_SEP     ))      ;}
-
                                                 } else {
                                                         if (dbstatus == "")             {printf("%s", center(UNKNOWN,             COL_NODE, COL_DEFAULT, COL_SEP   ))      ;} else
                                                         if (dbstatus == "ONLINE")       {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_ONLINE,  COL_SEP   ))      ;}
                                                         else                            {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_OTHER,   COL_SEP   ))      ;}
                                                 }
-
                                         }
                                         printf("\n")                                                             ;
                                 }
                                 # a "---" line under the header
                                 print_a_line(COL_DB+COL_NODE*n+COL_VER+n+2)                                      ;
-                                print_legend_service_disabled()                                                  ;
+                                print_legend_disabled(SERVICE_DISABLED, "Service")                               ;
                                 printf("\n")                                                                     ;
                         }
 
@@ -851,14 +871,9 @@ fi
                                 m=asorti(version, version_sorted)                                                ;
                                 for (j = 1; j <= m; j++)
                                 {
-                                        printf(COLOR_BEGIN WHITE " %-"COL_DB-1"s" COLOR_END"|", version_sorted[j], WHITE);     # Database
-                                        #printf(COLOR_BEGIN WHITE " %-"COL_VER-7"s" COLOR_END, version[version_sorted[j]], COL_VER, WHITE)         ;       # Version
-                                        #printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")            ;       # OH id
-                                        #printf(COLOR_BEGIN WHITE " %-"COL_VER-6"s" COLOR_END, version[version_sorted[j]], COL_VER, WHITE)         ;       # Version
-                                        #printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")            ;       # OH id
-
-                                        printf(COLOR_BEGIN WHITE " %-"COL_VER-6"s" COLOR_END, version[version_sorted[j]], COL_VER, WHITE)         ;       # Version
-                                        printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")            ;       # OH id
+                                        printf(COLOR_BEGIN WHITE " %-"COL_DB-1"s" COLOR_END"|", version_sorted[j], WHITE)                ;     # Database
+                                        printf(COLOR_BEGIN WHITE " %-"COL_VER-6"s" COLOR_END, version[version_sorted[j]], COL_VER, WHITE);     # Version
+                                        printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")             ;     # OH id
 
                                         for (i = 1; i <= n; i++)
                                         {
@@ -888,12 +903,25 @@ fi
                                                            COL_OTHER=WITH_BACK2                                 ;
                                                         STATUS_ISSUE=1                                          ;
                                                 }
+                                                if (is_enabled[version_sorted[j],nodes[i]] == 0)                            # Instance disabled
+                                                {
+                                                        INSTANCE_DISABLED = 1                                   ;
+                                                        right = int((COL_NODE - length(dbdetail)) / 2)          ;
+                                                        left  = COL_NODE - length(dbdetail) - right             ;
 
-                                                if (dbdetail == "")                     {printf("%s", center(UNKNOWN,             COL_NODE, COL_DEFAULT, COL_SEP ))  ;}      else
-                                                if (dbdetail == "Open")                 {printf("%s", center(nice_case(dbdetail), COL_NODE, COL_OPEN,    COL_SEP ))  ;}      else
-                                                if (dbdetail ~  /Readonly/)             {printf("%s", center(nice_case(dbdetail), COL_NODE, COL_READONLY,COL_SEP ))  ;}      else
-                                                if (dbdetail ~  /Shut/)                 {printf("%s", center(nice_case(dbdetail), COL_NODE, COL_SHUT,    COL_SEP ))  ;}      else
+                                                        if (dbdetail == "")             {printf("%s",                           center(DISABLED, COL_NODE, RED, COL_SEP ))                                    ;} else
+                                                        if (dbdetail == "Open")         {printf("%"left"s%s %s%"right-1"s", "", in_color(nice_case(dbdetail), COL_ONLINE),   in_color(DISABLED, RED), COL_SEP);} else
+                                                        if (dbdetail ~  /Readonly/)     {printf("%"left"s%s %s%"right-1"s", "", in_color(nice_case(dbdetail), COL_READONLY), in_color(DISABLED, RED), COL_SEP);} else
+                                                        if (dbdetail ~  /Shut/)         {printf("%"left"s%s %s%"right-1"s", "", in_color(nice_case(dbdetail), COL_SHUT),     in_color(DISABLED, RED), COL_SEP);} else
+                                                                                        {printf("%"left"s%s %s%"right-1"s", "", in_color(nice_case(dbdetail), COL_OTHER),    in_color(DISABLED, RED), COL_SEP);}
+
+                                                } else {
+                                                        if (dbdetail == "")             {printf("%s", center(UNKNOWN,             COL_NODE, COL_DEFAULT, COL_SEP ))  ;}      else
+                                                        if (dbdetail == "Open")         {printf("%s", center(nice_case(dbdetail), COL_NODE, COL_OPEN,    COL_SEP ))  ;}      else
+                                                        if (dbdetail ~  /Readonly/)     {printf("%s", center(nice_case(dbdetail), COL_NODE, COL_READONLY,COL_SEP ))  ;}      else
+                                                        if (dbdetail ~  /Shut/)         {printf("%s", center(nice_case(dbdetail), COL_NODE, COL_SHUT,    COL_SEP ))  ;}      else
                                                                                         {printf("%s", center(nice_case(dbdetail), COL_NODE, COL_OTHER,   COL_SEP ))  ;}
+                                                }
                                         }
                                         #
                                         # Color the DB Type column depending on the ROLE of the database (20170619)
@@ -942,6 +970,7 @@ fi
                                 }
                         }
                         printf ("\n")                                                                           ;
+                        print_legend_disabled(INSTANCE_DISABLED, "Instance")                                    ;
                         print_legend_recent_restarted()                                                         ;
                         print_legend_status_issue()                                                             ;
         } ' $TMP | ${AWK} -v GREP="$GREP" -v UNGREP="$UNGREP" ' BEGIN {FS="|"}                                              # AWK used to grep and ungrep
