@@ -234,7 +234,7 @@ fi
                                 print_a_tab(tab_return,    "# "nice_case(OPPOSITE)" services on "nodes[NODE])   ;
                         }
                 } else {
-                        print_header("There is no service to "ACTION" on "nodes[NODE]").")                      ;
+                        print_header("There is no service to "ACTION" on "nodes[NODE]".")                      ;
                 }
         }
         function gen_srvctl(what)
