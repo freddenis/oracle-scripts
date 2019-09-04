@@ -1,20 +1,54 @@
 #!/bin/bash
-# Fred Denis - Aug 2019 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
+# Fred Denis -- Sept 2019 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
 #
-# Manage RAC services; use -h option for help
+# Generate conmmands to be able to manage RAC/GI services (relocate, stop, start, enable, disable); please use the -h option for more information
 #
-# The current script version is in dev
+# The current script version is 20190904
 #
 # History:
-# . . .
 #
-
+# 20190904 - Fred Denis - Initial release
+#
+#
+#
+#       Some default variables
+#
   RAC_STATUS="rac-status.sh"            # rac-status.sh script
-        WHAT="relocate"                 # Default action                (-w)
+        ACTION="relocate"               # Default action                (-w)
         FROM=""                         # Node from                     (-f) -- for relocate service
           TO=""                         # Node to                       (-t) -- for relocate service
         NODE=""                         # Node to perform the action    (-n) -- for stop / start / disable / enable
+    SHOW_WAY="YES"                      # Show the actions to performp as per the parameters
+ SHOW_RETURN="YES"                      # Show the opposite actions to be able to come back to the previous situation
+  DB_TO_SHOW="."                        # DB to show
+  DB_TO_HIDE="nothing_by_default"$$     # DB to hide
+ SVC_TO_SHOW="."                        # Service to show
+ SVC_TO_HIDE="nothing_by_default"$$     # Service to hide
 
+#
+#       Different OS support
+#
+OS=`uname`
+case ${OS} in
+        SunOS)          AWK=`which gawk`                         ;;
+        Linux)          AWK=`which awk`                          ;;
+        HP-UX)          AWK=`which awk`                          ;;
+        AIX)            AWK=`which gawk`                         ;;
+        *)              printf "\n\t\033[1;31m%s\033[m\n\n" "Unsupported OS, cannot continue."           ;
+                        exit 666                                 ;;
+esac
+#
+#       Be sure we found awk
+#
+if [[ ! -f ${AWK} ]]
+then
+        printf "\n\t\033[1;31m%s" "No awk found on your system, cannot continue, if you run Solaris, please ensure that gawk is in your path"
+        printf "\t%s\033[m\n\n" ${AWK}
+        exit 678
+fi
+#
+#       We need rac-status to be here
+#
 if [[ ! -f ${RAC_STATUS} ]]
 then
 cat << !
@@ -22,48 +56,102 @@ cat << !
 !
         exit 666
 fi
-
+#
+# An usage function shows with the -h option
+#
 usage()
 {
-        cat << !
-        -w:     What to do, possible values are  :
-                        relocate / stop / start / disable / enable
+printf "\n\033[1;37m%-8s\033[m\n" "NAME"                ;
+cat << END
+        `basename $0` - A rac-status.sh based script to generate the commands to manage the Oracle services
+END
 
-        -f:     Node from       (integer)       -- for relocate service
-        -t:     Node to         (integer)       -- for relocate service
+printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
+cat << END
+        $0 [-a] [-f] [-t] [-n] [-r] [-w] [-h]
+END
+
+printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
+cat << END
+        `basename $0` is based on rac-status.sh (which can be downloaded from http://bit.ly/2XEXa6j; doc is http://bit.ly/2MFkzDw)
+        `basename $0` needs rac-status.sh version 20190830 minimum
+        `basename $0` executes rac-status.sh to get a status of all the services across the RAC/GI and then generate the commands
+                      to achieve the action passed in parameter (-a) with a bit of smartness:
+                        - relocate: to relocate services from a node (-f) to another node (-t)
+                                    - if a service is already running on the target node, we stop it on the source node
+                        - stop    : to stop services on a node
+                                    - if a service is already stopped we do nothing
+                        - start   : to start service on a node
+                                    - if a service is already started we do nothing
+                                    - if a service is disabled we do not start it
+                        - enable  : to enable services on a node
+                                    - are enabled only disabled services
+                        - disable : to disable services on a node
+                                    - are disabled only enabled services
+        `basename $0` generates the commands to achieve the action you want as well as the commands to return to the previous situation
+        `basename $0` generates commands only and do NOT execute them; if you want to execute them automatically please do:
+                        ./`basename $0` <OPTIONS> | bash
+                      but be sure to have previously saved the commands go to back to the previous state !
+END
+
+printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"             ;
+cat << END
+        -a:     Action to generate the commands for, possible values are  : relocate / stop / start / disable / enable
+
+        -f:     Node from       (integer)       -- for relocate service only
+        -t:     Node to         (integer)       -- for relocate service only
         -n:     Node            (integer)       -- for stop / start / disable / enable
+                The nodes number are expected to be integers (as the columns shown by rac-status.sh)
+                ./`basename $0` -a relocate -f 4 -t 6           # Relocate the services from node 4 to node 6
+                ./`basename $0` -a stop -n 3                    # Stop the services on node 3
+
+        -w:     Show or hide the commands to achieve what we want to do    (revert the behavior of SHOW_WAY)
+        -r:     Show or hide the commands to return to the original status (revert the behavior of SHOW_RETURN)
+
+        -d:     The DB(s) you want to     show the services (act as a grep    so -d prod would     show the myprod1  and myprod2  databases)
+        -D:     The DB(s) you want to NOT show the services (act as a grep -v so -D prod would NOT show the myprod1  and myprod2  databases)
+        -s:     The service(s) you want to     show         (act as a grep    so -s bkup would     show the prdbkup1 and prdbkup2 services )
+        -S:     The service(s) you want to NOT show         (act as a grep -v so -S bkup would NOT show the prdbkup1 and prdbkup2 services )
 
         -h:     Shows this help
-!
+END
         exit 123
 }
-
-# Options
-while getopts "w:n:f:t:h" OPT; do
+#
+#       Options
+#
+while getopts "a:n:f:t:d:D:s:S:hwr" OPT; do
         case ${OPT} in
-        f)      FROM=${OPTARG}                                                                  ;;
-        t)        TO=${OPTARG}                                                                  ;;
-        w)      WHAT=`echo ${OPTARG} | tr '[:upper:]' '[:lower:]'`                              ;;
-        n)      NODE=${OPTARG}                                                                  ;;
-        h)         usage                                                                        ;;
-        \?)        echo "Invalid option: -$OPTARG" >&2; usage                                   ;;
+        f)      FROM=${OPTARG}                                                                          ;;
+        t)        TO=${OPTARG}                                                                          ;;
+        a)      ACTION=`echo ${OPTARG} | tr '[:upper:]' '[:lower:]'`                                    ;;
+        n)      NODE=${OPTARG}                                                                          ;;
+        w)      if [[ "${SHOW_WAY}" == "YES" ]];    then SHOW_WAY="NO";    else SHOW_WAY="YES";    fi   ;;
+        r)      if [[ "${SHOW_RETURN}" == "YES" ]]; then SHOW_RETURN="NO"; else SHOW_RETURN="YES"; fi   ;;
+        d)       DB_TO_SHOW=${OPTARG}                                                                   ;;
+        D)       DB_TO_HIDE=${OPTARG}                                                                   ;;
+        s)      SVC_TO_SHOW=${OPTARG}                                                                   ;;
+        S)      SVC_TO_HIDE=${OPTARG}                                                                   ;;
+        h)         usage                                                                                ;;
+        \?)        echo "Invalid option: -$OPTARG" >&2; usage                                           ;;
         esac
 done
-
-if ! [[ "${WHAT}" =~ ^(relocate|stop|start|disable|enable)$ ]]
+#
+# Input verification
+#
+if ! [[ "${ACTION}" =~ ^(relocate|stop|start|disable|enable)$ ]]
 then
         cat << !
         Actions can only be relocate / stop / start / disable / enable; cannot conntinue;
 !
         exit 222
 fi
-
-if [[ "${WHAT}" == "relocate" ]]
+if [[ "${ACTION}" == "relocate" ]]
 then
         if [[ -z "${FROM}" || -z "${TO}" ]]
         then
                 cat << !
-                Selected action is ${WHAT}
+                Selected action is ${ACTION}
                 A node from and a node to are mandatory, cannot continue.
 !
                 exit 124
@@ -71,7 +159,7 @@ then
         if ! [[ "${FROM}" =~ ^[0-9]+$ ]] || ! [[ "${TO}" =~ ^[0-9]+$ ]]
         then
                 cat << !
-                Selected action is ${WHAT}
+                Selected action is ${ACTION}
                 Nodes numbers have to be integers.
 !
                 exit 125
@@ -79,111 +167,198 @@ then
         if [[ "${FROM}" == "${TO}" ]]
         then
                 cat << !
-                Selected action is ${WHAT}
+                Selected action is ${ACTION}
                 Source and destination are same, cannot continue.
 !
                 exit 126
         fi
 else    # Then it is stop/start/disbale/enable
+        case $ACTION in
+        start  )        OPPOSITE="stop"         ;;
+        stop   )        OPPOSITE="start"        ;;
+        enable )        OPPOSITE="disable"      ;;
+        disable)        OPPOSITE="enable"       ;;
+        esac
+
         if ! [[ "${NODE}" =~ ^[0-9]+$ ]]
         then
                 cat << !
-                Selected action is ${WHAT}
+                Selected action is ${ACTION}
                 Node number has to be integers.
 !
                 exit 127
         fi
 fi
-
+#
+# Do the job
+#
 ./${RAC_STATUS} -Luns | sed s'/ *//g' |\
-        awk -F "|" -v FROM="$FROM" -v TO="$TO" -v WHAT="$WHAT" -v NODE="$NODE" '\
+        ${AWK} -F "|" -v     FROM="$FROM"     -v TO="$TO"  -v NODE="$NODE"  -v   ACTION="$ACTION"    \
+                      -v SHOW_WAY="$SHOW_WAY" -v SHOW_RETURN="$SHOW_RETURN" -v OPPOSITE="$OPPOSITE" '\
         BEGIN\
         {       nb_reloc = 1                                            ;
                 nb_stop  = 1                                            ;
+                      nb = 1                                            ;
+                 nb_info = 1                                            ;
                 COL_FROM = FROM+2                                       ;       # There are 2 columns before the nodes
                 COL_TO   = TO+2                                         ;       # There are 2 columns before the nodes
                 COL_NODE = NODE+2                                       ;       # There are 2 columns before the nodes
         }
-        function print_a_tab(a_tab, a_counter, a_text)
+        function print_header(a_text)
+        {
+                printf("%s\n",    "#")                                  ;
+                printf("%s %s\n", "#", a_text)                          ;
+                printf("%s\n",    "#")                                  ;
+        }
+        #
+        # Get a string and return it with a nice case: first character in upper case ad the others in lower case (ABCD => Abcd)
+        #
+        function nice_case(str)
+        {
+                return sprintf("%s", toupper(substr(str,1,1)) tolower(substr(str,2,length(str))))               ;
+        }
+        function show_output()
+        {
+               if (length(tab_info) > 0)
+               {       print_a_tab(tab_info,  "# Disabled services we wont start")                              ;
+               }
+
+                if (length(tab_way)>0)
+                {       if (SHOW_WAY == "YES")
+                        {       print_header("WAY: Services to "nice_case(ACTION))                              ;
+                                print_a_tab(tab_way,       "# "nice_case(ACTION)" services on "nodes[NODE])     ;
+                        }
+                        if (SHOW_RETURN == "YES")
+                        {       printf("\n")                                                                    ;
+                                print_header("RETURN: Services to "nice_case(OPPOSITE))                         ;
+                                print_a_tab(tab_return,    "# "nice_case(OPPOSITE)" services on "nodes[NODE])   ;
+                        }
+                } else {
+                        print_header("There is no service to "ACTION" on "nodes[NODE]").")                      ;
+                }
+        }
+        function gen_srvctl(what)
+        {       return sprintf("%s", "srvctl "what" service -db "DB" -service "SERVICE" -node "nodes[NODE])     ;
+        }
+        function print_a_tab(a_tab, a_text)
         {
                 if (length(a_tab) > 0)
-                {       printf("%s\n", a_text)                          ;
-                        for (i=1; i<=a_counter; i++)
+                {       printf("%s\n", a_text)                                                                  ;
+                        for (i=1; i<=length(a_tab); i++)
                         {
-                                printf("%s\n", a_tab[i])                ;
+                                printf("%s\n", a_tab[i])                                                        ;
                         }
                 }
         }
         {       if ($1 == "DB")
                 {       for (i=3; i<=(NF-1); i++)
-                        {       nodes[i-2] = $i                         ;
+                        {       nodes[i-2] = $i                                                                 ;
                         }
                 }
                 if ($0 ~  /----------------/)
                 {
                         while (getline)
                         {       if ($0 ~ /----------------/)
-                                {       printf("\n")                    ;
-                                        break                           ;
+                                {       printf("\n")                                                            ;
+                                        break                                                                   ;
                                 }
                                 if ($1 != "")
                                 {
-                                        DB=$1                           ;
+                                        DB=$1                                                                   ;
                                 }
-                                SERVICE=$2                              ;
-                                if (WHAT == "relocate")
+                                SERVICE=$2                                                                      ;
+                                if (ACTION == "relocate")
                                 {
                                         # We relocate the service only if it is Online on the FROM node and not Online on the TO node
                                         if ($COL_FROM ~ /Online/ && $COL_TO !~ /Online/)
                                         {
                                                   reloc[nb_reloc] =  "srvctl relocate service -db "DB" -service "SERVICE" -currentnode "nodes[FROM]" -targetnode "nodes[TO]     ;
                                              reloc_back[nb_reloc] =  "srvctl relocate service -db "DB" -service "SERVICE" -currentnode "nodes[TO]  " -targetnode "nodes[FROM]   ;
-                                                nb_reloc++                                                                                                                      ;
+                                                        nb_reloc++                                                                                                              ;
                                         }
                                         # If the service is Online on the FROM node and Online on the TO node then we just stop it on the FROM node
                                         if ($COL_FROM ~ /Online/ && $COL_TO ~ /Online/)
                                         {
                                                 stop_svc[nb_stop] = "srvctl stop  service -db "DB" -service "SERVICE" -node "nodes[FROM]                                        ;
                                                start_svc[nb_stop] = "srvctl start service -db "DB" -service "SERVICE" -node "nodes[FROM]                                        ;
-                                                nb_stop++                                                                                                                       ;
+                                                         nb_stop++                                                                                                              ;
                                         }
                                 }
-                                if (WHAT == "stop")
+                                if (ACTION == "stop")                                           # We only stop the started servives
                                 {       if ($COL_NODE ~ /Online/)
-                                        {
-                                                stop_svc[nb_stop] = "srvctl stop  service -db "DB" -service "SERVICE" -node "nodes[NODE]                                        ;
-                                               start_svc[nb_stop] = "srvctl start service -db "DB" -service "SERVICE" -node "nodes[NODE]                                        ;
-                                                nb_stop++                                                                                                                       ;
+                                        {       tab_way[nb] = gen_srvctl("stop")                ;
+                                             tab_return[nb] = gen_srvctl("start")               ;
+                                                        nb++                                    ;
                                         }
                                 }
-                                if (WHAT == "start")
+                                if (ACTION == "start")
                                 {       if ($COL_NODE !~ /Online/)
-                                        {
-                                               start_svc[nb_stop] = "srvctl start service -db "DB" -service "SERVICE" -node "nodes[NODE]                                        ;
-                                                stop_svc[nb_stop] = "srvctl stop  service -db "DB" -service "SERVICE" -node "nodes[NODE]                                        ;
-                                                nb_stop++                                                                                                                       ;
+                                        {       if ($COL_NODE ~ /x/)                            # A disabled service so we wont start it
+                                                {       info[nb_info] = "# Service "SERVICE" is disabled on node "nodes[NODE]" so we wont start it."    ;
+                                                             nb_info++                          ;
+                                                } else {
+                                                        tab_way[nb] = gen_srvctl("start")       ;
+                                                     tab_return[nb] = gen_srvctl("stop")        ;
+                                                                nb++                            ;
+                                                }
+                                        }
+                                }
+                                if (ACTION == "enable")
+                                {       if ($COL_NODE ~ /x/)                                    # We only enable the disabled services
+                                        {       tab_way[nb] = gen_srvctl("enable")              ;
+                                             tab_return[nb] = gen_srvctl("disable")             ;
+                                                        nb++                                    ;
+                                        }
+                                }
+                                if (ACTION == "disable")
+                                {       if ($COL_NODE !~ /x/)                                   # We only disable the enabled services
+                                        {       tab_way[nb] = gen_srvctl("disable")             ;
+                                             tab_return[nb] = gen_srvctl("enable")              ;
+                                                        nb++                                    ;
                                         }
                                 }
                         }
                 }
         } END\
-        {
-                if (WHAT == "relocate")
-                {       print_a_tab(reloc,      nb_reloc,       "# Relocate services from "nodes[FROM]" to "nodes[TO]                           )       ;
-                        print_a_tab(stop_svc,   nb_stop,        "# Stop services on "nodes[FROM]" as they are already Online on "nodes[TO]      )       ;
-                        print_a_tab(reloc_back, nb_reloc,       "# Relocate services back to "nodes[FROM]" from "nodes[TO]                      )       ;
-                        print_a_tab(start_svc,  nb_stop,        "# Restart services on "nodes[FROM]" after they have been stopped"              )       ;
+        {       # Show the generated commands
+                if (ACTION == "relocate")
+                {       if ((length(reloc)>0) || (length(stop_svc)>0))
+                        {       if (SHOW_WAY == "YES")
+                                {       print_header("WAY: Services to relocate / stop")                                                                ;
+                                        print_a_tab(reloc,      "# Relocate services from "nodes[FROM]" to "nodes[TO]                           )       ;
+                                        print_a_tab(stop_svc,   "# Stop services on "nodes[FROM]" as they are already Online on "nodes[TO]      )       ;
+                                }
+                                if (SHOW_RETURN == "YES")
+                                {       printf("\n")                                                                                                    ;
+                                        print_header("RETURN: Services to relocate back / start")
+                                        print_a_tab(reloc_back, "# Relocate services back to "nodes[FROM]" from "nodes[TO]                      )       ;
+                                        print_a_tab(start_svc,  "# Restart services on "nodes[FROM]" after they have been stopped"              )       ;
+                                }
+                        } else {
+                                print_header("There is no service to relocate or stop on "nodes[FROM]", they are already all up on node "nodes[TO]" and/or stopped on node "nodes[FROM]".")     ;
+                        }
+                } else {
+                        show_output()                                                                                                                   ;
                 }
-                if (WHAT == "stop")
-                {       print_a_tab(stop_svc,   nb_stop,        "# Stop services on "nodes[NODE]                                                )       ;
-                        print_a_tab(start_svc,  nb_stop,        "# Restart services on "nodes[NODE]                                             )       ;
-                }
-                if (WHAT == "start")
-                {       print_a_tab(start_svc,  nb_stop,        "# Start services on "nodes[NODE]                                               )       ;
-                        print_a_tab(stop_svc,   nb_stop,        "# Stop services on "nodes[NODE]                                                )       ;
-                }
-        } '
+        } ' | ${AWK} -v DB_TO_SHOW="$DB_TO_SHOW" -v SVC_TO_SHOW="$SVC_TO_SHOW"\
+                     -v DB_TO_HIDE="$DB_TO_HIDE" -v SVC_TO_HIDE="$SVC_TO_HIDE"\
+                       '{       if ($1 == "srvctl")
+                                {
+                                        SVC_GREP = "-service .*"SVC_TO_SHOW".*";
+                                      SVC_UNGREP = "-service .*"SVC_TO_HIDE".*";
+                                         DB_GREP = "-db .*"DB_TO_SHOW".*";
+                                       DB_UNGREP = "-db .*"DB_TO_HIDE".*";
+                                        if (($0 ~ SVC_GREP) && ($0 ~ GREP) && ($0 !~ SVC_UNGREP) && ($0 !~ DB_UNGREP))
+                                        {       print $0        ;
+                                        }
+                                } else {
+                                        print $0        ;
+                                }
+                      }'
 
 #****************************************************************************************#
 #*                              E N D      O F      S O U R C E                         *#
 #****************************************************************************************#
+
+System Time: 2019-09-03 22:58:20
+oracle@dvexa1dbadm01:r360el1:/home/oracle/pythian>
