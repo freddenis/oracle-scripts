@@ -1,7 +1,7 @@
 #!/bin/bash
 # Fred Denis -- Sept 2019 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
 #
-# Generate conmmands to be able to manage RAC/GI services (relocate, stop, start, enable, disable); please use the -h option for more information
+# Generate commands to be able to manage RAC/GI services (relocate, stop, start, enable, disable); please use the -h option for more information
 #
 # The current script version is 20190904
 #
