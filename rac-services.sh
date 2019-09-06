@@ -10,7 +10,6 @@
 # 20190904 - Fred Denis - Initial release
 #
 #
-#
 #       Some default variables
 #
   RAC_STATUS="rac-status.sh"            # rac-status.sh script
@@ -56,6 +55,14 @@ cat << !
 !
         exit 666
 fi
+#
+# Show the version of the script
+#
+show_version()
+{
+        VERSION=`${AWK} '{if ($0 ~ /^# 20[0-9][0-9][0-1][0-9]/) {print $2; exit}}' $0`
+        printf "\n\t\033[1;36m%s\033[m\n" "The current version of "`basename $0`" is "$VERSION"."          ;
+}
 #
 # An usage function shows with the -h option
 #
@@ -113,6 +120,7 @@ cat << END
         -s:     The service(s) you want to     show         (act as a grep    so -s bkup would     show the prdbkup1 and prdbkup2 services )
         -S:     The service(s) you want to NOT show         (act as a grep -v so -S bkup would NOT show the prdbkup1 and prdbkup2 services )
 
+        -V:     Shows the version of the script
         -h:     Shows this help
 END
         exit 123
@@ -120,7 +128,7 @@ END
 #
 #       Options
 #
-while getopts "a:n:f:t:d:D:s:S:hwr" OPT; do
+while getopts "a:n:f:t:d:D:s:S:hwrV" OPT; do
         case ${OPT} in
         f)      FROM=${OPTARG}                                                                          ;;
         t)        TO=${OPTARG}                                                                          ;;
@@ -132,6 +140,7 @@ while getopts "a:n:f:t:d:D:s:S:hwr" OPT; do
         D)       DB_TO_HIDE=${OPTARG}                                                                   ;;
         s)      SVC_TO_SHOW=${OPTARG}                                                                   ;;
         S)      SVC_TO_HIDE=${OPTARG}                                                                   ;;
+        V)      show_version; exit 567                                                                  ;;
         h)         usage                                                                                ;;
         \?)        echo "Invalid option: -$OPTARG" >&2; usage                                           ;;
         esac
@@ -234,7 +243,7 @@ fi
                                 print_a_tab(tab_return,    "# "nice_case(OPPOSITE)" services on "nodes[NODE])   ;
                         }
                 } else {
-                        print_header("There is no service to "ACTION" on "nodes[NODE]".")                      ;
+                        print_header("There is no service to "ACTION" on "nodes[NODE]".")                       ;
                 }
         }
         function gen_srvctl(what)
@@ -359,6 +368,3 @@ fi
 #****************************************************************************************#
 #*                              E N D      O F      S O U R C E                         *#
 #****************************************************************************************#
-
-System Time: 2019-09-03 22:58:20
-oracle@dvexa1dbadm01:r360el1:/home/oracle/pythian>
