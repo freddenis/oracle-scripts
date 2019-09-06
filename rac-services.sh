@@ -56,7 +56,7 @@ cat << !
         exit 666
 fi
 #
-# Show the version of the script
+# Show the version of the script (-V)
 #
 show_version()
 {
