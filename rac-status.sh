@@ -8,10 +8,11 @@
 # Please have a look at http://bit.ly/2MFkzDw  for some details and screenshots
 # The latest version of the script can be downloaded here : http://bit.ly/2XEXa6j
 #
-# The current script version is 20190830
+# The current script version is 20190906
 #
 # History :
 #
+# 20190906 - Fred Denis - A new -V option to show the version of the script
 # 20190830 - Fred Denis - Show a red "x" also when instances and listeners are disabled
 # 20190829 - Fred Denis - Show a red "x" if a service is disabled as well as a legend below the services table
 # 20190828 - Fred Denis - Option -L to always show full hostnames; also fixed a bug with the name of the cluster shown
@@ -134,7 +135,14 @@ then
         printf "\t%s\033[m\n\n" ${SED}
         exit 679
 fi
-
+#
+# Show the version of the script (-V)
+#
+show_version()
+{
+        VERSION=`${AWK} '{if ($0 ~ /^# 20[0-9][0-9][0-1][0-9]/) {print $2; exit}}' $0`
+        printf "\n\t\033[1;36m%s\033[m\n" "The current version of "`basename $0`" is "$VERSION"."          ;
+}
 #
 # An usage function
 #
@@ -202,13 +210,13 @@ cat << END
 
         -u        Shows the Uncolored output (no colors); set WITH_COLORS="NO" on top of the script to have it permanently
 
-        -w        Show a yellow background when a resource has been restarted less than the number of hours in parameter (default is $DIFF_HOURS)
+        -w        Shows a yellow background when a resource has been restarted less than the number of hours in parameter (default is $DIFF_HOURS)
                     h for hours (default) d for day, w for week, m for month and y for year can be used to specify the delay:
                         $ ./rac-status.sh -w 24         # 24 hours
                         $ ./rac-status.sh -w 24h        # 24 hours
                         $ ./rac-status.sh -w 2d         # 2 days
                         $ ./rac-status.sh -w 3m         # 3 months
-
+        -V        Shows the version of the script
         -h        Shows this help
 
         Note : the options are cumulative and can be combined with a "the last one wins" behavior :
@@ -222,7 +230,7 @@ exit 123
 }
 
 # Options
-while getopts "andslLhg:v:o:f:eruw:c:" OPT; do
+while getopts "andslLhg:v:o:f:eruw:c:V" OPT; do
         case ${OPT} in
         a)         SHOW_DB="YES"        ; SHOW_LSNR="YES"       ; SHOW_SVC="YES"                ;;
         n)         SHOW_DB="NO"         ; SHOW_LSNR="NO"        ; SHOW_SVC="NO"                 ;;
@@ -239,6 +247,7 @@ while getopts "andslLhg:v:o:f:eruw:c:" OPT; do
         r)        REVERSE="YES"                                                                 ;;
         w)     DIFF_HOURS=${OPTARG}                                                             ;;
         u)    WITH_COLORS="NO"                                                                  ;;
+        V)      show_version; exit 567                                                          ;;
         h)         usage                                                                        ;;
         \?)        echo "Invalid option: -$OPTARG" >&2; usage                                   ;;
         esac
