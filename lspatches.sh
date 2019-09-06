@@ -6,8 +6,8 @@
 # Provide information on the installed and missing patches on ORACLE_HOMEs
 #       $0 -h for more information
 #
-# The version of the script is 20191401
-#
+# The version of the script is 20190906
+# 20190906 - Fred Denis - A new -V option to show the version of the script
 # 20191401 - Fred Denis - opatchauto report: show Homes with -s option properly, fixed GREP/UNGREP
 #                       - Fixed issue with GI HOMe with no olsnodes (non-RAC)
 # 20190401 - Fred Denis - Implement opatchauto report instead of lsinventory -all_nodes for versions > 1220112 or  for 11g
@@ -41,6 +41,14 @@
       TMP2=/tmp/fictemplspatches2$$                      # Another tempfile
 SHOW_HOMES="NO"                                          # YES or NO we want to show the Homes from /etc/oratab or the input file $FILE ONLY
 
+#
+# Show the version of the script (-V)
+#
+show_version()
+{
+        VERSION=`awk '{if ($0 ~ /^# 20[0-9][0-9][0-1][0-9]/) {print $2; exit}}' $0`
+        printf "\n\t\033[1;36m%s\033[m\n" "The current version of "`basename $0`" is "$VERSION"."          ;
+}
 #
 # An usage function
 #
@@ -96,8 +104,8 @@ cat << END
                   $0 -s                                         # Show all Homes from /etc/oratab
                   $0 -g 12 -v oa -s                             # Show all "12" Homes BUT the "oa" ones
                                   $0 -f /tmp/opatchoutput -g 12 -s                              # Show the Homes from an opatch output file for the "12" Homes only
-
-        -h      Show this help
+        -V      Shows the version of the script
+        -h      Shows this help
 
 END
 exit 123
@@ -106,7 +114,7 @@ exit 123
 #
 # Parameters management
 #
-while getopts "lg:v:f:o:hs" OPT; do
+while getopts "lg:v:f:o:hsV" OPT; do
         case ${OPT} in
                 f)               FILE=${OPTARG}                                 ;;
                 o)                OUT=${OPTARG}                                 ;;
@@ -114,6 +122,7 @@ while getopts "lg:v:f:o:hs" OPT; do
                 l)          ALL_NODES=""                                        ;;
                 v)             UNGREP=${OPTARG}                                 ;;
                 s)         SHOW_HOMES="YES"                                     ;;
+                V)      show_version; exit 567                                  ;;
                 h)              usage                                           ;;
                 \?) echo "Invalid option: -$OPTARG" >&2; usage                  ;;
         esac
