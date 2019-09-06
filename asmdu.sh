@@ -13,8 +13,9 @@
 # sh: -c: line 1: syntax error: unexpected end of file
 #
 #
-# The current version of the script is 20190219
+# The current version of the script is 20190906
 #
+# 20190906 - Fred Denis - A new -V option to show the version of the script
 # 20190219 - Fred Denis - Some had issues with the instance list, I then moved from sed to cut to fix it -- Thanks Jakub !
 # 20181218 - Fred Denis - A new -n option to print with no color -- DEFAULT_NOCOLOR can be used to modify the default behavior
 #                         Fixed the regexp to list the instances running
@@ -58,6 +59,14 @@ DEFAULT_NOCOLOR="No"    # Print with colors
 END_COLOR="\033[m"
 
 #
+# Show the version of the script (-V)
+#
+show_version()
+{
+        VERSION=`awk '{if ($0 ~ /^# 20[0-9][0-9][0-1][0-9]/) {print $2; exit}}' $0`
+        printf "\n\t\033[1;36m%s\033[m\n" "The current version of "`basename $0`" is "$VERSION"."          ;
+}
+#
 # An usage function
 #
 usage()
@@ -69,7 +78,7 @@ END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
 cat << END
-        $0 [-d] [-m -g -t] [-n] [-v] [-h]
+        $0 [-d] [-m -g -t] [-n] [-v] [-V] [-h]
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
@@ -93,6 +102,7 @@ cat << END
 
         -n        Shows the output with no color (handy to send it by email)
 
+        -V        Shows the version of the script
         -h        Shows this help
 
 END
@@ -106,7 +116,7 @@ exit 123
     PARAM_UNIT=""
  PARAM_VERBOSE=""
 
-while getopts "d:mgtnvh" OPT; do
+while getopts "d:mgtnvhV" OPT; do
         case ${OPT} in
         d)                  D=${OPTARG}                         ;;
         m)         PARAM_UNIT="MB"                              ;;
@@ -114,6 +124,7 @@ while getopts "d:mgtnvh" OPT; do
         t)         PARAM_UNIT="TB"                              ;;
         n)      PARAM_NOCOLOR="Yes"                             ;;
         v)      PARAM_VERBOSE="Yes"                             ;;
+        V)      show_version; exit 567                          ;;
         h)      usage                                           ;;
         \?) echo "Invalid option: -$OPTARG" >&2; usage          ;;
         esac
