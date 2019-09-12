@@ -3,15 +3,14 @@
 #
 # yal.sh -- Yet Another Launcher !
 #
-# Copy and/or execute a script and/or some commands on many hosts; use the -h option to show the usage function for more information
-#
-# https://unix.stackexchange.com/questions/122616/why-do-i-need-a-tty-to-run-sudo-if-i-can-sudo-without-a-password/122624
+# Copy and/or execute a script and/or some commands on many hosts; use the -h option to show the usage function and the available options
+# Also, detailed explanations on yal.sh are available on http://bit.ly/2lNiLLF
 #
 # The current version of the script is 201909012
 #
 # History:
 #
-# 201909012- Fred Denis - Initial release
+# 201909012 - Fred Denis - Initial release
 #
 
 #
@@ -29,6 +28,7 @@ DEFAULT_FILE_TO_COPY=""                                         # A file to copy
       DEFAULT_SCRIPT=""                                         # A file containing a list of target servers (1 server per line)
  DEFAULT_USER_TO_LOG=""                                         # User used to connect to the target server
        DEFAULT_QUIET="NO"                                       # Show the temporary file copy and remove when we execute a file on a remote server
+DEFAULT_SCRIPT_OPTIONS=""                                       # Default options to append to a script we execute
 
               HEADER="echo BEGIN on \`hostname -s\` : \`date\`"    # Header to print before execution on  target
               FOOTER="echo END\ \ \ on \`hostname -s\` : \`date\`" # Footer to print after  execution on a target
@@ -38,14 +38,13 @@ DEFAULT_FILE_TO_COPY=""                                         # A file to copy
         SHOW_ELAPSED="yes"                                      # Show the elapsed time
  DEFAULT_SSH_OPTIONS="-qT"                                      # SSH options when connecting to the hostsa (you may not want to modify this one)
  DEFAULT_SCP_OPTIONS="-q"                                       # SCP options when there is a file to copy and/or execute (you may not want to modify this one)
-
 #
 # List of parameters that can be modified (config file, top of the script or command line option)
 #
-list_param=('AFTER' 'BEFORE' 'SERVER_LIST' 'DEST' 'USER_TO_EXEC' 'FILE_TO_COPY' 'GROUP_FILE' 'USER_TO_LOG' 'SCRIPT' 'SSH_OPTIONS' 'SCP_OPTIONS' 'QUIET')
-
-
-        # Used for the header, footer and elapsed
+list_param=('AFTER' 'BEFORE' 'SERVER_LIST' 'DEST' 'USER_TO_EXEC' 'FILE_TO_COPY' 'GROUP_FILE' 'USER_TO_LOG' 'SCRIPT' 'SSH_OPTIONS' 'SCP_OPTIONS' 'QUIET' 'DEFAULT_SCRIPT_OPTIONS')
+#
+# Colors used for the header, footer and elapsed
+#
        BLUE_BOLD="1;34m"
             BLUE="34m"
            COLOR=${BLUE_BOLD}
@@ -79,18 +78,19 @@ show_version()
 #
 # Use default values if not specified in the config file
 #
-if [[ -z ${AFTER}        ]]     ; then        AFTER="$DEFAULT_AFTER"            ; fi
-if [[ -z ${BEFORE}       ]]     ; then       BEFORE="$DEFAULT_BEFORE"           ; fi
-if [[ -z ${SERVER_LIST}  ]]     ; then  SERVER_LIST=$DEFAULT_SERVER_LIST        ; fi
-if [[ -z ${DEST}         ]]     ; then         DEST=$DEFAULT_DEST               ; fi
-if [[ -z ${USER_TO_EXEC} ]]     ; then USER_TO_EXEC=$DEFAULT_USER_TO_EXEC       ; fi
-if [[ -z ${FILE_TO_COPY} ]]     ; then FILE_TO_COPY=$DEFAULT_FILE_TO_COPY       ; fi
-if [[ -z ${GROUP_FILE}   ]]     ; then   GROUP_FILE=$DEFAULT_GROUP_FILE         ; fi
-if [[ -z ${USER_TO_LOG}  ]]     ; then  USER_TO_LOG=$DEFAULT_USER_TO_LOG        ; fi
-if [[ -z ${SCRIPT}       ]]     ; then       SCRIPT=$DEFAULT_SCRIPT             ; fi
-if [[ -z ${SSH_OPTIONS}  ]]     ; then  SSH_OPTIONS="$DEFAULT_SSH_OPTIONS"      ; fi
-if [[ -z ${SCP_OPTIONS}  ]]     ; then  SCP_OPTIONS="$DEFAULT_SCP_OPTIONS"      ; fi
-if [[ -z ${QUIET}        ]]     ; then        QUIET="$DEFAULT_QUIET"            ; fi
+if [[ -z ${AFTER}          ]]     ; then          AFTER="$DEFAULT_AFTER"            ; fi
+if [[ -z ${BEFORE}         ]]     ; then         BEFORE="$DEFAULT_BEFORE"           ; fi
+if [[ -z ${SERVER_LIST}    ]]     ; then    SERVER_LIST=$DEFAULT_SERVER_LIST        ; fi
+if [[ -z ${DEST}           ]]     ; then           DEST=$DEFAULT_DEST               ; fi
+if [[ -z ${USER_TO_EXEC}   ]]     ; then   USER_TO_EXEC=$DEFAULT_USER_TO_EXEC       ; fi
+if [[ -z ${FILE_TO_COPY}   ]]     ; then   FILE_TO_COPY=$DEFAULT_FILE_TO_COPY       ; fi
+if [[ -z ${GROUP_FILE}     ]]     ; then     GROUP_FILE=$DEFAULT_GROUP_FILE         ; fi
+if [[ -z ${USER_TO_LOG}    ]]     ; then    USER_TO_LOG=$DEFAULT_USER_TO_LOG        ; fi
+if [[ -z ${SCRIPT}         ]]     ; then         SCRIPT=$DEFAULT_SCRIPT             ; fi
+if [[ -z ${SSH_OPTIONS}    ]]     ; then    SSH_OPTIONS="$DEFAULT_SSH_OPTIONS"      ; fi
+if [[ -z ${SCP_OPTIONS}    ]]     ; then    SCP_OPTIONS="$DEFAULT_SCP_OPTIONS"      ; fi
+if [[ -z ${QUIET}          ]]     ; then          QUIET="$DEFAULT_QUIET"            ; fi
+if [[ -z ${SCRIPT_OPTIONS} ]]     ; then SCRIPT_OPTIONS="$DEFAULT_SCRIPT_OPTIONS"   ; fi
 #
 # An usage function
 #
@@ -154,7 +154,7 @@ print_a_line()
 #
 # Options (overwrite the default values)
 #
-while getopts "a:b:c:d:e:f:g:l:ox:hs:S:VqQ" OPT; do
+while getopts "a:b:c:d:e:f:g:l:ox:hs:S:VqQO:" OPT; do
         case ${OPT} in
         a)              AFTER=${OPTARG}                         ;;
         b)             BEFORE=${OPTARG}                         ;;
@@ -165,6 +165,7 @@ while getopts "a:b:c:d:e:f:g:l:ox:hs:S:VqQ" OPT; do
         g)         GROUP_FILE=${OPTARG}                         ;;
         l)        USER_TO_LOG=${OPTARG}                         ;;
         o)       SHOW_OPTIONS="yes"                             ;;
+        O)     SCRIPT_OPTIONS=${OPTARG}                         ;;
         s)        SSH_OPTIONS=${OPTARG}                         ;;
         q)              QUIET="YES"                             ;;
         Q)              QUIET="NO"                              ;;
@@ -225,6 +226,7 @@ then
         printf "${FORMAT_VALUE}" "-s: SSH Options"      "$SSH_OPTIONS"                          ;
         printf "${FORMAT_VALUE}" "-S: SCP Options"      "$SCP_OPTIONS"                          ;
         printf "${FORMAT_VALUE}" "-x: Script to exec"   "$SCRIPT"                               ;
+        printf "${FORMAT_VALUE}" "-O: Script options"   "$SCRIPT_OPTIONS"                       ;
         printf "${FORMAT_VALUE}" "    Config File"      "$CONFIG_FILE"                          ;
         print_a_line $SIZE                                                                      ;
         printf "\n\n"                                                                           ;
@@ -328,10 +330,10 @@ END_SSH
                                 if [[ -n "${USER_TO_EXEC}" ]]
                                 then
                                         sudo su - ${USER_TO_EXEC} << END_SU
-                                        . ${TO}                                         ;
+                                        . ${TO} ${SCRIPT_OPTIONS}                       ;
 END_SU
                                 else
-                                        . ${TO}                                         ;
+                                        . ${TO} ${SCRIPT_OPTIONS}                       ;
                                 fi
                                 if [[ -f "${TO}" ]]                             
                                 then
