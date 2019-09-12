@@ -1,5 +1,5 @@
 #!/bin/bash
-# Fred Denis -- July 2019 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
+# Fred Denis -- September 2019 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
 #
 # yal.sh -- Yet Another Launcher !
 #
@@ -7,14 +7,11 @@
 #
 # https://unix.stackexchange.com/questions/122616/why-do-i-need-a-tty-to-run-sudo-if-i-can-sudo-without-a-password/122624
 #
-# The current version of the script is DEV20190807
+# The current version of the script is 201909012
 #
 # History:
 #
-# DEV20190807 - Fred Denis - Better parameter search in the config file
-# DEV20190802 - Fred Denis - -s for ssh option ans -S for scp options
-#                            SSH_OPTIONS and SCP_OPTIONS are supported on the config file
-#
+# 201909012- Fred Denis - Initial release
 #
 
 #
@@ -31,6 +28,7 @@ DEFAULT_FILE_TO_COPY=""                                         # A file to copy
   DEFAULT_GROUP_FILE=""                                         # A file to copy to the target servers
       DEFAULT_SCRIPT=""                                         # A file containing a list of target servers (1 server per line)
  DEFAULT_USER_TO_LOG=""                                         # User used to connect to the target server
+       DEFAULT_QUIET="NO"                                       # Show the temporary file copy and remove when we execute a file on a remote server
 
               HEADER="echo BEGIN on \`hostname -s\` : \`date\`"    # Header to print before execution on  target
               FOOTER="echo END\ \ \ on \`hostname -s\` : \`date\`" # Footer to print after  execution on a target
@@ -44,14 +42,13 @@ DEFAULT_FILE_TO_COPY=""                                         # A file to copy
 #
 # List of parameters that can be modified (config file, top of the script or command line option)
 #
-list_param=('AFTER' 'BEFORE' 'SERVER_LIST' 'DEST' 'USER_TO_EXEC' 'FILE_TO_COPY' 'GROUP_FILE' 'USER_TO_LOG' 'SCRIPT' 'SSH_OPTIONS' 'SCP_OPTIONS')
+list_param=('AFTER' 'BEFORE' 'SERVER_LIST' 'DEST' 'USER_TO_EXEC' 'FILE_TO_COPY' 'GROUP_FILE' 'USER_TO_LOG' 'SCRIPT' 'SSH_OPTIONS' 'SCP_OPTIONS' 'QUIET')
 
 
         # Used for the header, footer and elapsed
        BLUE_BOLD="1;34m"
             BLUE="34m"
            COLOR=${BLUE_BOLD}
-
 #
 # Function to get values from the config file, receive a pattenr and retuen the value specified in the config file
 # Form should be : PATTERN=value or PATTERN="list of values"
@@ -61,7 +58,6 @@ get_from_config_file()
         A=$(grep "$1" ${CONFIG_FILE} | grep -v "^#" | sed s'/^[[:space:]]*//g' | sed s'/#.*$//' | sed s'/^.*=[[:space:]]*//' | sed s'/[[:space:]]*$//' | sed s'/"//g')
         echo "$A"
 }
-
 #
 # Get the values from the config file
 #
@@ -72,7 +68,14 @@ then
                 declare -x "$name"="$(get_from_config_file "$name")"
         done
 fi
-
+#
+# Show the version of the script (-V)
+#
+show_version()
+{
+        VERSION=`awk '{if ($0 ~ /^# 20[0-9][0-9][0-1][0-9]/) {print $2; exit}}' $0`
+        printf "\n\t\033[1;36m%s\033[m\n\n" "The current version of "`basename $0`" is "$VERSION"."          ;
+}
 #
 # Use default values if not specified in the config file
 #
@@ -87,7 +90,7 @@ if [[ -z ${USER_TO_LOG}  ]]     ; then  USER_TO_LOG=$DEFAULT_USER_TO_LOG        
 if [[ -z ${SCRIPT}       ]]     ; then       SCRIPT=$DEFAULT_SCRIPT             ; fi
 if [[ -z ${SSH_OPTIONS}  ]]     ; then  SSH_OPTIONS="$DEFAULT_SSH_OPTIONS"      ; fi
 if [[ -z ${SCP_OPTIONS}  ]]     ; then  SCP_OPTIONS="$DEFAULT_SCP_OPTIONS"      ; fi
-
+if [[ -z ${QUIET}        ]]     ; then        QUIET="$DEFAULT_QUIET"            ; fi
 #
 # An usage function
 #
@@ -97,12 +100,10 @@ printf "\n\033[1;37m%-8s\033[m\n" "NAME"                                        
 cat << END
         `basename $0` - Execute or copy a script on many hosts; can also execute commands on many hosts
 END
-
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"                                    ;
 cat << END
-        $0 [-a] [-b] [-c] [-d] [-e] [-f] [-g] [-l] [-o] [-x] [-s] [-S] [-h]
+        $0 [-a] [-b] [-c] [-d] [-e] [-f] [-g] [-l] [-o] [-q] [-Q] [-x] [-s] [-S] [-h] [-V]
 END
-
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"                                 ;
 cat << END
         `basename $0` needs SSH equivalence already set between the user executing it and the target user (option -l)
@@ -116,7 +117,6 @@ cat << END
                 3/ Options defined in the config file (if exists)
 
 END
-
 printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"                                     ;
 cat << END
         -a      Commands to execute before copying and/or executing the script
@@ -128,9 +128,12 @@ cat << END
         -g      Specify a file containing a list of target servers to connect to (1 server per line)
         -l      User to use to Login to the target servers
         -o      Only shows the values of the options and exit (do not do anything else)
+        -q      Do not show the copy and remove temporary file operations when executing a script
+        -Q      Show the copy and remove temporary file operations when executing a script
         -s      SSH options
         -S      SCP options
         -x      Copy and eXecute the script on the target hosts (see -f to only copy a file)
+        -V      Show the version
         -h      Shows this help
 
         Experiment and enjoy  !
@@ -143,15 +146,15 @@ END
 #
 print_a_line()
 {
-        printf "\n"                                                                             ;
+        printf "\n"                                             ;
         for i in `seq 1 $1`
-        do      printf "\033[1;37m%1s\033[m" "-"                                                ;
+        do      printf "\033[1;37m%1s\033[m" "-"                ;
         done
 }
 #
 # Options (overwrite the default values)
 #
-while getopts "a:b:c:d:e:f:g:l:ox:hs:S:" OPT; do
+while getopts "a:b:c:d:e:f:g:l:ox:hs:S:VqQ" OPT; do
         case ${OPT} in
         a)              AFTER=${OPTARG}                         ;;
         b)             BEFORE=${OPTARG}                         ;;
@@ -163,8 +166,11 @@ while getopts "a:b:c:d:e:f:g:l:ox:hs:S:" OPT; do
         l)        USER_TO_LOG=${OPTARG}                         ;;
         o)       SHOW_OPTIONS="yes"                             ;;
         s)        SSH_OPTIONS=${OPTARG}                         ;;
+        q)              QUIET="YES"                             ;;
+        Q)              QUIET="NO"                              ;;
         S)        SCP_OPTIONS=${OPTARG}                         ;;
         x)             SCRIPT=${OPTARG}                         ;;
+        V)      show_version; exit 555                          ;;
         h)      usage                                           ;;
         \?) echo "Invalid option: -$OPTARG" >&2; usage          ;;
         esac
@@ -185,7 +191,6 @@ then
                 exit 669
         fi
 fi
-
 #
 # Show the value of the options with the current setting -- do not do anythongm just show and exit
 #
@@ -216,6 +221,7 @@ then
         printf "${FORMAT_VALUE}" "-f: File to copy"     "$FILE_TO_COPY"                         ;
         printf "${FORMAT_VALUE}" "-g: Group File"       "$GROUP_FILE"                           ;
         printf "${FORMAT_VALUE}" "-l: User to login"    "$USER_TO_LOG"                          ;
+        printf "${FORMAT_VALUE}" "-q: Quiet"            "$QUIET"                                ;
         printf "${FORMAT_VALUE}" "-s: SSH Options"      "$SSH_OPTIONS"                          ;
         printf "${FORMAT_VALUE}" "-S: SCP Options"      "$SCP_OPTIONS"                          ;
         printf "${FORMAT_VALUE}" "-x: Script to exec"   "$SCRIPT"                               ;
@@ -225,7 +231,6 @@ then
 
         exit 555
 fi
-
 #
 # Input checks
 #
@@ -248,8 +253,17 @@ then
         printf "\n\t\033[1;31m%s\033[m\n\n" "A user to log in is needed (option -l), cannot continue."           ;
         exit 668
 fi
+if [[ -z ${SERVER_LIST} ]] 
+then
+        printf "\n\t\033[1;31m%s\033[m\n\n" "A server to connect to is needed (-c or -g option), cannot continue."           ;
+        exit 670
+fi
 
 TO=${DEST}"/"${FILE_TO_COPY}                       # for better visibility below
+if [[ -n ${SCRIPT} ]]
+then
+        TO=${DEST}"/"${FILE_TO_COPY}$$             # A temporary name for the copied script if we execute the script
+fi
 
 #
 # Let's go
@@ -292,8 +306,16 @@ END_SSH
         if [[ -f "${FILE_TO_COPY}" ]]                   # A file to copy
         then
                 scp ${SCP_OPTIONS} ${FILE_TO_COPY} ${USER_TO_LOG}@${X}:${TO}
+                if [[ "${QUIET}" == "NO" ]]
+                then
+                        if [ $? -eq 0 ]
+                        then
+                                printf "%s\n" "Script "${FILE_TO_COPY}" successfully copied to "${TO}           ;
+                        else
+                                printf "%s\n" "Error "$?" when copying "${FILE_TO_COPY}" to "${TO}              ;
+                        fi
+                fi
         fi
-
         #
         # Script execution, After and Footer
         #
@@ -314,6 +336,15 @@ END_SU
                                 if [[ -f "${TO}" ]]                             
                                 then
                                         rm -f ${TO}                                     ;
+                                        if [[ "${QUIET}" == "NO" ]]
+                                        then
+                                                if [ $? -eq 0 ]
+                                                then
+                                                        printf "%s\n" "Script "${TO}" removed successfully"     ;
+                                                else
+                                                        printf "%s\n" "Error "$?" when removing "${TO}          ;
+                                                fi
+                                        fi
                                 fi
                         fi
                         if [[ -n "${AFTER}" ]]                    
@@ -342,7 +373,6 @@ END_SSH
                 printf "\033[${COLOR}%-8s: %s\033[m\n" "ELAPSED" "$ELAPSED seconds"     ;
         fi
 done
-
 
 #************************************************************************#
 #                       E N D      O F      S O U R C E                 *#
