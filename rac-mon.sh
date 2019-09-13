@@ -5,8 +5,9 @@
 # More information on the script on https://goo.gl/EwDeKn
 # See the usage function or use the -h option for more details
 #
-# The current version of the script is 20190118
+# The current version of the script is 20190913
 #
+# 20190913 - Fred Denis - rac-status options can be passed as a parameter (-o)
 # 20190118 - Fred Denis - Initial Release
 #
 
@@ -18,11 +19,13 @@
              TMP="/tmp/racmontempfile$$"                # A tempfile
             TMP2="/tmp/racmontempfile2$$"               # Another tempfile
  AUTO_CREATE_REF="Yes"                                  # If yes, create the reference file if it does not exist (for first execution)
+         OPTIONS="-a -w0"                               # Options to use with rac-status.sh
                                                         # If not yes, prompt about this and exit
 #
 # Email alerting
 #
          EMAILTO="youremail@company.com"                # The email to send the alert to
+         EMAILTO="denis@pythian.com,mshah@travelclick.com,mvyas@travelclick.com"                    # The email to send the alert to
 EMAIL_ON_FAILURE="No"                                   # Default behavior to send an email if an error is detected (-e option) - put Yes to always send emails
 EMAIL_ON_SUCCESS="No"                                   # Default behavior to send an email even if no error is detected (-s option) - put Yes to always send emails
 FAILURE_SUBJECT="Error : Cluster status at "`date`      # Subject of the email sent
@@ -47,7 +50,7 @@ printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
 cat << END
         `basename $0` needs the rac-status.sh script to be downloaded and working (https://goo.gl/LwQC1N)
 
-        `basename $0` executes rac-status.sh -a and compares its output with a previously saved good status of your cluster
+        `basename $0` executes rac-status.sh $OPTIONS and compares its output with a previously saved good status of your cluster
         If no reference file exists, `basename $0` will create it for you at the location pointed by the REFERENCE variable.
 
         If `basename $0` finds differences betwen the current status of the cluster and the good status from the reference file,
@@ -65,6 +68,8 @@ cat << END
                 just change the values of these parameters on top of the script like this:
                         EMAIL_ON_FAILURE="Yes"
                         EMAIL_ON_SUCCESS="Yes"
+        -o      Specify the options to use for rac-status
+                        $ ./rac-mon.sh -s -o "-a -w0"
 
         -h      Show this help
 
@@ -72,14 +77,23 @@ END
 
 exit 567
 }
-
+#
+# Show the version of the script (-V)
+#
+show_version()
+{
+        VERSION=`awk '{if ($0 ~ /^# 20[0-9][0-9][0-1][0-9]/) {print $2; exit}}' $0`
+        printf "\n\t\033[1;36m%s\033[m\n" "The current version of "`basename $0`" is "$VERSION"."          ;
+}
 #
 # Command line options
 #
-while getopts "esh" OPT; do
+while getopts "esho:V" OPT; do
         case ${OPT} in
         e)         EMAIL_ON_FAILURE="Yes"                               ;;
         s)         EMAIL_ON_SUCCESS="Yes"                               ;;
+        o)                  OPTIONS="${OPTARG}"                         ;;
+        V)      show_version; exit 567                                  ;;
         h)         usage                                                ;;
         \?)        echo "Invalid option: -$OPTARG" >&2; usage           ;;
         esac
@@ -104,20 +118,20 @@ then
         if [ "${AUTO_CREATE_REF}" = "Yes" ]
         then    # Reference file does not exist, we create it
                 printf "\t%s" "No reference file found at $REFERENCE, creating it . . ."
-                $RACSTATUS -a > $REFERENCE
+                $RACSTATUS ${OPTIONS} > $REFERENCE
                 if [ $? -eq 0 ]
                 then
                         printf "\t\033[1;32m%-8s\033[m\n" "OK"          ;
                 else
                         printf "\t\033[1;31m%-8s\n" "Error $ERR"          ;
-                        printf "%s\033[m\n" "Could not create $REFERENCE using $RACSTATUS -a > $REFERENCE; cannot continue."
+                        printf "%s\033[m\n" "Could not create $REFERENCE using $RACSTATUS ${OPTIONS} > $REFERENCE; cannot continue."
                         exit 444
                 fi
         else
         cat << !
                 Cannot find the ${REFERENCE} file. A status reference file is needed to be able to compare the current status of the cluster with
                 Please initialize this reference file as below:
-                $ $RACSTATUS -a > $REFERENCE
+                $ $RACSTATUS ${OPTIONS} > $REFERENCE
 !
                 exit 123
         fi
@@ -126,7 +140,7 @@ fi
 #
 # Check the current status of the cluster
 #
-${RACSTATUS} -a > ${TMP}
+${RACSTATUS} ${OPTIONS} > ${TMP}
 if [ $? -ne 0 ]
 then
         cat << !
