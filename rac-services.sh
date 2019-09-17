@@ -7,6 +7,9 @@
 #
 # History:
 #
+# 20190917 - Fred Denis - Option -F to work from a reference file (which should be a rac-status.sh -Luns output)
+#                       - Used the -oldinst -newinst syntax for relocate and not currentnode and targetnode which is for policy managed databases
+#                       - A -i option to workaround the fact that db_unique_name != db_name and instance_name is built from db_name
 # 20190904 - Fred Denis - Initial release
 #
 #
@@ -23,6 +26,9 @@
   DB_TO_HIDE="nothing_by_default"$$     # DB to hide
  SVC_TO_SHOW="."                        # Service to show
  SVC_TO_HIDE="nothing_by_default"$$     # Service to hide
+INSTANCE_PREFIX=""                      # When db_unique_name != db_name to build the instance names
+         TMP=/tmp/rac-services$$.tmp    # A tempfile
+   FROM_FILE=""                         # File to generate the services commands from a reference file (-F)
 
 #
 #       Different OS support
@@ -48,7 +54,7 @@ fi
 #
 #       We need rac-status to be here
 #
-if [[ ! -f ${RAC_STATUS} ]]
+if [[ ! -f ${RAC_STATUS} && -z ${FILE_FROM} ]]
 then
 cat << !
         Cannot find ${RAC_STATUS}, please get it from http://bit.ly/2XEXa6j (doc is http://bit.ly/2MFkzDw)
@@ -75,7 +81,7 @@ END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
 cat << END
-        $0 [-a] [-f] [-t] [-n] [-r] [-w] [-h]
+        $0 [-a] [-f] [-t] [-n] [-r] [-R] [-w] [-W] [-V] [-h]
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
@@ -112,8 +118,14 @@ cat << END
                 ./`basename $0` -a relocate -f 4 -t 6           # Relocate the services from node 4 to node 6
                 ./`basename $0` -a stop -n 3                    # Stop the services on node 3
 
-        -w:     Show or hide the commands to achieve what we want to do    (revert the behavior of SHOW_WAY)
-        -r:     Show or hide the commands to return to the original status (revert the behavior of SHOW_RETURN)
+        -i:     Instance prefix when db_unique_name != db_name
+
+        -F:     A file containing a rac-status -Luns output used as a reference
+
+        -w:     Show the commands to achieve what we want to do
+        -W:     Hide the commands to achieve what we want to do (handy when you only want the way back commands)
+        -r:     Show the commands to return to the original status
+        -R:     Hide the commands to return to the original status
 
         -d:     The DB(s) you want to     show the services (act as a grep    so -d prod would     show the myprod1  and myprod2  databases)
         -D:     The DB(s) you want to NOT show the services (act as a grep -v so -D prod would NOT show the myprod1  and myprod2  databases)
@@ -128,18 +140,22 @@ END
 #
 #       Options
 #
-while getopts "a:n:f:t:d:D:s:S:hwrV" OPT; do
+while getopts "a:n:f:t:F:d:D:s:S:hwWrRVi:" OPT; do
         case ${OPT} in
-        f)      FROM=${OPTARG}                                                                          ;;
-        t)        TO=${OPTARG}                                                                          ;;
-        a)      ACTION=`echo ${OPTARG} | tr '[:upper:]' '[:lower:]'`                                    ;;
-        n)      NODE=${OPTARG}                                                                          ;;
-        w)      if [[ "${SHOW_WAY}" == "YES" ]];    then SHOW_WAY="NO";    else SHOW_WAY="YES";    fi   ;;
-        r)      if [[ "${SHOW_RETURN}" == "YES" ]]; then SHOW_RETURN="NO"; else SHOW_RETURN="YES"; fi   ;;
+        f)             FROM=${OPTARG}                                                                   ;;
+        t)               TO=${OPTARG}                                                                   ;;
+        F)        FILE_FROM=${OPTARG}                                                                   ;;
+        a)           ACTION=`echo ${OPTARG} | tr '[:upper:]' '[:lower:]'`                               ;;
+        n)             NODE=${OPTARG}                                                                   ;;
+        w)         SHOW_WAY="YES"                                                                       ;;
+        W)         SHOW_WAY="NO"                                                                        ;;
+        r)      SHOW_RETURN="YES"                                                                       ;;
+        R)      SHOW_RETURN="NO"                                                                        ;;
         d)       DB_TO_SHOW=${OPTARG}                                                                   ;;
         D)       DB_TO_HIDE=${OPTARG}                                                                   ;;
         s)      SVC_TO_SHOW=${OPTARG}                                                                   ;;
         S)      SVC_TO_HIDE=${OPTARG}                                                                   ;;
+        i)  INSTANCE_PREFIX=${OPTARG}                                                                   ;;
         V)      show_version; exit 567                                                                  ;;
         h)         usage                                                                                ;;
         \?)        echo "Invalid option: -$OPTARG" >&2; usage                                           ;;
@@ -198,12 +214,26 @@ else    # Then it is stop/start/disbale/enable
                 exit 127
         fi
 fi
+if [[ -n ${FILE_FROM} && ! -f ${FILE_FROM} ]]
+then
+        cat << !
+        Cannot find ${FILE_FROM}; cannot continue;
+!
+        exit 128
+fi
 #
 # Do the job
 #
-./${RAC_STATUS} -Luns | sed s'/ *//g' |\
+if [[ -n ${FILE_FROM} ]]
+then
+        cat ${FILE_FROM}      | sed s'/ *//g' > ${TMP}
+else
+        ./${RAC_STATUS} -Luns | sed s'/ *//g' > ${TMP}
+fi
+
+cat ${TMP} |\
         ${AWK} -F "|" -v     FROM="$FROM"     -v TO="$TO"  -v NODE="$NODE"  -v   ACTION="$ACTION"    \
-                      -v SHOW_WAY="$SHOW_WAY" -v SHOW_RETURN="$SHOW_RETURN" -v OPPOSITE="$OPPOSITE" '\
+                      -v SHOW_WAY="$SHOW_WAY" -v SHOW_RETURN="$SHOW_RETURN" -v OPPOSITE="$OPPOSITE" -v INSTANCE_PREFIX="$INSTANCE_PREFIX" '\
         BEGIN\
         {       nb_reloc = 1                                            ;
                 nb_stop  = 1                                            ;
@@ -247,7 +277,7 @@ fi
                 }
         }
         function gen_srvctl(what)
-        {       return sprintf("%s", "srvctl "what" service -db "DB" -service "SERVICE" -node "nodes[NODE])     ;
+        {       return sprintf("%s", "srvctl "what" service -db "DB" -service "SERVICE" -instance "INSTANCE_PREFIX NODE)     ;
         }
         function print_a_tab(a_tab, a_text)
         {
@@ -274,6 +304,9 @@ fi
                                 if ($1 != "")
                                 {
                                         DB=$1                                                                   ;
+                                        if (INSTANCE_PREFIX == "")
+                                        {       INSTANCE_PREFIX = DB                                            ;
+                                        }
                                 }
                                 SERVICE=$2                                                                      ;
                                 if (ACTION == "relocate")
@@ -281,8 +314,8 @@ fi
                                         # We relocate the service only if it is Online on the FROM node and not Online on the TO node
                                         if ($COL_FROM ~ /Online/ && $COL_TO !~ /Online/)
                                         {
-                                                  reloc[nb_reloc] =  "srvctl relocate service -db "DB" -service "SERVICE" -currentnode "nodes[FROM]" -targetnode "nodes[TO]     ;
-                                             reloc_back[nb_reloc] =  "srvctl relocate service -db "DB" -service "SERVICE" -currentnode "nodes[TO]  " -targetnode "nodes[FROM]   ;
+                                                  reloc[nb_reloc] =  "srvctl relocate service -db "DB" -service "SERVICE" -oldinst "INSTANCE_PREFIX FROM" -newinst "INSTANCE_PREFIX TO     ;
+                                             reloc_back[nb_reloc] =  "srvctl relocate service -db "DB" -service "SERVICE" -oldinst "INSTANCE_PREFIX TO" -newinst "INSTANCE_PREFIX FROM     ;
                                                         nb_reloc++                                                                                                              ;
                                         }
                                         # If the service is Online on the FROM node and Online on the TO node then we just stop it on the FROM node
@@ -364,6 +397,12 @@ fi
                                         print $0        ;
                                 }
                       }'
+
+# Delete tempfile
+if [[ -f ${TMP} ]]
+then
+        rm -f ${TMP}
+fi
 
 #****************************************************************************************#
 #*                              E N D      O F      S O U R C E                         *#
