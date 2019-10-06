@@ -25,7 +25,6 @@
 # Email alerting
 #
          EMAILTO="youremail@company.com"                # The email to send the alert to
-         EMAILTO="denis@pythian.com,mshah@travelclick.com,mvyas@travelclick.com"                    # The email to send the alert to
 EMAIL_ON_FAILURE="No"                                   # Default behavior to send an email if an error is detected (-e option) - put Yes to always send emails
 EMAIL_ON_SUCCESS="No"                                   # Default behavior to send an email even if no error is detected (-s option) - put Yes to always send emails
 FAILURE_SUBJECT="Error : Cluster status at "`date`      # Subject of the email sent
