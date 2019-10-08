@@ -14,7 +14,6 @@ BEGIN
   h1 := DBMS_DATAPUMP.OPEN(operation => 'IMPORT', job_mode => 'SCHEMA', job_name=>null);
   DBMS_DATAPUMP.ADD_FILE(handle => h1, filename =>'DUMPFILE_NAME', directory =>'DIRECTORY_NAME', filetype => dbms_datapump.ku$_file_type_dump_file);
   DBMS_DATAPUMP.ADD_FILE(handle => h1, filename => 'LOGFILE_NAME', directory => 'DIRECTORY_NAME', filetype => dbms_datapump.ku$_file_type_log_file);
-  DBMS_DATAPUMP.METADATA_FILTER(h1,'SCHEMA_EXPR','IN (''SCHEMA_NAME'')');
   DBMS_DATAPUMP.SET_PARAMETER(h1,'TABLE_EXISTS_ACTION','REPLACE');
     begin
     dbms_datapump.start_job(h1);
