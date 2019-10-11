@@ -5,12 +5,13 @@
 #
 # Dev
 
-N=15
+N=4
 
 for X in `dbcli list-databases | tac | awk '{if ($1 ~ /^--------/) {exit;} else {print $2;}}' | sort`
 do
         dbcli list-jobs | grep -i $X | tail -$N |\
-        awk -v DB="$X" '{       if ($0 ~ /Failure/)
+        awk -v DB="$X" 'BEGIN {failed=0;}
+                        {       if ($0 ~ /Failure/)
                                 {
                                         "dbcli describe-job -i "$1 " | grep Message " | getline err             ;
                                         sub(/^ *Message:/, "", err);
@@ -25,7 +26,7 @@ do
                                 {       printf("\033[1;37m%s\033[m", "-")       ;
                                 }
                                 printf("\n")                                    ;
-                                printf("\033[1;37m%s\033[m", "*** " DB "backup jobs *** ")              ;
+                                printf("\033[1;37m%s\033[m", "*** " DB " backup jobs *** -- ")              ;
                                 printf("\033[1;31m%s\033[m\n", failed " failures"  )    ;
                         }' | tac
 done
