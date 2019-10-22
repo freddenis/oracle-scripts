@@ -20,8 +20,8 @@
         FROM=""                         # Node from                     (-f) -- for relocate service
           TO=""                         # Node to                       (-t) -- for relocate service
         NODE=""                         # Node to perform the action    (-n) -- for stop / start / disable / enable
-    SHOW_WAY="YES"                      # Show the actions to performp as per the parameters
- SHOW_RETURN="YES"                      # Show the opposite actions to be able to come back to the previous situation
+    SHOW_WAY=""                         # Show the actions to performp as per the parameters
+ SHOW_RETURN=""                         # Show the opposite actions to be able to come back to the previous situation
   DB_TO_SHOW="."                        # DB to show
   DB_TO_HIDE="nothing_by_default"$$     # DB to hide
  SVC_TO_SHOW="."                        # Service to show
