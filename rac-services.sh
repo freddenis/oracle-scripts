@@ -3,10 +3,11 @@
 #
 # Generate commands to be able to manage RAC/GI services (relocate, stop, start, enable, disable); please use the -h option for more information
 #
-# The current script version is 20190904
+# The current script version is 20191022
 #
 # History:
 #
+# 20191022 - Fred Denis - No more default output and an error message if none is chosen
 # 20190917 - Fred Denis - Option -F to work from a reference file (which should be a rac-status.sh -Luns output)
 #                       - Used the -oldinst -newinst syntax for relocate and not currentnode and targetnode which is for policy managed databases
 #                       - A -i option to workaround the fact that db_unique_name != db_name and instance_name is built from db_name
@@ -164,6 +165,14 @@ done
 #
 # Input verification
 #
+if [[ -z ${SHOW_WAY} ]] && [[ -z ${SHOW_RETURN} ]]
+then
+        cat << !
+        You need to specify the output you want (-w and/or -r).
+        Please use -h to show the available options.
+!
+        exit 278
+fi
 if ! [[ "${ACTION}" =~ ^(relocate|stop|start|disable|enable)$ ]]
 then
         cat << !
