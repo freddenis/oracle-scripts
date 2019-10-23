@@ -47,9 +47,11 @@ python -m json.tool ${IN} | sed s'/[",]//g' | sed s'/ *//' |\
                                                                         {       break           ;
                                                                         }
                                                                         if (dep == "")
-                                                                        {       dep = master"-"$0       ;                                                                        } else 
+                                                                        {       dep = master"-"$0       ;
+                                                                        } else 
                                                                         {
-                                                                                dep = dep" "master"-"$0 ;                                                                        }
+                                                                                dep = dep" "master"-"$0 ;
+                                                                        }
                                                                 }
                                                         }
                                                 }
@@ -57,7 +59,8 @@ python -m json.tool ${IN} | sed s'/[",]//g' | sed s'/ *//' |\
                                                 {       gsub("^ ", "", dep)                     ;
                                                         name = $2                               ;
                                                         gsub(" ", "", name)                     ;
-                                                        printf("%s: %s\n", master"-"name,  dep)         ;                                                        printf("\t%s\n", "echo \"Starting............. "name"\" && sleep 5")            ;
+                                                        printf("%s: %s\n", master"-"name,  dep)         ;
+                                                        printf("\t%s\n", "echo \"Starting............. "name"\" && sleep 5")            ;
                                                         end_name=master"-"name" "end_name       ;
                                                 }
                                                 if ($1 == "timeout")
