@@ -61,7 +61,7 @@ END
 printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"             ;
 cat << END
         -j        A job to execute (default is we execute all the jobs specified in the main JSON file)
-        -d        A dry-tun only (show what it would be done but done do anything)
+        -d        A dry-run execution only (shows what it would be done but dont do anything)
 
         -V        Shows the version of the script
         -h        Shows this help
