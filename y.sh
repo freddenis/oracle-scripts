@@ -25,13 +25,24 @@ fi
 python -m json.tool ${IN} | sed s'/[",]//g' | sed s'/ *//' |\
         awk -v MASTER="${MASTER}"\
              'BEGIN {   FS=":";
+                        srand() ;
                     }
+             function print_txt_ts(in_txt)
+             {  # Print a "@echo <TXT> <TIMESTAMP>" line
+                        printf("\t%s\n", "@echo -e \"" in_txt  "\""" $(TS)")             ;
+                        #printf("\t%s\n", "@echo -e \"" in_txt "\"" $(TS)")             ;
+             }
              { if (($1 == "name") && ($2 ~ MASTER))
                 {       master=tolower($2)                                      ;
                         gsub (" ", "", master)                                  ;
-                        printf ("%s: %s\n\n", "done", "end-"master)             ;
+
+                        printf ("%s\n", "TS := `/bin/date \"+%Y-%m-%d-%H-%M-%S\"`")             ;
+                        printf ("%s: %s\n", "done", "end-"master)             ;
                         printf("%s:\n", master)
-                        printf("\t%s\n", "echo \"starting " master "\" && sleep 1")             ;
+                        #printf("\t%s\n", "echo \"starting " master "\" && sleep 1")             ;
+                        #printf("\t%s\n", "@echo \"Begin " master "\""" $(TS)")             ;
+                        print_txt_ts("Begin " master)   ;
+
                         while(getline)
                         {
                                 if ($1 == "nodes")
@@ -59,8 +70,16 @@ python -m json.tool ${IN} | sed s'/[",]//g' | sed s'/ *//' |\
                                                 {       gsub("^ ", "", dep)                     ;
                                                         name = $2                               ;
                                                         gsub(" ", "", name)                     ;
+
                                                         printf("%s: %s\n", master"-"name,  dep)         ;
-                                                        printf("\t%s\n", "echo \"Starting............. "name"\" && sleep 5")            ;
+                                                        #printf("\t%s\n", "echo \"Starting............. "name"\" && sleep 5")            ;
+                                                        #printf("\t%s\n", "echo -e \"Starting............. "name"\" && sleep 5")            ;
+                                                        print_txt_ts("\\tBegin "master"-"name )   ;
+                                                        x=int((rand()*100));
+                                                        if (x>60){x=x-60};
+                                                        print_txt_ts("\\t"master"-"name " sleeps for " x " seconds" )   ;
+                                                        printf("\t%s\n", "sleep " x)                    ;
+                                                        print_txt_ts("\\tEnd "master"-"name )   ;
                                                         end_name=master"-"name" "end_name       ;
                                                 }
                                                 if ($1 == "timeout")
@@ -70,16 +89,19 @@ python -m json.tool ${IN} | sed s'/[",]//g' | sed s'/ *//' |\
                                         }
                                 }
                                 if ($1 == "timeout")
-                                {       printf("%s: %s\n", "end-"master, end_name)              ;
-                                        printf("\t%s\n", "echo all done && sleep 1")            ;
+                                {       
+                                        printf("%s: %s\n", "end-"master, end_name)              ;
+                                        #printf("\t%s\n", "echo all done && sleep 1")            ;
+                                        printf("\t%s\n", "@echo \"End " master "\""" $(TS)")    ;
                                         printf ("\n")                                           ;
+
                                         break                                                   ;
                                 }
                         }
                 }
              }
             ' > ${TMP}
-
+#cat $TMP
 make -k -j -f ${TMP}
 
 if [[ -f ${TMP} ]] 
