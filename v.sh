@@ -44,7 +44,7 @@ END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
 cat << END
-        $0 [-j] [-d] [-V] [-h]
+        $0 [-j] [-d] [-f] [-F] [-V] [-h]
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
@@ -58,11 +58,14 @@ END
 
 printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"             ;
 cat << END
-        -j        A job to execute (default is we execute all the jobs specified in the main JSON file)
-        -d        A dry-run execution only (shows what it would be done but dont do anything)
+        -j      A job to execute (default is we execute all the jobs specified in the main JSON file)
+        -d      A dry-run execution only (shows what it would be done but dont do anything)
 
-        -V        Shows the version of the script
-        -h        Shows this help
+        -f      Main JSON input file
+        -F      Second JSON input file containing the steps details
+
+        -V      Shows the version of the script
+        -h      Shows this help
 
 END
 exit 123
@@ -70,18 +73,28 @@ exit 123
 #
 # Options
 #
-while getopts "j:dVh" OPT; do
+while getopts "j:df:F:Vh" OPT; do
         case ${OPT} in
-        j)        MASTER="${OPTARG}"                                                            ;;
-        d)        DRYRUN=" --dry-run"                                                           ;;
-        V)      show_version; exit 567                                                          ;;
-        h)         usage                                                                        ;;
-        \?)        echo "Invalid option: -$OPTARG" >&2; usage                                   ;;
+        j)        MASTER="${OPTARG}"                                    ;;
+        d)        DRYRUN=" --dry-run"                                   ;;
+        f)            IN=${OPTARG}                                      ;;
+        F)           IN2=${OPTARG}                                      ;;
+        V)      show_version; exit 567                                  ;;
+        h)         usage                                                ;; 
+        \?)        echo "Invalid option: -$OPTARG" >&2; usage           ;;
         esac
 done
 #
-# In case of
+# Options check
 #
+for x in ${IN} ${IN2}
+do
+        if [[ ! -f ${x} ]]
+        then
+                printf "\n\t\033[1;31m%s\033[m\n\n" "Cannot find the input file "${x}"; cannot continue."
+                exit 123
+        fi
+done
 if [[ -z ${MASTER} ]]
 then
         MASTER="."
@@ -190,39 +203,22 @@ cat ${TMP} | awk -v MASTER="${MASTER}"\
                                                 }
                                                 if ($1 == "START_DETAILS")
                                                 {       while (getline)
-                                                        {       gsub(" ", "", $2)                                                                                       ;
-                                                                gsub(" ", "", $1)                                                                                       ;
-                                                                if ($1 == "name")
-                                                                {       sql_name = $2                                                                                   ;
-                                                                }
+                                                        {       gsub(" ", "", $2)                                                                           ;                                                                gsub(" ", "", $1)                                                                           ;                                                                if ($1 == "name")
+                                                                {       sql_name = $2                                                                       ;                                                                }
                                                                 if ($1 == "path")
-                                                                {       tab_sql[sql_name] = $2                                                                          ;
-                                                                }
+                                                                {       tab_sql[sql_name] = $2                                                              ;                                                                }
                                                                 if ($1 == "dependencies")
                                                                 {       while (getline)
-                                                                        {                                                                                               ;
-                                                                                gsub(" ", "", $1)                                                                       ;
-                                                                                gsub(" ", "", $2)                                                                       ;
-                                                                                sql_name = $1                                                                           ;
-                                                                                if ($2 ~ /\[\]/)
-                                                                                {       job_deps = job_deps" "job"-"$1                                                  ;
-                                                                                        printf("%s: %s\n", job"-"sql_name, job)                                         ;
-                                                                                        print_exec(job"-"$1)                                                            ;
-                                                                                }
+                                                                        {                                                                                   ;                                                                                gsub(" ", "", $1)                                                           ;                                                                                gsub(" ", "", $2)                                                           ;                                                                                sql_name = $1                                                               ;                                                                                if ($2 ~ /\[\]/)
+                                                                                {       job_deps = job_deps" "job"-"$1                                      ;                                                                                        printf("%s: %s\n", job"-"sql_name, job)                             ;                                                                                        print_exec(job"-"$1)                                                ;                                                                                }
                                                                                 if ($2 ~ /\[$/)
-                                                                                {       job_deps = job_deps" "job"-"$1                                                  ;
-                                                                                        sql_name = $1                                                                   ;
-                                                                                        while(getline)
-                                                                                        {       gsub(" ", "", $1)                                                       ;
-                                                                                                if ($1 ~ /\]$/)
+                                                                                {       job_deps = job_deps" "job"-"$1                                      ;                                                                                        sql_name = $1                                                       ;                                                                                        while(getline)
+                                                                                        {       gsub(" ", "", $1)                                           ;                                                                                                if ($1 ~ /\]$/)
                                                                                                 {       
-                                                                                                        printf("%s: %s\n", job"-"sql_name, tab_dep[sql_name] )          ;
-                                                                                                        print_exec(tab_sql[sql_name])                                   ;
-                                                                                                        break                                                           ;
-                                                                                                }
+                                                                                                        printf("%s: %s\n", job"-"sql_name, tab_dep[sql_name] )       ;
+                                                                                                        print_exec(tab_sql[sql_name])                       ;                                                                                                        break                                               ;                                                                                                }
                                                                                                 if ($1 ~ /[a-zA-Z]/)
-                                                                                                {       tab_dep[sql_name] = tab_dep[sql_name]" "job"-"$1                        ;
-                                                                                                }
+                                                                                                {       tab_dep[sql_name] = tab_dep[sql_name]" "job"-"$1    ;                                                                                                }
                                                                                         }
                                                                                 }
                                                                                 if ($1 == "END_DETAILS")
@@ -260,7 +256,7 @@ cat ${TMP} | awk -v MASTER="${MASTER}"\
 cp $TMP a
 cp $TMP2 b
 #cat $TMP2
-make -k -j -f ${TMP2}
+make -k -j -f ${TMP2} ${DRYRUN}
 
 for F in ${TMP} ${TMP2} ${TMP3}
 do
