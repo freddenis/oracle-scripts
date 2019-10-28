@@ -22,8 +22,19 @@
 #
 # Some default values
 #
-#MASTER="."
 DRYRUN=""
+   LOG="./logs/dago"                    # Logfiles directory
+
+if [[ ! -d "${LOG}" ]]
+then
+        mkdir -p "${LOG}" 
+        if [ $? -eq 0 ]
+        then
+                printf "\n\t\033[1;33m%s\033[m\n\n" "Logfile directoy successfully created: "${LOG}"."
+        else
+                printf "\n\t\033[1;36m%s\033[m\n\n" "Error when creating "${LOG}", you may want to investigate to get full logs."
+        fi
+fi
 #
 # Show the version of the script (-V)
 #
@@ -44,7 +55,7 @@ END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
 cat << END
-        $0 [-j] [-d] [-f] [-F] [-l] [-n] [-V] [-h]
+        $0 [-j] [-d] [-f] [-F] [-l] [-n] [-e] [-V] [-h]
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
@@ -63,6 +74,7 @@ cat << END
 
         -l      List the jobs from the main JSON file
         -n      No Exec -- generate the files only
+        -e      Just execute the makefile in parameter (only -d can be specifed with -e)
 
         -f      Main JSON input file
         -F      Second JSON input file containing the steps details
@@ -76,12 +88,13 @@ exit 123
 #
 # Options
 #
-while getopts "j:df:F:lnVh" OPT; do
+while getopts "j:df:F:lne:Vh" OPT; do
         case ${OPT} in
-        j)        MASTER="${OPTARG}"                                    ;;
-        d)        DRYRUN=" --dry-run"                                   ;;
+        j)         MASTER="${OPTARG}"                                   ;;
+        d)         DRYRUN=" --dry-run"                                  ;;
         l) LIST_JOBS_ONLY="TRUE"                                        ;;
         n)        NO_EXEC=TRUE                                          ;;
+        e)      EXEC_ONLY=${OPTARG}                                     ;;
         f)             IN=${OPTARG}                                     ;;
         F)            IN2=${OPTARG}                                     ;;
         V)      show_version; exit 567                                  ;;
@@ -100,6 +113,34 @@ do
                 exit 123
         fi
 done
+if [[ -z "${MASTER}" ]]
+then
+        TAG="MULTIJOBS" ;
+else
+        TAG=$MASTER
+fi
+ STATUS="RUNNING"
+LOGFILE=$LOG"/dago_"`date +%Y-%m-%d-%H-%M-%S`"_"$TAG"_"
+THE_LOG=${LOGFILE}${STATUS}
+#
+# A function to execute the makefile
+#
+make_it()
+{
+        if [[ -f $1 ]]
+        then
+                make -k -j -f $1 ${DRYRUN}
+                if [ $? -eq 0 ]
+                then
+                        rename_logfile "OK"
+                else
+                        rename_logfile "KO"
+                fi
+        else
+                printf "\n\t\033[1;31m%s\033[m\n\n" "A makefile is needed; cannot continue without."
+                exit 678
+        fi
+}
 #
 # A function to show the list of jobs contained in the JSON input file and exit 0
 #
@@ -132,11 +173,27 @@ show_jobs()
                       }
                 '
 }
+#
+# Rename the logfile with a status to see what was wrong from the logfile name
+#
+rename_logfile()
+{
+        mv ${THE_LOG} ${LOGFILE}$1
+        THE_LOG=${LOGFILE}$1
+        echo "Logfile:"$THE_LOG
+}
 
 if [[  "${LIST_JOBS_ONLY}" = "TRUE" ]]
 then
-        show_jobs
+        show_jobs                       | tee -a $THE_LOG
+        rename_logfile "SHOW_ONLY"
         exit 0
+fi
+if [[ -f "${EXEC_ONLY}" ]]
+then
+        make_it "${EXEC_ONLY}"          | tee -a $THE_LOG
+        rename_logfile "EXEC_ONLY"
+        exit $?
 fi
 #
 # Merge the jobs and the subparts details in one file
@@ -323,24 +380,28 @@ cp $TMP2 b                      # Makefile
 
 if ! grep -q "^done" $TMP2
 then
-        cat << END
+        cat << END                      | tee -a $THE_LOG
         It looks like you picked a job which is not defined in $IN.
         Please pick a job in the below list:
 END
-show_jobs
+        show_jobs                       | tee -a $THE_LOG
+        rename_logfile "WRONG_JOB"
 fi
 
 if [[ "$NO_EXEC" = "TRUE" ]]
 then
-        cat << !
+        cat << !                        | tee -a $THE_LOG
 
         File a is the JSON merged file.
         File b is the generated merge file.
         We wont execute anything here.
-
 !
+        if [[ $THE_LOG == *"RUNNING"* ]]
+        then
+                rename_logfile "NOEXEC"
+        fi
 else
-        make -k -j -f ${TMP2} ${DRYRUN}
+        make_it ${TMP2}                 | tee -a $THE_LOG       # Execute the makefile
 fi
 
 for F in ${TMP} ${TMP2} ${TMP3}
