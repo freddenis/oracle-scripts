@@ -85,7 +85,7 @@ while getopts "j:df:F:lnVh" OPT; do
         f)             IN=${OPTARG}                                     ;;
         F)            IN2=${OPTARG}                                     ;;
         V)      show_version; exit 567                                  ;;
-        h)         usage                                                ;; 
+        h)         usage                                                ;;
         \?)        echo "Invalid option: -$OPTARG" >&2; usage           ;;
         esac
 done
@@ -101,10 +101,10 @@ do
         fi
 done
 #
-# Just show the list of jobs contained in the JSON input file and exit 0
+# A function to show the list of jobs contained in the JSON input file and exit 0
 #
-if [[  "${LIST_JOBS_ONLY}" = "TRUE" ]]
-then
+show_jobs()
+{
         cat ${IN} | sed s'/[",]//g' | sed s'/ *//' |\
                 awk -v IN="$IN" 'BEGIN\
                 {       FS=":"                          ;
@@ -131,6 +131,11 @@ then
                         printf("%s\n\n", "\033[m")                              ;
                       }
                 '
+}
+
+if [[  "${LIST_JOBS_ONLY}" = "TRUE" ]]
+then
+        show_jobs
         exit 0
 fi
 #
@@ -146,9 +151,9 @@ python -m json.tool ${IN} | sed s'/[",]//g' | sed s'/ *//' |\
                         gsub (" ", "", master)                                  ;
                         while(getline)
                         {       if ($1 == "nodes")
-                                {       print $0                                ;       
+                                {       print $0                                ;
                                         while(getline)
-                                        {       
+                                        {
                                                 print $0                        ;
                                                 if ($1 == "name")
                                                 {       name = $2               ;
@@ -164,7 +169,7 @@ python -m json.tool ${IN} | sed s'/[",]//g' | sed s'/ *//' |\
                                         }
                                 }
                                 if ($1 == "timeout")
-                                {       
+                                {
                                         break                                   ;
                                 }
                         }
@@ -220,7 +225,7 @@ cat ${TMP} | awk -v MASTER="${MASTER}"\
                                                                         }
                                                                         if (dep == "")
                                                                         {       dep = "end-"master"-"$0       ;
-                                                                        } else 
+                                                                        } else
                                                                         {
                                                                                 dep = dep" end-"master"-"$0 ;
                                                                         }
@@ -267,7 +272,7 @@ cat ${TMP} | awk -v MASTER="${MASTER}"\
                                                                                         while(getline)
                                                                                         {       gsub(" ", "", $1)                                                       ;
                                                                                                 if ($1 ~ /\]$/)
-                                                                                                {       
+                                                                                                {
                                                                                                         printf("%s: %s\n", job"-"sql_name, tab_dep[sql_name] )          ;
                                                                                                         print_exec(tab_sql[sql_name])                                   ;
                                                                                                         break                                                           ;
@@ -291,7 +296,6 @@ cat ${TMP} | awk -v MASTER="${MASTER}"\
                                                                         end_deps = end_deps" end-"job                   ;
                                                                         print_txt_ts("End "job )                        ;
                                                                         printf("\n")                                    ;
-                                                                        #job_deps = ""                                  ;
                                                                         break                                           ;
                                                                 }
                                                         }
@@ -303,9 +307,8 @@ cat ${TMP} | awk -v MASTER="${MASTER}"\
                                         }
                                 }
                                 if ($1 == "timeout")                                                    # End of the MASTER job
-                                {       
-                                        #printf("%s: %s\n", "end-"master, end_name)             ;
-                                        printf("%s: %s\n", "end-"master, end_deps)             ;
+                                {
+                                        printf("%s: %s\n", "end-"master, end_deps)              ;
                                         printf("\t%s\n", "@echo \"End " master "\""" $(TS)")    ;
                                         printf ("\n")                                           ;
                                         break                                                   ;
@@ -314,16 +317,27 @@ cat ${TMP} | awk -v MASTER="${MASTER}"\
                 }
              }
             ' > ${TMP2}
-cp $TMP a
-cp $TMP2 b
+cp $TMP a                       # Merged JSON file
+cp $TMP2 b                      # Makefile
 #cat $TMP2
 
-if [[ "$NO_EXEC" = "TRUE" ]] 
+if ! grep -q "^done" $TMP2
+then
+        cat << END
+        It looks like you picked a job which is not defined in $IN.
+        Please pick a job in the below list:
+END
+show_jobs
+fi
+
+if [[ "$NO_EXEC" = "TRUE" ]]
 then
         cat << !
+
         File a is the JSON merged file.
         File b is the generated merge file.
         We wont execute anything here.
+
 !
 else
         make -k -j -f ${TMP2} ${DRYRUN}
