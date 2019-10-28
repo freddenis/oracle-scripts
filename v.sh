@@ -22,7 +22,7 @@
 #
 # Some default values
 #
-MASTER="."
+#MASTER="."
 DRYRUN=""
 #
 # Show the version of the script (-V)
@@ -44,7 +44,7 @@ END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
 cat << END
-        $0 [-j] [-d] [-f] [-F] [-V] [-h]
+        $0 [-j] [-d] [-f] [-F] [-l] [-n] [-V] [-h]
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
@@ -61,6 +61,9 @@ cat << END
         -j      A job to execute (default is we execute all the jobs specified in the main JSON file)
         -d      A dry-run execution only (shows what it would be done but dont do anything)
 
+        -l      List the jobs from the main JSON file
+        -n      No Exec -- generate the files only
+
         -f      Main JSON input file
         -F      Second JSON input file containing the steps details
 
@@ -73,12 +76,14 @@ exit 123
 #
 # Options
 #
-while getopts "j:df:F:Vh" OPT; do
+while getopts "j:df:F:lnVh" OPT; do
         case ${OPT} in
         j)        MASTER="${OPTARG}"                                    ;;
         d)        DRYRUN=" --dry-run"                                   ;;
-        f)            IN=${OPTARG}                                      ;;
-        F)           IN2=${OPTARG}                                      ;;
+        l) LIST_JOBS_ONLY="TRUE"                                        ;;
+        n)        NO_EXEC=TRUE                                          ;;
+        f)             IN=${OPTARG}                                     ;;
+        F)            IN2=${OPTARG}                                     ;;
         V)      show_version; exit 567                                  ;;
         h)         usage                                                ;; 
         \?)        echo "Invalid option: -$OPTARG" >&2; usage           ;;
@@ -95,9 +100,38 @@ do
                 exit 123
         fi
 done
-if [[ -z ${MASTER} ]]
+#
+# Just show the list of jobs contained in the JSON input file and exit 0
+#
+if [[  "${LIST_JOBS_ONLY}" = "TRUE" ]]
 then
-        MASTER="."
+        cat ${IN} | sed s'/[",]//g' | sed s'/ *//' |\
+                awk -v IN="$IN" 'BEGIN\
+                {       FS=":"                          ;
+                        TITLE="List of jobs in the "IN" file"                   ;
+                         SIZE=length(TITLE)+2                                   ;
+
+                        printf("\n\033[1;37m%"SIZE"s\033[m\n", TITLE)           ;
+                        printf("%s", "\033[1;37m")                              ;
+                        for (k=1; k<=SIZE+4; k++) {printf("%s", "-")            ;}
+                        printf("%s\n", "\033[m")                                ;
+
+                }
+                {       if ($1 == "name" )
+                        {       job = $2                ;
+                                gsub (" ","", job)      ;
+                                getline                 ;
+                                if ($1 == "schedule")
+                                {
+                                        printf("\033[1;37m| \033[m%-"SIZE"s\033[1;37m |\033[m\n", job)  ;
+                                }
+                        }
+                } END { printf("%s", "\033[1;37m")                              ;
+                        for (k=1; k<=SIZE+4; k++) {printf("%s", "-")            ;}
+                        printf("%s\n\n", "\033[m")                              ;
+                      }
+                '
+        exit 0
 fi
 #
 # Merge the jobs and the subparts details in one file
@@ -106,7 +140,7 @@ python -m json.tool ${IN} | sed s'/[",]//g' | sed s'/ *//' |\
         awk -v IN2="${IN2}" -v MASTER="${MASTER}"\
              'BEGIN {   FS=":";
                     }
-             {  if (($1 == "name") && ($2 ~ MASTER))
+             {  if ($1 == "name")
                 {       print $0                                                ;
                         master=tolower($2)                                      ;
                         gsub (" ", "", master)                                  ;
@@ -140,6 +174,7 @@ python -m json.tool ${IN} | sed s'/[",]//g' | sed s'/ *//' |\
              }
             ' | sed s'/[",]//g' > ${TMP}
 
+
 cat ${TMP} | awk -v MASTER="${MASTER}"\
              'BEGIN {   FS=":";
                         srand() ;
@@ -157,15 +192,17 @@ cat ${TMP} | awk -v MASTER="${MASTER}"\
                         printf("\t%s\n", "sleep " x)                                                    ;
                         printf("\n")                                                                    ;
              }
-             { if (($1 == "name") && ($2 ~ MASTER))
+             {  gsub (" ", "", $2)      ;
+                if (($1 == "name") && (($2 == MASTER) || (MASTER == "")))
                 {       master=tolower($2)                                                              ;
                         gsub (" ", "", master)                                                          ;
+                        end_deps = ""                                                                   ;
 
                         printf ("%s\n", "TS := `/bin/date \"+%Y-%m-%d-%H-%M-%S\"`")                     ;       # A date
                         printf ("%s\n", "TSM := `/bin/date \"+%s%6N\"`")                                ;       # epoch micro
-                        printf ("%s: %s\n", "done", "end-"master)                                       ;
-                        printf("%s:\n", master)                                                         ;
-                        print_txt_ts("Begin " master)                                                   ;
+                        printf ("%s: %s\n", "done", "end-"master)                                       ;       # Label for MASTER end
+                        printf("%s:\n", master)                                                         ;       # MASTER start
+                        print_txt_ts("Begin " master)                                                   ;       # Print that MASTER starts
                         printf ("\n")                                                                   ;
 
                         while(getline)
@@ -190,7 +227,7 @@ cat ${TMP} | awk -v MASTER="${MASTER}"\
                                                                 }
                                                         }
                                                 }
-                                                if ($1 == "name")
+                                                if ($1 == "name")                                                       # job
                                                 {       gsub("^ ", "", dep)                                                             ;
                                                         name = $2                                                                       ;
                                                         gsub(" ", "", name)                                                             ;
@@ -201,24 +238,43 @@ cat ${TMP} | awk -v MASTER="${MASTER}"\
                                                         printf("\t%s\n\n", "sleep " 1)                                                  ;
                                                         end_name="end-"job" "end_name                                                   ;
                                                 }
-                                                if ($1 == "START_DETAILS")
+                                                if ($1 == "START_DETAILS")                                              # job details (substeps => SQL)
                                                 {       while (getline)
-                                                        {       gsub(" ", "", $2)                                                                           ;                                                                gsub(" ", "", $1)                                                                           ;                                                                if ($1 == "name")
-                                                                {       sql_name = $2                                                                       ;                                                                }
-                                                                if ($1 == "path")
-                                                                {       tab_sql[sql_name] = $2                                                              ;                                                                }
-                                                                if ($1 == "dependencies")
+                                                        {       gsub(" ", "", $2)                                                                                       ;
+                                                                gsub(" ", "", $1)                                                                                       ;
+                                                                job_deps = ""                                                                                           ;
+                                                                if ($1 == "name")                                       # Name of the SQL to launch
+                                                                {       sql_name = $2                                                                                   ;
+                                                                }
+                                                                if ($1 == "path")                                       # SQL script
+                                                                {       tab_sql[sql_name] = $2                                                                          ;
+                                                                }
+                                                                if ($1 == "dependencies")                               # Substeps dependencies
                                                                 {       while (getline)
-                                                                        {                                                                                   ;                                                                                gsub(" ", "", $1)                                                           ;                                                                                gsub(" ", "", $2)                                                           ;                                                                                sql_name = $1                                                               ;                                                                                if ($2 ~ /\[\]/)
-                                                                                {       job_deps = job_deps" "job"-"$1                                      ;                                                                                        printf("%s: %s\n", job"-"sql_name, job)                             ;                                                                                        print_exec(job"-"$1)                                                ;                                                                                }
-                                                                                if ($2 ~ /\[$/)
-                                                                                {       job_deps = job_deps" "job"-"$1                                      ;                                                                                        sql_name = $1                                                       ;                                                                                        while(getline)
-                                                                                        {       gsub(" ", "", $1)                                           ;                                                                                                if ($1 ~ /\]$/)
+                                                                        {                                                                                               ;
+                                                                                gsub(" ", "", $1)                                                                       ;
+                                                                                gsub(" ", "", $2)                                                                       ;
+                                                                                sql_name = $1                                                                           ;
+                                                                                if ($2 ~ /\[\]/)                        # No dependency
+                                                                                {       job_deps = job_deps" "job"-"$1                                                  ;
+                                                                                        printf("%s: %s\n", job"-"sql_name, job)                                         ;
+                                                                                        print_exec(job"-"$1)                                                            ;
+                                                                                }
+                                                                                if ($2 ~ /\[$/)                         # Dependencies list
+                                                                                {       job_deps = job_deps" "job"-"$1                                                  ;
+                                                                                        sql_name = $1                                                                   ;
+                                                                                        tab_dep[sql_name] = ""  ;
+                                                                                        while(getline)
+                                                                                        {       gsub(" ", "", $1)                                                       ;
+                                                                                                if ($1 ~ /\]$/)
                                                                                                 {       
-                                                                                                        printf("%s: %s\n", job"-"sql_name, tab_dep[sql_name] )       ;
-                                                                                                        print_exec(tab_sql[sql_name])                       ;                                                                                                        break                                               ;                                                                                                }
+                                                                                                        printf("%s: %s\n", job"-"sql_name, tab_dep[sql_name] )          ;
+                                                                                                        print_exec(tab_sql[sql_name])                                   ;
+                                                                                                        break                                                           ;
+                                                                                                }
                                                                                                 if ($1 ~ /[a-zA-Z]/)
-                                                                                                {       tab_dep[sql_name] = tab_dep[sql_name]" "job"-"$1    ;                                                                                                }
+                                                                                                {       tab_dep[sql_name] = tab_dep[sql_name]" "job"-"$1                ;
+                                                                                                }
                                                                                         }
                                                                                 }
                                                                                 if ($1 == "END_DETAILS")
@@ -228,10 +284,14 @@ cat ${TMP} | awk -v MASTER="${MASTER}"\
                                                                 }
                                                                 if ($1 == "END_DETAILS")
                                                                 {
-                                                                        printf("%s: %s\n", "end-"job, job_deps)         ;
+                                                                        if (job_deps == "")                                     # Job has no deps => issue in the config file ?
+                                                                        {       with_no_deps=with_no_deps" ""end-"job   ;
+                                                                        }
+                                                                        printf("%s: %s\n", "end-"job, job_deps)         ;       # End of the job substeps
+                                                                        end_deps = end_deps" end-"job                   ;
                                                                         print_txt_ts("End "job )                        ;
                                                                         printf("\n")                                    ;
-                                                                        job_deps = ""                                   ;
+                                                                        #job_deps = ""                                  ;
                                                                         break                                           ;
                                                                 }
                                                         }
@@ -242,9 +302,10 @@ cat ${TMP} | awk -v MASTER="${MASTER}"\
                                                 }
                                         }
                                 }
-                                if ($1 == "timeout")
+                                if ($1 == "timeout")                                                    # End of the MASTER job
                                 {       
-                                        printf("%s: %s\n", "end-"master, end_name)              ;
+                                        #printf("%s: %s\n", "end-"master, end_name)             ;
+                                        printf("%s: %s\n", "end-"master, end_deps)             ;
                                         printf("\t%s\n", "@echo \"End " master "\""" $(TS)")    ;
                                         printf ("\n")                                           ;
                                         break                                                   ;
@@ -256,7 +317,17 @@ cat ${TMP} | awk -v MASTER="${MASTER}"\
 cp $TMP a
 cp $TMP2 b
 #cat $TMP2
-make -k -j -f ${TMP2} ${DRYRUN}
+
+if [[ "$NO_EXEC" = "TRUE" ]] 
+then
+        cat << !
+        File a is the JSON merged file.
+        File b is the generated merge file.
+        We wont execute anything here.
+!
+else
+        make -k -j -f ${TMP2} ${DRYRUN}
+fi
 
 for F in ${TMP} ${TMP2} ${TMP3}
 do
