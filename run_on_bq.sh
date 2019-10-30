@@ -21,17 +21,19 @@ VAR_FILE="/home/autogen/dagops/bmas-edl-uat-7398.yml"                   # The YA
       TS="date "+%Y-%m-%d-%H-%M-%S""                                    # TS
      TSM="date "+%s%6N""                                                # TS micro
 JOB_NAME="UNKNOWN"                                                      # A default job name
+SYNC_SLEEP=5                                                            # Eventually consistency sleep
 
 #
 # Options
 #
-while getopts "s:r:f:t:j:Vh" OPT; do
+while getopts "s:r:f:t:j:c:Vh" OPT; do
         case ${OPT} in
         s)      SQL_FILE=${SQL_PATH}"/""${OPTARG}"                      ;;
         r)        RUN_ID="${OPTARG}"                                    ;;
         f)       TS_FROM="${OPTARG}"                                    ;;
         t)         TS_TO="${OPTARG}"                                    ;;
         j)      JOB_NAME="${OPTARG}"                                    ;;
+        c)    SYNC_SLEEP="${OPTARG}"                                    ;;
         V)      show_version; exit 567                                  ;;
         h)         usage                                                ;;
         \?)        echo "Invalid option: -$OPTARG" >&2; usage           ;;
@@ -72,7 +74,7 @@ pipeline_job_start_ts_micros=$(date "+%s%6N")
 #
 # For the logs
 #
-echo $($TS) $($TSM) ${JOB_NAME} Starting with ${SQL_FILE}
+echo $($TS) $($TSM) ${JOB_NAME} Starting ${SQL_FILE}
 #
 # We add our variables to the template YAML file which has the other variables values
 #
@@ -96,7 +98,7 @@ j2 ${SQL_FILE} ${YMLTMP} > ${SQLTMP}
 RET=$?
 if [ $RET -eq 0 ]
 then
-        echo $($TS) $($TSM) ${JOB_NAME} ${SQLTMP} has been generated successfully
+        echo $($TS) $($TSM) ${JOB_NAME} Generated ${SQLTMP} $RET
 else
         echo $($TS) $($TSM) ${JOB_NAME} "Error "$RET" when executing j2 "${SQL_FILE} ${YMLTMP} ">"${SQLTMP}"; cannot continue"
         exit 149
@@ -107,39 +109,47 @@ fi
 # Set env
 #
 gcloud config configurations activate dagops
-if [ $? -ne 0 ]
+RET=$?
+if [ $RET -ne 0 ]
 then
-        echo $($TS) $($TSM) ${JOB_NAME} "Impossible to set google env, cannot continue"
+        echo $($TS) $($TSM) ${JOB_NAME} "Error "$RET" Impossible to set google env, cannot continue"
         exit 765
 fi
 #
 # Execute the query
 #
-echo $($TS) $($TSM) ${JOB_NAME} ${SQLTMP} "Executing . . . " ${SQL_FILE}
+echo $($TS) $($TSM) ${JOB_NAME} "Executing" ${SQL_FILE} ${SQLTMP}
 cat ${SQLTMP} |  bq --location=EU query --use_legacy_sql=false
+RETURN_CODE=$?
+echo $($TS) $($TSM) ${JOB_NAME} "Executed" ${SQL_FILE} ${RETURN_CODE}
+echo $($TS) $($TSM) ${JOB_NAME} "Sleeping" ${SQL_FILE} ${SYNC_SLEEP}
+sleep ${SYNC_SLEEP}
 #
 # Reset env
 #
 gcloud config configurations activate default
-if [ $? -ne 0 ]
+RET=$?
+if [ $RET -ne 0 ]
 then
-        echo $($TS) $($TSM) ${JOB_NAME} "Impossible to reset google env to default, cannot continue"
+        echo $($TS) $($TSM) ${JOB_NAME} "Error "$RET" Impossible to reset google env to default, cannot continue"
         exit 766
 fi
 #
 # For the logs
 #
-echo $($TS) $($TSM) ${JOB_NAME} Done with ${SQL_FILE}
+echo $($TS) $($TSM) ${JOB_NAME} Done ${SQL_FILE} ${RETURN_CODE}
 #
 # Delete tempfiles
 #
-for X in ${SQLTMP}  ${YMLTMP}
+for X in ${SQLTMP} ${YMLTMP}
 do
         if [[ -f ${X} ]]
         then
                 rm -f ${X}
         fi
 done
+
+exit ${RETURN_CODE}
 
 #************************************************************************#
 #*                      E N D      O F      S O U R C E                 *#
