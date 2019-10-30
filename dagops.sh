@@ -1,3 +1,4 @@
+#!/bin/bash
 # Fred Denis -- Oct 23rd 2019 -- ERS-143
 #
 # Use of makefiles to schedule jobs
@@ -15,15 +16,21 @@
 #
 # Some default values
 #
-DRYRUN=""
-   LOG="./logs"                                         # Logfiles directory
-TMPDIR="./tmp"                                          # Tempfiles directory
+    DRYRUN=""
+       LOG="./logs"                                     # Logfiles directory
+    TMPDIR="./tmp"                                      # Tempfiles directory
+SYNC_SLEEP=5                                            # Seconds to let the eventual consistency to work
+START_DATE="Jan 1 00:00:00 2010"                        # Default start date to execute the SQLs
+      INCR=1year                                        # Default date increment
 declare -a logfile
+  PARALLEL=""                                           # Job execution parallellism (empty string means as much // as the system can)
 #
 # Files
 #
          IN=json.txt                                    # Main   JSON input file
         IN2=json2.txt                                   # Second JSON input file
+ PRE_SCRIPT="prescript.sh"                              # A potential pre  script to run
+POST_SCRIPT="postscript.sh"                             # A potential post script ro run
 EXEC_SCRIPT="/home/autogen/dagops/run_on_bq.sh"         # Run a SQL on big query
         TMP=${TMPDIR}/fictemp$$                         # A tempfile
        TMP2=${TMPDIR}/fictemp2$$                        # A tempfile
@@ -62,7 +69,7 @@ END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
 cat << END
-        $0 [-j] [-d] [-f] [-F] [-l] [-n] [-e] [-V] [-h]
+        $0 [-j] [-d] [-f] [-F] [-l] [-n] [-e] [-c] [-s] [-i] [-V] [-h]
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
@@ -83,6 +90,16 @@ cat << END
         -n      No Exec -- generate the files only
         -e      Just execute the makefile in parameter (only -d can be specifed with -e)
 
+        -c      Seconds to let the eventual consistency to work (eventual consistency sleep)
+        -p      Parallel job execution -- default is we use as many // as the system can
+
+        -s      A start date to execute the job -- must be in format "Jan 1 00:00:00 2010" which is the default; example:
+                        -s "Jul 14 12:34:56 2015"
+
+        -i      Date increment, default is 1year; example:
+                        -i 2year
+                        -i 1year+1month+1week
+
         -f      Main JSON input file
         -F      Second JSON input file containing the steps details
 
@@ -95,13 +112,17 @@ exit 123
 #
 # Options
 #
-while getopts "j:df:F:lne:Vh" OPT; do
+while getopts "j:df:F:c:lne:s:i:p:Vh" OPT; do
         case ${OPT} in
         j)         MASTER="${OPTARG}"                                   ;;
         d)         DRYRUN=" --dry-run"                                  ;;
         l) LIST_JOBS_ONLY="TRUE"                                        ;;
         n)        NO_EXEC=TRUE                                          ;;
         e)      EXEC_ONLY=${OPTARG}                                     ;;
+        c)     SYNC_SLEEP=${OPTARG}                                     ;;
+        s)     START_DATE="${OPTARG}"                                   ;;
+        p)       PARALLEL="${OPTARG}"                                   ;;
+        i)           INCR="${OPTARG}"                                   ;;
         f)             IN=${OPTARG}                                     ;;
         F)            IN2=${OPTARG}                                     ;;
         V)      show_version; exit 567                                  ;;
@@ -132,6 +153,19 @@ then
 else
         TAG=$MASTER
 fi
+if [[ "$PARALLEL" = "0" ]]
+then
+        PARALLEL=1
+fi
+if [[ -z $PARALLEL ]]                           # What to show in the logs
+then
+        SHOW_PARALLEL="Max"
+else
+        SHOW_PARALLEL=$PARALLEL
+fi
+#
+# Logfile
+#
  STATUS="RUNNING"
 LOGFILE=$LOG"/dagops_"`date +%Y-%m-%d-%H-%M-%S`"_"$TAG"_"
 logfile[1]=${LOGFILE}${STATUS}
@@ -152,7 +186,8 @@ make_it()
 {
         if [[ -f $1 ]]
         then
-                make -k -j -f $1 ${DRYRUN}
+                #make -k -j -f $1 ${DRYRUN}
+                make -j ${PARALLEL} -f $1 ${DRYRUN}
                 if [ $? -eq 0 ]
                 then
                         rename_logfile "OK"
@@ -195,6 +230,21 @@ show_jobs()
                         printf("%s\n\n", "\033[m")                              ;
                       }
                 '
+}
+#
+# Get a run id (from a file and later from mysql), increment it and save it
+#
+get_run_id()
+{
+        RUN_ID_FILE=".run_id"
+        if ! [[ -f ${RUN_ID_FILE} ]]
+        then
+                echo "123" > ${RUN_ID_FILE}
+        fi
+        X=`cat ${RUN_ID_FILE} | grep -v "^#" | head -1`
+        Y=$((X+1))
+        echo $Y > ${RUN_ID_FILE}
+        echo $X
 }
 #
 # Check the logfile trying to see if something wrong happened
@@ -275,37 +325,62 @@ python -m json.tool ${IN} | sed s'/[",]//g' | sed s'/ *//' |\
              }
             ' | sed s'/[",]//g' > ${TMP}
 #
-# Generate the makefile
+# Generate and execute the makefiles
 #
-RUN_ID=0
-for i in $(seq 2010 `date +%Y`)
-do
-        RUN_ID=$((RUN_ID+1))
-         STATUS="RUNNING"
-        LOGFILE=$LOG"/dagops_"`date +%Y-%m-%d-%H-%M-%S`"_"$TAG"_"$RUN_ID"_"
-        logfile[1]=${LOGFILE}${STATUS}
-        FROM="Jan 1 00:00:00 "$i                        # Date of the year (from date)
-        FROM_MIC=$(date -d "$FROM" "+%s%6N")
-        if (( $i < `date +%Y` ))                        # Year is not the current one
-        then
-                j=$((i+1))
-                TO="Jan 1 00:00:00 "$j
-        else                                            # Year is current one so we go till now
-                    TO=$(date "+%b %d %T %Y")
-        fi
-        TO_MIC=$(date -d "$TO" "+%s%6N")
-        TO_MIC=$((TO_MIC-1))
-        #echo $FROM_MIC"|"$TO_MIC
+FROM_MIC=$(date -d "$START_DATE" "+%s%6N")
+if [ $? -ne 0 ]                         # Verify that the date format is good
+then
+        cat << !
+        Date format has to be like :
+        Jan 1 00:00:00 2010
+!
+        exit
+fi
+    TO_MIC=$FROM_MIC
+   NOW_MIC=$(date "+%s%6N")
 
+while [ ${TO_MIC} -lt ${NOW_MIC} ]
+do
+        #
+        # Date work
+        #
+        # Dates in "Jan 1 00:00:00 2010" format
+        FROM=$(date --date "$(date -d @$((${FROM_MIC}/1000000))     "+%b %d %T %Y")"           "+%b %d %T %Y"   )
+          TO=$(date --date "$(date -d @$(((${FROM_MIC}-1)/1000000)) "+%b %d %T %Y") + ${INCR}" "+%b %d %T %Y"   )
+        # Dates microseconds
+    FROM_MIC=$(date --date "$FROM" "+%s%6N")
+      TO_MIC=$(date --date "$(date -d @$((${FROM_MIC}/1000000))     "+%b %d %T %Y") + ${INCR}" "+%s%6N"         )
+      TO_MIC=$((${TO_MIC}-1))
+        if [ "$TO_MIC" -gt "$NOW_MIC" ]
+        then
+            TO_MIC=$NOW_MIC
+                TO=$(date --date "$(date -d @$((${TO_MIC}/1000000)) "+%b %d %T %Y")"           "+%b %d %T %Y"   )
+        fi
+        #echo "from:"$FROM":"$TO":"$FROM_MIC":"${TO_MIC}
+        #
+        # RUN_ID and logfile
+        #
+            RUN_ID=$(get_run_id)
+            STATUS="RUNNING"
+           LOGFILE=$LOG"/dagops_"`date +%Y-%m-%d-%H-%M-%S`"_"$TAG"_"$RUN_ID"_"
+        logfile[1]=${LOGFILE}${STATUS}
+
+        #
+        # A sum up banner
+        #
         cat << END              | tee -a ${logfile[1]}
 #************************************************************************************************#
 #*      JOB             : $MASTER
 #*      RUN_ID          : $RUN_ID
+#*      PARALLEL        : $SHOW_PARALLEL
 #*      FROM_MIC        : $FROM_MIC     => (${FROM})
 #*      TO_MIC          : $TO_MIC       => (${TO})
 #************************************************************************************************#
 END
-        cat ${TMP} | awk -v MASTER="${MASTER}" -v EXEC_SCRIPT="${EXEC_SCRIPT}"\
+        #
+        # Generate the makefile
+        #
+        cat ${TMP} | awk -v MASTER="${MASTER}" -v EXEC_SCRIPT="${EXEC_SCRIPT}" -v SYNC_SLEEP="${SYNC_SLEEP}"\
                     -v RUN_ID="${RUN_ID}" -v FROM_MIC="${FROM_MIC}" -v  TO_MIC="${TO_MIC}"\
              'BEGIN {   FS=":";
                         srand() ;
@@ -315,14 +390,13 @@ END
                         printf("\t%s\n", "@echo -e $(TS) $(TSM) \"" in_txt "\"" )                       ;
              }
              function print_exec(path, job_name)
-             {          # Get one or more path, generates the execution commands
-                        #printf("\t%s\n", "@/home/oracle/scripts/exec_something.sh "path)                ;
-                        printf("\t%s\n", "@"EXEC_SCRIPT" -s "path" -r "RUN_ID" -f "FROM_MIC" -t "TO_MIC" -j "job_name)  ;
+             {          # Generate the SQL execution command line
+                        printf("\t%s\n", "@"EXEC_SCRIPT" -s "path" -r "RUN_ID" -f "FROM_MIC" -t "TO_MIC" -j "job_name" -c "SYNC_SLEEP)  ;
                         #x=int((rand()*10))                                                             ;
                         #x=int((rand()*100))                                                             ;
                         #if (x>60){x=x-60}                                                               ;
-                        #print_txt_ts(""path " sleeps for " x " seconds" )                               ;
-                        #printf("\t%s\n", "sleep " x)                                                    ;
+                        #print_txt_ts(job_name" Sleeping " path" "SYNC_SLEEP)                                   ;
+                        #printf("\t%s\n", "@sleep " SYNC_SLEEP)                                          ;
                         printf("\n")                                                                    ;
              }
              {  gsub (" ", "", $2)      ;
@@ -335,7 +409,7 @@ END
                         printf ("%s\n", "TSM := `/bin/date \"+%s%6N\"`")                                ;       # epoch micro
                         printf ("%s: %s\n", "done", "end-"master)                                       ;       # Label for MASTER end
                         printf("%s:\n", master)                                                         ;       # MASTER start
-                        print_txt_ts(master " Begin")                                                   ;       # Print that MASTER starts
+                        print_txt_ts(master " Begin_master")                                            ;       # Print that MASTER starts
                         printf ("\n")                                                                   ;
 
                         while(getline)
@@ -437,8 +511,7 @@ END
                                 if ($1 == "timeout")                                                    # End of the MASTER job
                                 {
                                         printf("%s: %s\n", "end-"master, end_deps)              ;
-                                        #printf("\t%s\n", "@echo \"End " master "\""" $(TS)")    ;
-                                        print_txt_ts(master" End")                              ;
+                                        print_txt_ts(master" End_master")                       ;
                                         printf ("\n")                                           ;
                                         break                                                   ;
                                 }
@@ -476,6 +549,9 @@ END
         else
                 make_it ${TMP2}                 | tee -a ${logfile[1]}  # Execute the makefile
         fi
+
+        # New FROM_MIC
+        FROM_MIC=$(date --date "$(date -d @$((${FROM_MIC}/1000000)) "+%b %d %T %Y") + ${INCR}" "+%s%6N"         )
 done    # End of the date loop
 
 #check_logs ${logfile[1]}
