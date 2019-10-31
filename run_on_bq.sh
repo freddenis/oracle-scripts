@@ -13,53 +13,76 @@
 #
 # Then replace the variables in the SQL files from $VAR_FILE and execute the query against bigquery
 #
-
-SQL_PATH="/home/autogen/teradata-migration-etl/bigquery"                # Where the SQL files are
-VAR_FILE="/home/autogen/dagops/bmas-edl-uat-7398.yml"                   # The YAML parameter file with the variables values
-  YMLTMP="/tmp/dagopsymltmp$$.yml"                                      # A temporary YAML file
-  SQLTMP="/tmp/dagopssqltmp$$.sql"                                      # A temporary SQL file
-      TS="date "+%Y-%m-%d-%H-%M-%S""                                    # TS
-     TSM="date "+%s%6N""                                                # TS micro
-JOB_NAME="UNKNOWN"                                                      # A default job name
-SYNC_SLEEP=5                                                            # Eventually consistency sleep
+      HERE=`dirname $0`                                                 # Script directoey
+      DIR="/home/autogen/teradata-migration-etl"                        # Project home directory
+    YMLTMP=${HERE}"/tmp/dagopsymltmp$$.yml"                             # A temporary YAML file
+    SQLTMP=${HERE}"/tmp/dagopssqltmp$$.sql"                             # A temporary SQL file
+        TS="date "+%Y-%m-%d-%H-%M-%S""                                  # TS
+        TS="date "+%Y-%m-%d_%H:%M:%S""                                  # TS
+       TSM="date "+%s%6N""                                              # TS micro
+  JOB_NAME="UNKNOWN"                                                    # A default job name
+SYNC_SLEEP=2                                                            # Eventually consistency sleep
+  STOP_NOW=${HERE}"/stop_now"                                           # If this file exists, we exit rigth now
+       SEP="|"                                                          # Column separator for the logs
 
 #
 # Options
 #
-while getopts "s:r:f:t:j:c:Vh" OPT; do
+while getopts "s:r:f:t:j:c:d:p:w:Vh" OPT; do
         case ${OPT} in
-        s)      SQL_FILE=${SQL_PATH}"/""${OPTARG}"                      ;;
+        s)           SQL="${OPTARG}"                                    ;;
         r)        RUN_ID="${OPTARG}"                                    ;;
         f)       TS_FROM="${OPTARG}"                                    ;;
         t)         TS_TO="${OPTARG}"                                    ;;
+        d)           DIR="${OPTARG}"                                    ;;
+        p)      PARALLEL="${OPTARG}"                                    ;;      # Just for the logs
         j)      JOB_NAME="${OPTARG}"                                    ;;
         c)    SYNC_SLEEP="${OPTARG}"                                    ;;
+        w)           DIR="${OPTARG}"                                    ;;
         V)      show_version; exit 567                                  ;;
         h)         usage                                                ;;
         \?)        echo "Invalid option: -$OPTARG" >&2; usage           ;;
         esac
 done
 #
+# Build some pathes
+#
+  SQL_PATH=${DIR}"/bigquery"                                            # Where the SQL files are
+  VAR_FILE=${DIR}"/environments/etl/bmas-edl-uat-7398.yml"              # Variables YAML file
+  SQL_FILE=${SQL_PATH}"/"${SQL}                                         # Whole SQL file path
+#
+# echo for the logs in the same format
+#
+show_log()
+{
+        echo $($TS)${SEP}$($TSM)${SEP}${JOB_NAME}${SEP}${RUN_ID}${SEP}${PARALLEL}${SEP}${TS_FROM}${SEP}${TS_TO}${SEP}$@
+}
+#
 # Option verification
 #
 if [[ ! -f ${SQL_FILE} ]]
 then
-        echo $($TS) $($TSM) ${JOB_NAME} "Cannot find the SQL file $SQL_FILE; cannot continue."
+        show_log "Error${SEP}Cannot find the SQL file $SQL_FILE; cannot continue.${SEP}$?"
         exit 1
 fi
 for i in RUN_ID TS_FROM TS_TO
 do
         if [[ -z ${!i} ]]
         then
-                echo $($TS) $($TSM) ${JOB_NAME} "${i} cannot be null; cannot continue."
+                show_log "Error${SEP}${i} cannot be null; cannot continue.${SEP}123"
                 exit 147
         fi
         if [[ ! "${!i}" =~ ^[0-9]+$ ]]
         then
-                echo $($TS) $($TSM) ${JOB_NAME} "${i} has to be an integer; cannot continue."
+                show_log "Error${SEP}${i} has to be an integer; cannot continue.${SEP}123"
                 exit 148
         fi
 done
+if [[ -f ${STOP_NOW} ]]                 # stop_now detected, we exit right away
+then
+        show_log "Error${SEP}${STOP_NOW} detected, exiting${SEP}666"
+        exit 666
+fi
 #
 # We need few more timestamps
 #
@@ -74,7 +97,7 @@ pipeline_job_start_ts_micros=$(date "+%s%6N")
 #
 # For the logs
 #
-echo $($TS) $($TSM) ${JOB_NAME} Starting ${SQL_FILE}
+show_log "Starting${SEP}${SQL}${SEP}0"
 #
 # We add our variables to the template YAML file which has the other variables values
 #
@@ -98,9 +121,9 @@ j2 ${SQL_FILE} ${YMLTMP} > ${SQLTMP}
 RET=$?
 if [ $RET -eq 0 ]
 then
-        echo $($TS) $($TSM) ${JOB_NAME} Generated ${SQLTMP} $RET
+        show_log "Generated${SEP}${SQLTMP}${SEP}${RET}"
 else
-        echo $($TS) $($TSM) ${JOB_NAME} "Error "$RET" when executing j2 "${SQL_FILE} ${YMLTMP} ">"${SQLTMP}"; cannot continue"
+        show_log "Error${SEP}when executing j2 ${SQL_FILE} ${YMLTMP} > ${SQLTMP}${SEP}$RET"
         exit 149
 fi
 #
@@ -112,17 +135,17 @@ gcloud config configurations activate dagops
 RET=$?
 if [ $RET -ne 0 ]
 then
-        echo $($TS) $($TSM) ${JOB_NAME} "Error "$RET" Impossible to set google env, cannot continue"
+        show_log "Error${SEP}Impossible to set google env, cannot continue${SEP}${RET}"
         exit 765
 fi
 #
 # Execute the query
 #
-echo $($TS) $($TSM) ${JOB_NAME} "Executing" ${SQL_FILE} ${SQLTMP}
+show_log "Executing${SEP}${SQLTMP}${SEP}0"
 cat ${SQLTMP} |  bq --location=EU query --use_legacy_sql=false
 RETURN_CODE=$?
-echo $($TS) $($TSM) ${JOB_NAME} "Executed" ${SQL_FILE} ${RETURN_CODE}
-echo $($TS) $($TSM) ${JOB_NAME} "Sleeping" ${SQL_FILE} ${SYNC_SLEEP}
+show_log "Executed${SEP}${SQL}${SEP}${RETURN_CODE}"
+show_log "Sleeping${SEP}${SQL}${SEP}${SYNC_SLEEP}"
 sleep ${SYNC_SLEEP}
 #
 # Reset env
@@ -131,13 +154,13 @@ gcloud config configurations activate default
 RET=$?
 if [ $RET -ne 0 ]
 then
-        echo $($TS) $($TSM) ${JOB_NAME} "Error "$RET" Impossible to reset google env to default, cannot continue"
+        show_log "Error${SEP}Impossible to reset google env to default, cannot continue${SEP}${RET}"
         exit 766
 fi
 #
 # For the logs
 #
-echo $($TS) $($TSM) ${JOB_NAME} Done ${SQL_FILE} ${RETURN_CODE}
+show_log "Done${SEP}${SQL}${SEP}${RETURN_CODE}"
 #
 # Delete tempfiles
 #
