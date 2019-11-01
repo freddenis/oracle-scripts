@@ -17,8 +17,10 @@
 # Files
 #
        HERE=`dirname $0`                                # Script directory
-         IN=json.txt                                    # Main   JSON input file
-        IN2=json2.txt                                   # Second JSON input file
+         IN=json.txt                                    # Test Main   JSON input file
+        IN2=json2.txt                                   # Test Second JSON input file
+         IN="/home/autogen/teradata-migration-etl/airflow/dags-generator/generated-master.json" # Main     JSON file
+        IN2="/home/autogen/teradata-migration-etl/airflow/dags-generator/generated-trn.json"    # Detailed JSON file
  PRE_SCRIPT=${HERE}"/prescript.sh"                      # A potential pre  script to run
 POST_SCRIPT=${HERE}"/postscript.sh"                     # A potential post script ro run
 EXEC_SCRIPT="/home/autogen/dagops/run_on_bq.sh"         # Run a SQL on big query
@@ -450,8 +452,8 @@ END
         #
         # Pre script
         #
-        #cleanup ${PRE_SCRIPT}          | tee -a ${logfile[1]}
-        cleanup ${PRE_SCRIPT}           | to_bq
+        cleanup ${PRE_SCRIPT}           | tee -a ${logfile[1]}
+        #cleanup ${PRE_SCRIPT}          | to_bq
         #
         # Generate the makefile
         #
@@ -640,8 +642,8 @@ END
         #
         # Post script
         #
-        #cleanup ${POST_SCRIPT}                 | tee -a ${logfile[1]}
-        cleanup ${POST_SCRIPT}                  | to_bq
+        cleanup ${POST_SCRIPT}                  | tee -a ${logfile[1]}
+        #cleanup ${POST_SCRIPT}                 | to_bq
         #
         # New FROM_MIC
         #
@@ -651,15 +653,15 @@ done    # End of the date loop
 #check_logs ${logfile[1]}
 # Import the logs
 #
-#cat ${LOG}/*${UNIQ}* | grep "^2" | sed s'/_/ /' > ${TMP4}
-#gcloud config configurations activate dagops
-#printf "\n\033[1;36m%s\033[m\n" "Number of lines in ONETM_INGEST_COPY.dagops_logs"
-#bq query --location=EU --use_legacy_sql=false --format=pretty 'select count(*) from ONETM_INGEST_COPY.dagops_logs'
-#printf "\n\033[1;36m%s\033[m\n" "Loading the new logs . . ."
-#bq load -F "|" ONETM_INGEST_COPY.dagops_logs ${TMP4}
-#printf "\n\033[1;36m%s\033[m\n"\n "Number of lines in ONETM_INGEST_COPY.dagops_logs"
-#bq query --location=EU --use_legacy_sql=false --format=pretty 'select count(*) from ONETM_INGEST_COPY.dagops_logs'
-#gcloud config configurations activate default
+cat ${LOG}/*${UNIQ}* | grep "^2" | sed s'/_/ /' > ${TMP4}
+gcloud config configurations activate dagops
+printf "\n\033[1;36m%s\033[m\n" "Number of lines in ONETM_INGEST_COPY.dagops_logs"
+bq query --location=EU --use_legacy_sql=false --format=pretty 'select count(*) from ONETM_INGEST_COPY.dagops_logs'
+printf "\n\033[1;36m%s\033[m\n" "Loading the new logs . . ."
+bq load -F "|" ONETM_INGEST_COPY.dagops_logs ${TMP4}
+printf "\n\033[1;36m%s\033[m\n"\n "Number of lines in ONETM_INGEST_COPY.dagops_logs"
+bq query --location=EU --use_legacy_sql=false --format=pretty 'select count(*) from ONETM_INGEST_COPY.dagops_logs'
+gcloud config configurations activate default
 
 for F in ${TMP} ${TMP2} ${TMP3} ${TMP4}
 do
