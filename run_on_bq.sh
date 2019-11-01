@@ -24,11 +24,12 @@
 SYNC_SLEEP=2                                                            # Eventually consistency sleep
   STOP_NOW=${HERE}"/stop_now"                                           # If this file exists, we exit rigth now
        SEP="|"                                                          # Column separator for the logs
-
+       TMP=${HERE}"/tmp/runonbqtemp$$.tmp"                              # A tempfile
+      INFO="No"                                                         # If it is an info, we just show and insert the log in bq, we dont execute anything (-i)
 #
 # Options
 #
-while getopts "s:r:f:t:j:c:d:p:w:Vh" OPT; do
+while getopts "s:r:f:t:j:c:d:p:w:iVh" OPT; do
         case ${OPT} in
         s)           SQL="${OPTARG}"                                    ;;
         r)        RUN_ID="${OPTARG}"                                    ;;
@@ -38,6 +39,7 @@ while getopts "s:r:f:t:j:c:d:p:w:Vh" OPT; do
         p)      PARALLEL="${OPTARG}"                                    ;;      # Just for the logs
         j)      JOB_NAME="${OPTARG}"                                    ;;
         c)    SYNC_SLEEP="${OPTARG}"                                    ;;
+        i)          INFO="Yes"                                          ;;
         w)           DIR="${OPTARG}"                                    ;;
         V)      show_version; exit 567                                  ;;
         h)         usage                                                ;;
@@ -55,11 +57,52 @@ done
 #
 show_log()
 {
-        echo $($TS)${SEP}$($TSM)${SEP}${JOB_NAME}${SEP}${RUN_ID}${SEP}${PARALLEL}${SEP}${TS_FROM}${SEP}${TS_TO}${SEP}$@
+        echo "$($TS)${SEP}$($TSM)${SEP}${JOB_NAME}${SEP}${RUN_ID}${SEP}${PARALLEL}${SEP}${TS_FROM}${SEP}${TS_TO}${SEP}$@" | to_bq
 }
 #
-# Option verification
+# Get a log and insert it into bq
 #
+function to_bq()
+{
+        cat /dev/null > ${TMP}
+        while read data;
+        do
+                if [[ "$data" =~ ^2 ]]
+                then
+                #       echo "good" $data
+                        data2=$(echo $data | sed s'/_/ /')
+                        echo $data2 >> ${TMP}
+                fi
+                echo $data                      # For the logfile
+        done
+        #
+        # Load in bq
+        #
+        gcloud config configurations activate dagops
+        #bq query --location=EU --use_legacy_sql=false --format=pretty 'select count(*) from ONETM_INGEST_COPY.dagops_logs'
+        #wc -l ${TMP}
+        bq load -F "|" ONETM_INGEST_COPY.dagops_logs ${TMP}
+        #bq query --location=EU --use_legacy_sql=false --format=pretty 'select count(*) from ONETM_INGEST_COPY.dagops_logs'
+        gcloud config configurations activate default
+}
+#
+# Options verification
+#
+# We stop right away if $STOP_NOW is detected
+#
+if [[ -f ${STOP_NOW} ]]                 # stop_now detected, we exit right away
+then
+        show_log "Error${SEP}${STOP_NOW} detected, exiting${SEP}666"
+        exit 666
+fi
+#
+# If INFO, we show the log and exit
+#
+if [[ "${INFO}" = "Yes" ]]
+then
+        show_log "INFO${SEP}${SQL}${SEP}0"
+        exit 0
+fi
 if [[ ! -f ${SQL_FILE} ]]
 then
         show_log "Error${SEP}Cannot find the SQL file $SQL_FILE; cannot continue.${SEP}$?"
@@ -78,11 +121,6 @@ do
                 exit 148
         fi
 done
-if [[ -f ${STOP_NOW} ]]                 # stop_now detected, we exit right away
-then
-        show_log "Error${SEP}${STOP_NOW} detected, exiting${SEP}666"
-        exit 666
-fi
 #
 # We need few more timestamps
 #
@@ -164,7 +202,7 @@ show_log "Done${SEP}${SQL}${SEP}${RETURN_CODE}"
 #
 # Delete tempfiles
 #
-for X in ${SQLTMP} ${YMLTMP}
+for X in ${SQLTMP} ${YMLTMP} ${TMP}
 do
         if [[ -f ${X} ]]
         then
