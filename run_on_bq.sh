@@ -24,8 +24,8 @@
 SYNC_SLEEP=1                                                            # Eventually consistency sleep
   STOP_NOW=${HERE}"/stop_now"                                           # If this file exists, we exit rigth now
        SEP="|"                                                          # Column separator for the logs
-       TMP=${HERE}"/tmp/runonbqtemp$$.tmp"                              # A tempfile
       INFO="No"                                                         # If it is an info, we just show and insert the log in bq, we dont execute anything (-i)
+ BQ_INSERT=${HERE}"/bq_insert.sh"                                       # Insert into bq
 #
 # Options
 #
@@ -55,18 +55,23 @@ shift $((OPTIND -1))
   SQL_PATH=${DIR}"/bigquery"                                            # Where the SQL files are
   VAR_FILE=${DIR}"/environments/etl/bmas-edl-uat-7398.yml"              # Variables YAML file
   SQL_FILE=${SQL_PATH}"/"${SQL}                                         # Whole SQL file path
+INSERT_LOG=/tmp/bq_insert_log${UNIQ}                                    # Insert into bq logfile
+cat /dev/null > ${INSERT_LOG}
 #
 # echo for the logs in the same format
 #
 show_log()
 {
-        echo "$($TS)${SEP}$($TSM)${SEP}${UNIQ}${SEP}${MASTER}${SEP}${JOB_NAME}${SEP}${RUN_ID}${SEP}${PARALLEL}${SEP}${TS_FROM}${SEP}${TS_TO}${SEP}$@" | to_bq
+        echo "$($TS)${SEP}$($TSM)${SEP}${UNIQ}${SEP}${MASTER}${SEP}${JOB_NAME}${SEP}${RUN_ID}${SEP}${PARALLEL}${SEP}${TS_FROM}${SEP}${TS_TO}${SEP}$@"
+        # Insert into bq in nohup as inserting into bq is slow
+#       nohup ${BQ_INSERT} "$($TS)${SEP}$($TSM)${SEP}${UNIQ}${SEP}${MASTER}${SEP}${JOB_NAME}${SEP}${RUN_ID}${SEP}${PARALLEL}${SEP}${TS_FROM}${SEP}${TS_TO}${SEP}$@" >> ${INSERT_LOG} 2>&1 &
 }
 #
 # Get a log and insert it into bq
 #
 function to_bq()
 {
+        TMP=${HERE}"/tmp/runonbqtemp$RANDOM"                            # A tempfile
         cat /dev/null > ${TMP}
         while read data;
         do
