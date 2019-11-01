@@ -21,7 +21,7 @@
         TS="date "+%Y-%m-%d_%H:%M:%S""                                  # TS
        TSM="date "+%s%6N""                                              # TS micro
   JOB_NAME="UNKNOWN"                                                    # A default job name
-SYNC_SLEEP=2                                                            # Eventually consistency sleep
+SYNC_SLEEP=1                                                            # Eventually consistency sleep
   STOP_NOW=${HERE}"/stop_now"                                           # If this file exists, we exit rigth now
        SEP="|"                                                          # Column separator for the logs
        TMP=${HERE}"/tmp/runonbqtemp$$.tmp"                              # A tempfile
@@ -29,23 +29,26 @@ SYNC_SLEEP=2                                                            # Eventu
 #
 # Options
 #
-while getopts "s:r:f:t:j:c:d:p:w:iVh" OPT; do
+while getopts "s:r:f:t:j:c:m:u:d:p:w:iVh" OPT; do
         case ${OPT} in
         s)           SQL="${OPTARG}"                                    ;;
         r)        RUN_ID="${OPTARG}"                                    ;;
         f)       TS_FROM="${OPTARG}"                                    ;;
         t)         TS_TO="${OPTARG}"                                    ;;
         d)           DIR="${OPTARG}"                                    ;;
+        i)          INFO="Yes"                                          ;;
         p)      PARALLEL="${OPTARG}"                                    ;;      # Just for the logs
         j)      JOB_NAME="${OPTARG}"                                    ;;
+        m)        MASTER="${OPTARG}"                                    ;;
+        u)          UNIQ="${OPTARG}"                                    ;;
         c)    SYNC_SLEEP="${OPTARG}"                                    ;;
-        i)          INFO="Yes"                                          ;;
         w)           DIR="${OPTARG}"                                    ;;
         V)      show_version; exit 567                                  ;;
         h)         usage                                                ;;
         \?)        echo "Invalid option: -$OPTARG" >&2; usage           ;;
         esac
 done
+shift $((OPTIND -1))
 #
 # Build some pathes
 #
@@ -57,7 +60,7 @@ done
 #
 show_log()
 {
-        echo "$($TS)${SEP}$($TSM)${SEP}${JOB_NAME}${SEP}${RUN_ID}${SEP}${PARALLEL}${SEP}${TS_FROM}${SEP}${TS_TO}${SEP}$@" | to_bq
+        echo "$($TS)${SEP}$($TSM)${SEP}${UNIQ}${SEP}${MASTER}${SEP}${JOB_NAME}${SEP}${RUN_ID}${SEP}${PARALLEL}${SEP}${TS_FROM}${SEP}${TS_TO}${SEP}$@" | to_bq
 }
 #
 # Get a log and insert it into bq
