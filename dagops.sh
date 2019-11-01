@@ -1,3 +1,4 @@
+
 #!/bin/bash
 # Fred Denis -- Oct 23rd 2019 -- ERS-143
 #
@@ -305,6 +306,32 @@ then
         exit 1
 fi
 }
+#
+# Get a log and insert it in bq
+#
+function to_bq()
+{
+        cat /dev/null > ${TMP4}
+        while read data;
+        do
+                if [[ "$data" =~ ^2 ]]
+                then
+                        data2=$(echo $data | sed s'/_/ /')
+                        echo $data2 | tee -a ${logfile[1]}
+                        echo $data2 >> ${TMP4}
+                else
+                        echo $data | tee -a ${logfile[1]}
+                fi
+        done
+
+        gcloud config configurations activate dagops
+#       bq query --location=EU --use_legacy_sql=false --format=pretty 'select count(*) from ONETM_INGEST_COPY.dagops_logs'
+#       wc -l ${TMP4}
+        bq load -F "|" ONETM_INGEST_COPY.dagops_logs ${TMP4}
+#       bq query --location=EU --use_legacy_sql=false --format=pretty 'select count(*) from ONETM_INGEST_COPY.dagops_logs'
+        gcloud config configurations activate default
+}
+
 
 if [[  "${LIST_JOBS_ONLY}" = "TRUE" ]]
 then
@@ -424,7 +451,8 @@ END
         #
         # Pre script
         #
-        cleanup ${PRE_SCRIPT}           | tee -a ${logfile[1]}
+        #cleanup ${PRE_SCRIPT}          | tee -a ${logfile[1]}
+        cleanup ${PRE_SCRIPT}           | to_bq
         #
         # Generate the makefile
         #
@@ -441,9 +469,15 @@ END
 #        @echo -e $(TS)${SEP}$(TSM)${SEP}demo_customer_e2e${SEP}Begin_master
 
              }
-             function print_exec(path, job_name)
+             function print_exec(path, job_name, info)
              {          # Generate the SQL execution command line
-                        printf("\t%s\n", "@"EXEC_SCRIPT" -s "path" -r "RUN_ID" -f "FROM_MIC" -t "TO_MIC" -j "job_name" -c "SYNC_SLEEP" -p "PARALLEL" -w " DIR)  ;
+                        if (info != "")
+                        {       INFO_TAG="-i"   ;
+                                    info=""     ;
+                        } else {
+                                INFO_TAG=""     ;
+                        }
+                        printf("\t%s\n", "@"EXEC_SCRIPT" -s "path" -r "RUN_ID" -f "FROM_MIC" -t "TO_MIC" -j "job_name" -c "SYNC_SLEEP" -p "PARALLEL" -w " DIR" "INFO_TAG)  ;
                         printf("\n")                                                                    ;
              }
              {  gsub (" ", "", $2)      ;
@@ -458,8 +492,10 @@ END
                         printf ("%s\n", "SEP := \"|\"")                                                 ;       # logfile separator
                         printf ("%s: %s\n", "done", "end-"master)                                       ;       # Label for MASTER end
                         printf("%s:\n", master)                                                         ;       # MASTER start
-                        print_txt_ts(master,"Begin_master")                                             ;       # Print that MASTER starts
-                        printf ("\n")                                                                   ;
+                        #print_txt_ts(master,"Begin_master")                                            ;       # Print that MASTER starts
+                        print_exec(master,"Begin_master","info")                                        ;
+                        #print_exec(tab_sql[sql_name], job)                                             ;
+                        #printf ("\n")                                                                   ;
 
                         while(getline)
                         {       if ($1 == "nodes")
@@ -490,8 +526,9 @@ END
 
                                                         job = master"-"name                                                             ;
                                                         printf("%s: %s\n", job,  dep)                                                   ;
-                                                        print_txt_ts(job,"Begin")                                                      ;
-                                                        #printf("\t%s\n\n", "sleep " 1)                                                  ;
+                                                        #print_txt_ts(job,"Begin")                                                      ;
+                                                        print_exec(job,"Begin","info")                                                  ;
+                                                        #printf("\t%s\n\n", "sleep " 1)                                                 ;
                                                         end_name="end-"job" "end_name                                                   ;
                                                 }
                                                 if ($1 == "START_DETAILS")                                              # job details (substeps => SQL)
@@ -545,8 +582,9 @@ END
                                                                         }
                                                                         printf("%s: %s\n", "end-"job, job_deps)         ;       # End of the job substeps
                                                                         end_deps = end_deps" end-"job                   ;
-                                                                        print_txt_ts(job,"End")                         ;
-                                                                        printf("\n")                                    ;
+                                                                        #print_txt_ts(job,"End")                        ;
+                                                                        print_exec(job,"End","info")                    ;
+                                                                        #printf("\n")                                    ;
                                                                         break                                           ;
                                                                 }
                                                         }
@@ -560,7 +598,8 @@ END
                                 if ($1 == "timeout")                                                    # End of the MASTER job
                                 {
                                         printf("%s: %s\n", "end-"master, end_deps)              ;
-                                        print_txt_ts(master,"End_master")                       ;
+                                        #print_txt_ts(master,"End_master")                      ;
+                                        print_exec(master,"End_master","info")                  ;
                                         printf ("\n")                                           ;
                                         break                                                   ;
                                 }
@@ -597,11 +636,13 @@ END
                 fi
         else
                 make_it ${TMP2}                 | tee -a ${logfile[1]}  # Execute the makefile
+                #make_it ${TMP2}                 | to_bq
         fi
         #
         # Post script
         #
-        cleanup ${POST_SCRIPT}                  | tee -a ${logfile[1]}
+        #cleanup ${POST_SCRIPT}                 | tee -a ${logfile[1]}
+        cleanup ${POST_SCRIPT}                  | to_bq
         #
         # New FROM_MIC
         #
@@ -611,15 +652,15 @@ done    # End of the date loop
 #check_logs ${logfile[1]}
 # Import the logs
 #
-cat ${LOG}/*${UNIQ}* | grep "^2" | sed s'/_/ /' > ${TMP4}
-gcloud config configurations activate dagops
-printf "\n\033[1;36m%s\033[m\n" "Number of lines in ONETM_INGEST_COPY.dagops_logs"
-bq query --location=EU --use_legacy_sql=false --format=pretty 'select count(*) from ONETM_INGEST_COPY.dagops_logs'
-printf "\n\033[1;36m%s\033[m\n" "Loading the new logs . . ."
-bq load -F "|" ONETM_INGEST_COPY.dagops_logs ${TMP4}
-printf "\n\033[1;36m%s\033[m\n"\n "Number of lines in ONETM_INGEST_COPY.dagops_logs"
-bq query --location=EU --use_legacy_sql=false --format=pretty 'select count(*) from ONETM_INGEST_COPY.dagops_logs'
-gcloud config configurations activate default
+#cat ${LOG}/*${UNIQ}* | grep "^2" | sed s'/_/ /' > ${TMP4}
+#gcloud config configurations activate dagops
+#printf "\n\033[1;36m%s\033[m\n" "Number of lines in ONETM_INGEST_COPY.dagops_logs"
+#bq query --location=EU --use_legacy_sql=false --format=pretty 'select count(*) from ONETM_INGEST_COPY.dagops_logs'
+#printf "\n\033[1;36m%s\033[m\n" "Loading the new logs . . ."
+#bq load -F "|" ONETM_INGEST_COPY.dagops_logs ${TMP4}
+#printf "\n\033[1;36m%s\033[m\n"\n "Number of lines in ONETM_INGEST_COPY.dagops_logs"
+#bq query --location=EU --use_legacy_sql=false --format=pretty 'select count(*) from ONETM_INGEST_COPY.dagops_logs'
+#gcloud config configurations activate default
 
 for F in ${TMP} ${TMP2} ${TMP3} ${TMP4}
 do
