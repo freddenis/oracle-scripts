@@ -1,4 +1,3 @@
-
 #!/bin/bash
 # Fred Denis -- Oct 23rd 2019 -- ERS-143
 #
@@ -29,7 +28,7 @@ EXEC_SCRIPT="/home/autogen/dagops/run_on_bq.sh"         # Run a SQL on big query
         DIR="/home/autogen/teradata-migration-etl"      # Default project home directory
         LOG=${HERE}"/logs"                              # Logfiles directory
      TMPDIR=${HERE}"/tmp"                               # Tempfiles directory
- SYNC_SLEEP=2                                           # Seconds to let the eventual consistency to work
+ SYNC_SLEEP=1                                           # Seconds to let the eventual consistency to work
  START_DATE="Jan 1 00:00:00 2010"                       # Default start date to execute the SQLs        (-s)
    END_DATE=$(date "+%b %d %T %Y")                      # Default end date (now)                        (-e)
        INCR=1year                                       # Default date increment
@@ -274,7 +273,7 @@ show_log()
 {
         MASTER_LOWER=$(echo "${MASTER}" | tr '[:upper:]' '[:lower:]')
         #TS_FOR_BQ=$(date --date "$TS" "+%Y-%m-%d %H:%M:%S")
-        echo $($TS)${SEP}$($TSM)${SEP}${MASTER_LOWER}${SEP}${RUN_ID}${SEP}${SHOW_PARALLEL}${SEP}${FROM_MIC}${SEP}${TO_MIC}${SEP}$@
+        echo $($TS)${SEP}$($TSM)${SEP}${UNIQ}${SEP}${MASTER_LOWER}${SEP}"NONE"${SEP}${RUN_ID}${SEP}${SHOW_PARALLEL}${SEP}${FROM_MIC}${SEP}${TO_MIC}${SEP}$@
 }
 #
 # Execute pre or post script, do some cleanup
@@ -456,7 +455,7 @@ END
         #
         # Generate the makefile
         #
-        cat ${TMP} | awk -v MASTER="${MASTER}" -v EXEC_SCRIPT="${EXEC_SCRIPT}" -v SYNC_SLEEP="${SYNC_SLEEP}" -v DIR="${DIR}"\
+        cat ${TMP} | awk -v MASTER="${MASTER}" -v EXEC_SCRIPT="${EXEC_SCRIPT}" -v SYNC_SLEEP="${SYNC_SLEEP}" -v DIR="${DIR}" -v UNIQ="${UNIQ}"\
                     -v RUN_ID="${RUN_ID}" -v FROM_MIC="${FROM_MIC}" -v  TO_MIC="${TO_MIC}" -v PARALLEL="${SHOW_PARALLEL}"\
              'BEGIN {   FS=":";
                     }
@@ -477,7 +476,7 @@ END
                         } else {
                                 INFO_TAG=""     ;
                         }
-                        printf("\t%s\n", "@"EXEC_SCRIPT" -s "path" -r "RUN_ID" -f "FROM_MIC" -t "TO_MIC" -j "job_name" -c "SYNC_SLEEP" -p "PARALLEL" -w " DIR" "INFO_TAG)  ;
+                        printf("\t%s\n", "@"EXEC_SCRIPT" -s "path" -r "RUN_ID" -f "FROM_MIC" -t "TO_MIC" -j "job_name" "INFO_TAG" -c "SYNC_SLEEP" -p "PARALLEL" -w " DIR" -m "master" -u "UNIQ)  ;
                         printf("\n")                                                                    ;
              }
              {  gsub (" ", "", $2)      ;
