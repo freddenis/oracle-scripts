@@ -1,7 +1,7 @@
 #!/bin/bash
 # Fred Denis -- Oct 29th 2019 -- ERS-143
 #
-# Receive:
+# Receive parameters from dagops.sh and run scripts on bq :
 # -- SQL file
 # -- pipeline_cdc_start_ts_micros
 # -- to pipeline_cdc_end_ts_micros
@@ -10,8 +10,14 @@
 # -- pipeline_job_start_ts_micros
 # -- stage_stage_start_ts_seconds
 # -- stage_stage_start_ts_micros
-#
 # Then replace the variables in the SQL files from $VAR_FILE and execute the query against bigquery
+#
+# The current script version is 20191105
+#
+# History:
+#
+# 20191105 - Fred Denis - Initial release
+#
 #
       HERE=`dirname $0`                                                 # Script directoey
       DIR="/home/autogen/teradata-migration-etl"                        # Project home directory
@@ -24,19 +30,19 @@
 SYNC_SLEEP=1                                                            # Eventually consistency sleep
   STOP_NOW=${HERE}"/stop_now"                                           # If this file exists, we exit rigth now
        SEP="|"                                                          # Column separator for the logs
-      INFO="No"                                                         # If it is an info, we just show and insert the log in bq, we dont execute anything (-i)
+      INFO=""                                                           # If it is an info, we just show and insert the log in bq, we dont execute anything (-i)
  BQ_INSERT=${HERE}"/bq_insert.sh"                                       # Insert into bq
 #
 # Options
 #
-while getopts "s:r:f:t:j:c:m:u:d:p:w:iVh" OPT; do
+while getopts "s:r:f:t:j:c:m:u:d:p:w:i:Vh" OPT; do
         case ${OPT} in
         s)           SQL="${OPTARG}"                                    ;;
         r)        RUN_ID="${OPTARG}"                                    ;;
         f)       TS_FROM="${OPTARG}"                                    ;;
         t)         TS_TO="${OPTARG}"                                    ;;
         d)           DIR="${OPTARG}"                                    ;;
-        i)          INFO="Yes"                                          ;;
+        i)          INFO="${OPTARG}"                                    ;;
         p)      PARALLEL="${OPTARG}"                                    ;;      # Just for the logs
         j)      JOB_NAME="${OPTARG}"                                    ;;
         m)        MASTER="${OPTARG}"                                    ;;
@@ -64,7 +70,7 @@ show_log()
 {
         echo "$($TS)${SEP}$($TSM)${SEP}${UNIQ}${SEP}${MASTER}${SEP}${JOB_NAME}${SEP}${RUN_ID}${SEP}${PARALLEL}${SEP}${TS_FROM}${SEP}${TS_TO}${SEP}$@"
         # Insert into bq in nohup as inserting into bq is slow
-#       nohup ${BQ_INSERT} "$($TS)${SEP}$($TSM)${SEP}${UNIQ}${SEP}${MASTER}${SEP}${JOB_NAME}${SEP}${RUN_ID}${SEP}${PARALLEL}${SEP}${TS_FROM}${SEP}${TS_TO}${SEP}$@" >> ${INSERT_LOG} 2>&1 &
+#       #nohup ${BQ_INSERT} "$($TS)${SEP}$($TSM)${SEP}${UNIQ}${SEP}${MASTER}${SEP}${JOB_NAME}${SEP}${RUN_ID}${SEP}${PARALLEL}${SEP}${TS_FROM}${SEP}${TS_TO}${SEP}$@" >> ${INSERT_LOG} 2>&1 &
 }
 #
 # Get a log and insert it into bq
@@ -106,9 +112,9 @@ fi
 #
 # If INFO, we show the log and exit
 #
-if [[ "${INFO}" = "Yes" ]]
+if [[ -n "${INFO}" ]]
 then
-        show_log "INFO${SEP}${SQL}${SEP}0"
+        show_log "${INFO}${SEP}${SQL}${SEP}0"
         exit 0
 fi
 if [[ ! -f ${SQL_FILE} ]]
@@ -135,11 +141,6 @@ done
 pipeline_job_start_ts_micros=$(date "+%s%6N")
        stage_start_ts_micros=$(date "+%s%6N")
       stage_start_ts_seconds=$(($stage_start_ts_micros/1000000))
-#
-#for i in pipeline_job_start_ts_micros stage_start_ts_micros stage_start_ts_seconds
-#do
-#       echo $i ${!i}
-#done
 #
 # For the logs
 #
@@ -190,6 +191,14 @@ fi
 show_log "Executing${SEP}${SQLTMP}${SEP}0"
 cat ${SQLTMP} |  bq --location=EU query --use_legacy_sql=false
 RETURN_CODE=$?
+#
+# Force an error to test
+#
+#if [[ ${SQL} == *"W_STG_WRK_INTERACTOR_KEY_STAGE_create.sql"* ]]
+#then
+#       RETURN_CODE=789
+#fi
+#
 show_log "Executed${SEP}${SQL}${SEP}${RETURN_CODE}"
 show_log "Sleeping${SEP}${SQL}${SEP}${SYNC_SLEEP}"
 sleep ${SYNC_SLEEP}
@@ -217,9 +226,12 @@ do
                 rm -f ${X}
         fi
 done
-
+#
+# Return code
+#
 exit ${RETURN_CODE}
-
+#
+#
 #************************************************************************#
 #*                      E N D      O F      S O U R C E                 *#
 #************************************************************************#
