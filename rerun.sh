@@ -165,7 +165,7 @@ cat ${LOG}/*${UNIQ}*${RUN_ID}* | grep ^2 > ${TMP}
                 }
                 ' ${TMP} ${TMPMK} > ${TMP2}
 #
-# Mew makefile has been generatedm we prompt the command to execute it
+# Mew makefile has been generated, we prompt the command to execute it
 #
 cat << !
         ${TMP2} has been generated, run the below command the execute it:
