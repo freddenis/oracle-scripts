@@ -73,7 +73,7 @@ then
                       return sprintf(COLOR_BEGIN color "%" left "s%s%" right "s" COLOR_END sep, "", str, "" )   ;
                 }
                 {       if (($NF > 0) && ($10 == "Done"))
-                        {       if ((master != $4) || (uniq != $3))
+                        {       if ((master != $4) || (uniq != $3) || (run_id != $6))
                                 {
                                         master = $4                     ;
                                         run_id = $6                     ;
