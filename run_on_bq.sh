@@ -32,6 +32,8 @@ SYNC_SLEEP=1                                                            # Eventu
        SEP="|"                                                          # Column separator for the logs
       INFO=""                                                           # If it is an info, we just show and insert the log in bq, we dont execute anything (-i)
  BQ_INSERT=${HERE}"/bq_insert.sh"                                       # Insert into bq
+     MYSQL="mysql -Ns -u dagops"                                        # MYSQL command line to insert the logs
+ BQ_OUTPUT=${HERE}"/tmp/bqoutput$RANDOM$$.tmp"                          # bq output
 #
 # Options
 #
@@ -64,11 +66,39 @@ shift $((OPTIND -1))
 INSERT_LOG=/tmp/bq_insert_log${UNIQ}                                    # Insert into bq logfile
 cat /dev/null > ${INSERT_LOG}
 #
+# Get a file separated by "|" and load it into the MYSQL table dagops_logs
+#
+to_mysql()
+{
+        TMP4=${HERE}"/tmp/insertintomysql$RANDOM$$"                      # A tempfile
+        cat /dev/null > ${TMP4}
+        while read data;
+        do
+                if [[ "$data" =~ ^2 ]]
+                then
+                        data2=$(echo $data | sed s'/_/ /')
+                        echo $data2 | tee -a ${logfile[1]}
+                        echo $data2 >> ${TMP4}
+                else
+                        echo $data | tee -a ${logfile[1]}
+                fi
+        done
+
+        ${MYSQL} << END_MYSQL
+        load data local infile '${TMP4}' into table dagops_logs FIELDS TERMINATED BY '|' LINES TERMINATED BY '\n' ;
+END_MYSQL
+
+        if [[ -f ${TMP4} ]]
+        then
+                rm -f ${TMP4}
+        fi
+}
+#
 # echo for the logs in the same format
 #
 show_log()
 {
-        echo "$($TS)${SEP}$($TSM)${SEP}${UNIQ}${SEP}${MASTER}${SEP}${JOB_NAME}${SEP}${RUN_ID}${SEP}${PARALLEL}${SEP}${TS_FROM}${SEP}${TS_TO}${SEP}$@"
+        echo "$($TS)${SEP}$($TSM)${SEP}${UNIQ}${SEP}${MASTER}${SEP}${JOB_NAME}${SEP}${RUN_ID}${SEP}${PARALLEL}${SEP}${TS_FROM}${SEP}${TS_TO}${SEP}$@" | to_mysql
         # Insert into bq in nohup as inserting into bq is slow
 #       #nohup ${BQ_INSERT} "$($TS)${SEP}$($TSM)${SEP}${UNIQ}${SEP}${MASTER}${SEP}${JOB_NAME}${SEP}${RUN_ID}${SEP}${PARALLEL}${SEP}${TS_FROM}${SEP}${TS_TO}${SEP}$@" >> ${INSERT_LOG} 2>&1 &
 }
@@ -189,8 +219,9 @@ fi
 # Execute the query
 #
 show_log "Executing${SEP}${SQLTMP}${SEP}0"
-cat ${SQLTMP} |  bq --location=EU query --use_legacy_sql=false
+cat ${SQLTMP} | bq --location=EU query --use_legacy_sql=false > ${BQ_OUTPUT} 2>&1
 RETURN_CODE=$?
+cat ${BQ_OUTPUT}                        # Show the bq output on screen
 #
 # Force an error to test
 #
@@ -199,7 +230,9 @@ RETURN_CODE=$?
 #       RETURN_CODE=789
 #fi
 #
-show_log "Executed${SEP}${SQL}${SEP}${RETURN_CODE}"
+FROM_BQ=$(strings ${BQ_OUTPUT} | grep -v "^$" |  awk '{if ($NF == "DONE") { printf $0; while(getline) { printf $0}}}')
+show_log "Executed${SEP}${SQL}${SEP}${RETURN_CODE}${SEP}${FROM_BQ}"
+FROM_BQ=""
 show_log "Sleeping${SEP}${SQL}${SEP}${SYNC_SLEEP}"
 sleep ${SYNC_SLEEP}
 #
@@ -219,7 +252,7 @@ show_log "Done${SEP}${SQL}${SEP}${RETURN_CODE}"
 #
 # Delete tempfiles
 #
-for X in ${SQLTMP} ${YMLTMP} ${TMP}
+for X in ${SQLTMP} ${YMLTMP} ${TMP} ${TMP4}
 do
         if [[ -f ${X} ]]
         then
