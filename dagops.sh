@@ -45,6 +45,7 @@ EXEC_SCRIPT="/home/autogen/dagops/run_on_bq.sh"         # Run a SQL on big query
         TSM="date "+%s%6N""                             # TS micro
         SEP="|"                                         # Column separator for the logfiles
      TIDYUP="YES"                                       # Run pre and post script                       (-t and -T)
+      MYSQL="mysql -Ns -u dagops"                       # MYSQL command line to insert the logs
 #
 declare -ag logfile                                     # Global logfile name
 #
@@ -254,16 +255,33 @@ show_jobs()
 # Get a run id (from a file and later from mysql), increment it and save it
 #
 get_run_id()
-{
-        RUN_ID_FILE=".run_id"
-        if ! [[ -f ${RUN_ID_FILE} ]]
-        then
-                echo "123" > ${RUN_ID_FILE}
-        fi
-        X=`cat ${RUN_ID_FILE} | grep -v "^#" | head -1`
-        Y=$((X+1))
-        echo $Y > ${RUN_ID_FILE}
-        echo $X
+{       #
+        # Get the next run_id
+        #
+        RUN_ID=`${MYSQL} << END_MYSQL
+        select run_id+1 from run_id                     ;
+END_MYSQL`
+        #
+        # Update the table with the new value
+        #
+        ${MYSQL} << END_MYSQL
+        delete from run_id                              ;
+        insert into run_id values (${RUN_ID}, now())    ;
+END_MYSQL
+        #
+        # Return value
+        #
+        echo ${RUN_ID}
+#
+#       RUN_ID_FILE=".run_id"
+#       if ! [[ -f ${RUN_ID_FILE} ]]
+#       then
+#               echo "123" > ${RUN_ID_FILE}
+#       fi
+#       X=`cat ${RUN_ID_FILE} | grep -v "^#" | head -1`
+#       Y=$((X+1))
+#       echo $Y > ${RUN_ID_FILE}
+#       echo $X
 }
 #
 # echo for the logs in the same format
@@ -272,7 +290,7 @@ show_log()
 {
         MASTER_LOWER=$(echo "${MASTER}" | tr '[:upper:]' '[:lower:]')
         #TS_FOR_BQ=$(date --date "$TS" "+%Y-%m-%d %H:%M:%S")
-        echo $($TS)${SEP}$($TSM)${SEP}${UNIQ}${SEP}${MASTER_LOWER}${SEP}"NONE"${SEP}${RUN_ID}${SEP}${SHOW_PARALLEL}${SEP}${FROM_MIC}${SEP}${TO_MIC}${SEP}$@
+        echo $($TS)${SEP}$($TSM)${SEP}${UNIQ}${SEP}${MASTER_LOWER}${SEP}"pre-post-step"${SEP}${RUN_ID}${SEP}${SHOW_PARALLEL}${SEP}${FROM_MIC}${SEP}${TO_MIC}${SEP}$@ | to_mysql
 }
 #
 # Execute pre or post script, do some cleanup
@@ -328,6 +346,33 @@ function to_bq()
         bq load -F "|" ONETM_INGEST_COPY.dagops_logs ${TMP4}
 #       bq query --location=EU --use_legacy_sql=false --format=pretty 'select count(*) from ONETM_INGEST_COPY.dagops_logs'
         gcloud config configurations activate default
+}
+#
+# Get a file separated by "|" and load it into the MYSQL table dagops_logs
+#
+to_mysql()
+{
+        cat /dev/null > ${TMP4}
+        while read data;
+        do
+                if [[ "$data" =~ ^2 ]]
+                then
+                        data2=$(echo $data | sed s'/_/ /')
+                        echo $data2 | tee -a ${logfile[1]}
+                        echo $data2 >> ${TMP4}
+                else
+                        echo $data | tee -a ${logfile[1]}
+                fi
+        done
+
+        ${MYSQL} << END_MYSQL
+        load data local infile '${TMP4}' into table dagops_logs FIELDS TERMINATED BY '|' LINES TERMINATED BY '\n' ;
+END_MYSQL
+
+        if [[ -f ${TMP4} ]]
+        then
+                rm -f ${TMP4}
+        fi
 }
 #
 # Show the jobs defined in the JSON file and exit
@@ -492,7 +537,8 @@ END
                         printf ("%s\n", "SEP := \"|\"")                                                 ;       # logfile separator
                         printf ("%s: %s\n", "done", "end-"master)                                       ;       # Label for MASTER end
                         printf("%s:\n", master)                                                         ;       # MASTER start
-                        print_exec(master,"Begin_master","info")                                        ;
+                        #print_exec(master,"Begin_master","info")                                       ;
+                        print_exec("Begin_master",master,"info")                                        ;
 
                         while(getline)
                         {       if ($1 == "nodes")
@@ -524,7 +570,8 @@ END
                                                         job = master"-"name                                                             ;
                                                         printf("%s: %s\n", job,  dep)                                                   ;
                                                         #print_txt_ts(job,"Begin")                                                      ;
-                                                        print_exec(job,"Begin","info")                                                  ;
+                                                        #print_exec(job,"Begin","info")                                                 ;
+                                                        print_exec("Begin",name,"info")                                                 ;
                                                         #printf("\t%s\n\n", "sleep " 1)                                                 ;
                                                         end_name="end-"job" "end_name                                                   ;
                                                 }
@@ -582,7 +629,8 @@ END
                                                                         printf("%s: %s\n", "end-"job, job_deps)         ;       # End of the job substeps
                                                                         end_deps = end_deps" end-"job                   ;
                                                                         #print_txt_ts(job,"End")                        ;
-                                                                        print_exec(job,"End","info")                    ;
+                                                                        #print_exec(name,"End","info")                  ;
+                                                                        print_exec("End",name,"info")                   ;
                                                                         #printf("\n")                                    ;
                                                                         break                                           ;
                                                                 }
@@ -597,7 +645,8 @@ END
                                 if ($1 == "timeout")                                                    # End of the MASTER job
                                 {
                                         printf("%s: %s\n", "end-"master, end_deps)              ;
-                                        print_exec(master,"End_master","info")                  ;
+                                        #print_exec(master,"End_master","info")                 ;
+                                        print_exec("End_master",master,"info")                  ;
                                         printf ("\n")                                           ;
                                         break                                                   ;
                                 }
