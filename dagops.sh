@@ -208,12 +208,13 @@ make_it()
                 fi
                 make -j ${PARALLEL} -f $1 ${DRYRUN}
                 RET=$?
-                if [ $RET -eq 0 ]
+                if [ ${RET} -eq 0 ]
                 then
                         rename_logfile "OK"
                 else
                         rename_logfile "KO"
                 fi
+                eval $(echo DAGOPS_RETURN=${RET})
         else
                 printf "\n\t\033[1;31m%s\033[m\n\n" "A makefile is needed; cannot continue without."
                 exit 678
@@ -517,10 +518,10 @@ END
              function print_exec(path, job_name, info)
              {          # Generate the SQL execution command line
                         if (info != "")
-                        {       INFO_TAG="-i INFO"      ;
-                                    info=""     ;
+                        {       INFO_TAG="-i Info"      ;
+                                    info=""             ;
                         } else {
-                                INFO_TAG=""     ;
+                                INFO_TAG=""             ;
                         }
                         printf("\t%s\n", "@"EXEC_SCRIPT" -s "path" -r "RUN_ID" -f "FROM_MIC" -t "TO_MIC" -j "job_name" "INFO_TAG" -c "SYNC_SLEEP" -p "PARALLEL" -w " DIR" -m "master" -u "UNIQ)  ;
                         printf("\n")                                                                    ;
@@ -683,8 +684,22 @@ END
                    rename_logfile "NOEXEC"
                 fi
         else
-                make_it ${TMP2}                 | tee -a ${logfile[1]}  # Execute the makefile
-                #make_it ${TMP2}                 | to_bq
+                #make_it ${TMP2}                 | tee -a ${logfile[1]}  # Execute the makefile
+                if [[ -f ${STOP_NOW} ]]         # stop_now detected, we exit
+                then
+                        echo "$($TS)${SEP}$($TSM)${SEP}${MASTER}${SEP}${RUN_ID}${SEP}${SHOW_PARALLEL}${SEP}${FROM_MIC}${SEP}${TO_MIC}${SEP}Error$SEP${STOP_NOW}${SEP}666" | tee -a ${logfile[1]}
+                        rename_logfile "STOP_NOW"
+                        exit 666
+                fi
+                make -j ${PARALLEL} -f ${TMP2} ${DRYRUN}                | tee -a ${logfile[1]}
+                RET=${PIPESTATUS[0]}
+                if [ ${RET} -eq 0 ]
+                then
+                        rename_logfile "OK"
+                else
+                        rename_logfile "KO"
+                fi
+                DAGOPS_RETURN=${RET}
         fi
         #
         # Post script
@@ -719,6 +734,7 @@ do
         fi
 done
 #
+exit ${DAGOPS_RETURN}
 #
 #****************************************************************#
 #*              E N D      O F      S O U R C E                 *#
