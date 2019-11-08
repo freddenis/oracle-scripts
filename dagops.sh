@@ -734,6 +734,11 @@ do
         fi
 done
 #
+mysql -u dagops << END
+select min(ts), max(ts) from dagops_logs where uniq = $UNIQ ;
+END
+
+#
 exit ${DAGOPS_RETURN}
 #
 #****************************************************************#
