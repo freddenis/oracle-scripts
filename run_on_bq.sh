@@ -37,7 +37,7 @@ SYNC_SLEEP=1                                                            # Eventu
 #
 # Options
 #
-while getopts "s:r:f:t:j:c:m:u:d:p:w:i:Vh" OPT; do
+while getopts "s:r:f:t:j:c:m:u:d:p:w:i:y:Vh" OPT; do
         case ${OPT} in
         s)           SQL="${OPTARG}"                                    ;;
         r)        RUN_ID="${OPTARG}"                                    ;;
@@ -51,6 +51,7 @@ while getopts "s:r:f:t:j:c:m:u:d:p:w:i:Vh" OPT; do
         u)          UNIQ="${OPTARG}"                                    ;;
         c)    SYNC_SLEEP="${OPTARG}"                                    ;;
         w)           DIR="${OPTARG}"                                    ;;
+        y)     YAML_FILE="${OPTARG}"                                    ;;      # A non defailt YAML variable file
         V)      show_version; exit 567                                  ;;
         h)         usage                                                ;;
         \?)        echo "Invalid option: -$OPTARG" >&2; usage           ;;
@@ -65,6 +66,10 @@ shift $((OPTIND -1))
   SQL_FILE=${SQL_PATH}"/"${SQL}                                         # Whole SQL file path
 INSERT_LOG=/tmp/bq_insert_log${UNIQ}                                    # Insert into bq logfile
 cat /dev/null > ${INSERT_LOG}
+if [[ -n ${YAML_FILE} ]]                                                # We use non default yaml file is specified
+then
+        VAR_FILE=${YAML_FILE}
+fi
 #
 # Get a file separated by "|" and load it into the MYSQL table dagops_logs
 #
@@ -225,10 +230,11 @@ cat ${BQ_OUTPUT}                        # Show the bq output on screen
 #
 # Force an error to test
 #
-#if [[ ${SQL} == *"W_STG_WRK_INTERACTOR_KEY_STAGE_create.sql"* ]]
-#then
-#       RETURN_CODE=789
-#fi
+if [[ ${SQL} == *"W_STG_WRK_INTERACTOR_KEY_STAGE_create.sql"* ]]
+#if [[ ${SQL} == *"W_EDW_CUSTOMER_merge.sql"* ]]
+then
+       RETURN_CODE=789
+fi
 #
 FROM_BQ=$(strings ${BQ_OUTPUT} | grep -v "^$" |  awk '{if ($NF == "DONE") { printf $0; while(getline) { printf $0}}}')
 show_log "Executed${SEP}${SQL}${SEP}${RETURN_CODE}${SEP}${FROM_BQ}"
@@ -252,7 +258,8 @@ show_log "Done${SEP}${SQL}${SEP}${RETURN_CODE}"
 #
 # Delete tempfiles
 #
-for X in ${SQLTMP} ${YMLTMP} ${TMP} ${TMP4}
+for X in ${YMLTMP} ${TMP} ${TMP4}
+#for X in ${SQLTMP} ${YMLTMP} ${TMP} ${TMP4}
 do
         if [[ -f ${X} ]]
         then
