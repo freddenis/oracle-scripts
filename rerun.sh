@@ -32,11 +32,13 @@ done
 #
 # Options
 #
-while getopts "lr:u:h" OPT; do
+while getopts "lr:u:y:hs" OPT; do
         case ${OPT} in
         l)      SHOW_ONLY="Yes"                                         ;;
         r)         RUN_ID="${OPTARG}"; SHOW_ONLY="No"                   ;;
         u)           UNIQ="${OPTARG}"; SHOW_ONLY="No"                   ;;
+        s)      RERUN_AT_STAGE="Yes"                                    ;;      # Rerun in a non DAG consisten mode
+        y)           YAML_FILE="${OPTARG}"                              ;;      # A non default YAML variable file
         h)         usage                                                ;;
         \?)        echo "Invalid option: -$OPTARG" >&2; usage           ;;
         esac
@@ -46,7 +48,7 @@ done
 #
 if [[ "${SHOW_ONLY}" = "Yes" ]]
 then
-        cat ${LOG}/* | grep ^2 |\
+        cat $(ls -tr ${LOG}/*) | grep ^2 |\
         awk -F "|" 'BEGIN\
                 {       master = ""     ;
                           uniq = ""     ;
@@ -117,6 +119,17 @@ do
         fi
 done
 #
+# If a YAML_FILE is specified, it needs to exist
+#
+if [[ -n ${YAML_FILE} ]]
+then
+        if [[ ! -f ${YAML_FILE} ]]
+        then
+                printf "\n\t\033[1;33m%s\033[m\n\n" "${YAML_FILE} does not exist; cannot continue."
+                exit 753
+        fi
+fi
+#
 # Check if we can find the old makefile
 #
 TMPMK="${TMPDIR}/makefile_${UNIQ}_${RUN_ID}"
@@ -134,29 +147,44 @@ LOGFILE=${LOG}/rerun_${NEW_UNIQ}_${RUN_ID}
 #
 cat ${LOG}/*${UNIQ}*${RUN_ID}* | grep ^2 > ${TMP}
 #
-# Add a " -i SKIPPING " option for run_on_bq.sh consider the previously siuccessful steps as INFO
+# Add a " -i Skipping " option for run_on_bq.sh consider the previously successful steps as INFO
 # and then won't be re executed
 #
-        awk -F "|" -v TMPMK="${TMPMK}" -v UNIQ="${UNIQ}" -v NEW_UNIQ="${NEW_UNIQ}" '\
+        awk -F "|" -v TMPMK="${TMPMK}" -v UNIQ="${UNIQ}" -v NEW_UNIQ="${NEW_UNIQ}"\
+                   -v RERUN_AT_STAGE="${RERUN_AT_STAGE}" -v YAML_FILE="${YAML_FILE}"\
+                ' BEGIN\
+                {       if (YAML_FILE != "")
+                        {       YAML_OPTION=" -y "YAML_FILE                     ;
+                        }
+                }
                 {       if (FILENAME != TMPMK)
                         {       if (($NF == 0) && ($10 == "Done"))
                                 {       success[$11] = $11                      ;
-
+                                }
+                                if (($NF > 0) && ($10 == "Done"))
+                                {       failed_dag = $5                         ;
                                 }
                         } else  # This is the temp makefile
                         {       if ($0 ~ UNIQ)                                  # A new uniq as we will use the same RUN_ID
-                                {       gsub(UNIQ, NEW_UNIQ, $0)                ;
+                                {       if (RERUN_AT_STAGE == "Yes")
+                                        {       dag="this_is_not_a_dag_name"    ;
+                                        } else
+                                        {       dag = $0                        ;
+                                                sub(/^.*-j /, "", dag)          ;
+                                                sub(/ .*$/, "", dag)            ;
+                                        }
                                         found_it = 0                            ;
+                                        gsub(UNIQ, NEW_UNIQ, $0)                ;
                                         for (x in success)
                                         {
-                                                if ($0 ~ x)
-                                                {       print $0 " -i SKIPPING" ;
+                                                if (($0 ~ x) && (dag != failed_dag))
+                                                {       print $0 " -i Skipping" YAML_OPTION     ;
                                                         found_it = 1            ;
                                                 }
                                         }
                                         if (found_it == 0)
                                         {
-                                                print $0                        ;
+                                                print $0 YAML_OPTION            ;
                                         }
                                 } else {
                                         print $0                                ;
