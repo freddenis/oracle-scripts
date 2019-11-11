@@ -39,7 +39,6 @@ EXEC_SCRIPT="/home/autogen/dagops/run_on_bq.sh"         # Run a SQL on big query
         TMP=${TMPDIR}/fictemp$$                         # A tempfile
        TMP2=${TMPDIR}/fictemp2$$                        # A tempfile
        TMP3=${TMPDIR}/fictemp3$$                        # A tempfile
-       TMP4=${TMPDIR}/fictemp4$$                        # A tempfile
    STOP_NOW=${HERE}"/stop_now"                          # If this file exists, we exit rigth now
          TS="date "+%Y-%m-%d_%H:%M:%S""                 # TS
         TSM="date "+%s%6N""                             # TS micro
@@ -194,33 +193,6 @@ rename_logfile()
         echo "Logfile:"${logfile[1]}
 }
 #
-# A function to execute the makefile
-#
-make_it()
-{
-        if [[ -f $1 ]]
-        then
-                if [[ -f ${STOP_NOW} ]]         # stop_now detected, we exit
-                then
-                        echo "$($TS)${SEP}$($TSM)${SEP}${MASTER}${SEP}${RUN_ID}${SEP}${SHOW_PARALLEL}${SEP}${FROM_MIC}${SEP}${TO_MIC}${SEP}Error$SEP${STOP_NOW}${SEP}666" | tee -a ${logfile[1]}
-                        rename_logfile "STOP_NOW"
-                        exit 666
-                fi
-                make -j ${PARALLEL} -f $1 ${DRYRUN}
-                RET=$?
-                if [ ${RET} -eq 0 ]
-                then
-                        rename_logfile "OK"
-                else
-                        rename_logfile "KO"
-                fi
-                eval $(echo DAGOPS_RETURN=${RET})
-        else
-                printf "\n\t\033[1;31m%s\033[m\n\n" "A makefile is needed; cannot continue without."
-                exit 678
-        fi
-}
-#
 # A function to show the list of jobs contained in the JSON input file and exit 0
 #
 show_jobs()
@@ -273,16 +245,6 @@ END_MYSQL
         # Return value
         #
         echo ${RUN_ID}
-#
-#       RUN_ID_FILE=".run_id"
-#       if ! [[ -f ${RUN_ID_FILE} ]]
-#       then
-#               echo "123" > ${RUN_ID_FILE}
-#       fi
-#       X=`cat ${RUN_ID_FILE} | grep -v "^#" | head -1`
-#       Y=$((X+1))
-#       echo $Y > ${RUN_ID_FILE}
-#       echo $X
 }
 #
 # echo for the logs in the same format
@@ -290,8 +252,7 @@ END_MYSQL
 show_log()
 {
         MASTER_LOWER=$(echo "${MASTER}" | tr '[:upper:]' '[:lower:]')
-        #TS_FOR_BQ=$(date --date "$TS" "+%Y-%m-%d %H:%M:%S")
-        echo $($TS)${SEP}$($TSM)${SEP}${UNIQ}${SEP}${MASTER_LOWER}${SEP}"pre-post-step"${SEP}${RUN_ID}${SEP}${SHOW_PARALLEL}${SEP}${FROM_MIC}${SEP}${TO_MIC}${SEP}$@ | to_mysql
+        echo $($TS)${SEP}$($TSM)${SEP}${UNIQ}${SEP}${MASTER_LOWER}${SEP}"pre-post-step"${SEP}${RUN_ID}${SEP}${SHOW_PARALLEL}${SEP}${FROM_MIC}${SEP}${TO_MIC}${SEP}$@ | to_mysql dagops_logs
 }
 #
 # Execute pre or post script, do some cleanup
@@ -310,70 +271,70 @@ cleanup()
         fi
 }
 #
-# Check the logfile trying to see if something wrong happened
-#
-check_logs()
-{
-NB=$(grep "^20" ${logfile[1]} | awk '{if (($3 == "End")|| ($3 =="Begin")) {print $4}}' | sort  | uniq -c | awk '{if ($1 == 1){print $0}}' | wc -l)
-if (( $NB > 1 ))
-then
-        printf "\n\t\033[1;36m%s\033[m\n\n" "Some jobs seems to have had issues; please investigate the below jobs."
-        grep "^20" ${logfile[1]} | awk '{if (($3 == "End")|| ($3 =="Begin")) {print $4}}' | sort  | uniq -c | awk '{if ($1 == 1){print $0}}'
-        rename_logfile "TO_INVESTIGATE"
-        exit 1
-fi
-}
-#
-# Get a log and insert it in bq
-#
-function to_bq()
-{
-        cat /dev/null > ${TMP4}
-        while read data;
-        do
-                if [[ "$data" =~ ^2 ]]
-                then
-                        data2=$(echo $data | sed s'/_/ /')
-                        echo $data2 | tee -a ${logfile[1]}
-                        echo $data2 >> ${TMP4}
-                else
-                        echo $data | tee -a ${logfile[1]}
-                fi
-        done
-
-        gcloud config configurations activate dagops
-#       bq query --location=EU --use_legacy_sql=false --format=pretty 'select count(*) from ONETM_INGEST_COPY.dagops_logs'
-#       wc -l ${TMP4}
-        bq load -F "|" ONETM_INGEST_COPY.dagops_logs ${TMP4}
-#       bq query --location=EU --use_legacy_sql=false --format=pretty 'select count(*) from ONETM_INGEST_COPY.dagops_logs'
-        gcloud config configurations activate default
-}
-#
-# Get a file separated by "|" and load it into the MYSQL table dagops_logs
+# Get a input separated by "|" and load it into the MYSQL table dagops_logs
 #
 to_mysql()
 {
-        cat /dev/null > ${TMP4}
+        TABLE=$1
+        MYTMP=${TMPDIR}"/insertintomysql$RANDOM$$"              # A tempfile
+        cat /dev/null > ${MYTMP}
+
         while read data;
         do
-                if [[ "$data" =~ ^2 ]]
+                if [[ ${TABLE} == *"logs"* ]]
                 then
-                        data2=$(echo $data | sed s'/_/ /')
-                        echo $data2 | tee -a ${logfile[1]}
-                        echo $data2 >> ${TMP4}
+                        if [[ "$data" =~ ^2 ]]
+                        then
+                                data2=$(echo $data | sed s'/_/ /')
+                                echo $data2 | tee -a ${logfile[1]}
+                                echo $data2 >> ${MYTMP}
+                        else
+                                echo $data | tee -a ${logfile[1]}
+                        fi
                 else
-                        echo $data | tee -a ${logfile[1]}
+                        echo $data >> ${MYTMP}
                 fi
         done
 
         ${MYSQL} << END_MYSQL
-        load data local infile '${TMP4}' into table dagops_logs FIELDS TERMINATED BY '|' LINES TERMINATED BY '\n' ;
+        load data local infile '${MYTMP}' into table ${TABLE} FIELDS TERMINATED BY '|' LINES TERMINATED BY '\n' ;
 END_MYSQL
 
-        if [[ -f ${TMP4} ]]
+        if [[ -f ${MYTMP} ]]
         then
-                rm -f ${TMP4}
+                rm -f ${MYTMP}
         fi
+}
+#
+# Insert infor from makefile to mysql
+#
+makefile_to_mysql()
+{
+        FILE=$1
+        cat ${FILE} | awk -v SEP="${SEP}" -v UNIQ="${UNIQ}" -v RUN_ID="${RUN_ID}" ' BEGIN\
+                                        {        FS=":"                                                 ;
+                                                OFS=SEP                                                 ;
+                                                cpt=1                                                   ;
+                                        }
+                                        {       if (($1) ~ /^[a-z]/)
+                                                {       parent=$2                                       ;
+                                                          child=$1                                      ;
+                                                        sub(/^[ \t]+/,"",parent)                        ;
+                                                        if (child != "done")
+                                                        {
+                                                                getline                                 ;
+                                                                command=$0                              ;
+                                                                if (parent == "")
+                                                                {       parent = child                  ;
+                                                                }
+                                                                sub(/^[ \t]+/,"",command)               ;
+                                                        } else
+                                                        {       command =""                             ;
+                                                        }
+                                                        print UNIQ, RUN_ID, cpt, parent, child, command ;
+                                                        cpt++                                           ;
+                                                }
+                                        }' | to_mysql dagops_makefiles
 }
 #
 # Show the jobs defined in the JSON file and exit
@@ -438,7 +399,7 @@ python -m json.tool ${IN} | sed s'/[",]//g' | sed s'/ *//' |\
              }
             ' | sed s'/[",]//g' > ${TMP}
 #
-# Date work
+# Date work -- verifying the input date format
 #
 FROM_MIC=$(date -d "$START_DATE" "+%s%6N")
 if [ $? -ne 0 ]                         # Verify that the date format is good
@@ -502,7 +463,6 @@ END
         # Pre script
         #
         cleanup ${PRE_SCRIPT}           | tee -a ${logfile[1]}
-        #cleanup ${PRE_SCRIPT}          | to_bq
         #
         # Generate the makefile
         #
@@ -532,13 +492,11 @@ END
                         gsub (" ", "", master)                                                          ;
                         end_deps = ""                                                                   ;
 
-                        #printf ("%s\n", "TS := `/bin/date \"+%Y-%m-%d-%H-%M-%S\"`")                     ;       # A date
-                        printf ("%s\n", "TS := `/bin/date \"+%Y-%m-%d %H:%M:%S\"`")                     ;       # A date
-                        printf ("%s\n", "TSM := `/bin/date \"+%s%6N\"`")                                ;       # epoch micro
-                        printf ("%s\n", "SEP := \"|\"")                                                 ;       # logfile separator
+                        #printf ("%s\n", "TS := `/bin/date \"+%Y-%m-%d %H:%M:%S\"`")                     ;       # A date
+                        #printf ("%s\n", "TSM := `/bin/date \"+%s%6N\"`")                                ;       # epoch micro
+                        #printf ("%s\n", "SEP := \"|\"")                                                        ;       # logfile separator
                         printf ("%s: %s\n", "done", "end-"master)                                       ;       # Label for MASTER end
                         printf("%s:\n", master)                                                         ;       # MASTER start
-                        #print_exec(master,"Begin_master","info")                                       ;
                         print_exec("Begin_master",master,"info")                                        ;
 
                         while(getline)
@@ -555,25 +513,25 @@ END
                                                                         {       break                   ;
                                                                         }
                                                                         if (dep == "")
-                                                                        {       dep = "end-"master"-"$0       ;
+                                                                        {       dep = "end-"master"-"$0                                 ;
                                                                         } else
                                                                         {
-                                                                                dep = dep" end-"master"-"$0 ;
+                                                                                dep = dep" end-"master"-"$0                             ;
                                                                         }
                                                                 }
                                                         }
                                                 }
-                                                if ($1 == "name")                                                       # job
+                                                if ($1 == "name")                                                                       # job
                                                 {       gsub("^ ", "", dep)                                                             ;
                                                         name = $2                                                                       ;
                                                         gsub(" ", "", name)                                                             ;
 
                                                         job = master"-"name                                                             ;
+                                                        if (dep ~ /^end/)
+                                                        {       sub(dep" ", "", end_deps)       ;
+                                                        }
                                                         printf("%s: %s\n", job,  dep)                                                   ;
-                                                        #print_txt_ts(job,"Begin")                                                      ;
-                                                        #print_exec(job,"Begin","info")                                                 ;
                                                         print_exec("Begin",name,"info")                                                 ;
-                                                        #printf("\t%s\n\n", "sleep " 1)                                                 ;
                                                         end_name="end-"job" "end_name                                                   ;
                                                 }
                                                 if ($1 == "START_DETAILS")                                              # job details (substeps => SQL)
@@ -596,25 +554,27 @@ END
                                                                                 if ($2 ~ /\[\]/)                        # No dependency
                                                                                 {       job_deps = job_deps" "job"-"$1                                                  ;
                                                                                         printf("%s: %s\n", job"-"sql_name, job)                                         ;
-                                                                                        #print_exec(tab_sql[sql_name], job)                                             ;
                                                                                         print_exec(tab_sql[sql_name], name)                                             ;
                                                                                 }
                                                                                 if ($2 ~ /\[$/)                         # Dependencies list
-                                                                                {       job_deps = job_deps" "job"-"$1                                                  ;
-                                                                                        sql_name = $1                                                                   ;
-                                                                                        tab_dep[sql_name] = ""  ;
+                                                                                {                job_deps = job_deps" "job"-"$1                                         ;
+                                                                                                 sql_name = $1                                                          ;
+                                                                                        tab_dep[sql_name] = ""                                                          ;
                                                                                         while(getline)
                                                                                         {       gsub(" ", "", $1)                                                       ;
                                                                                                 if ($1 ~ /\]$/)
                                                                                                 {
                                                                                                         printf("%s: %s\n", job"-"sql_name, tab_dep[sql_name] )          ;
-                                                                                                        #print_exec(tab_sql[sql_name], job)                              ;
-                                                                                                        print_exec(tab_sql[sql_name], name)                              ;
+                                                                                                        print_exec(tab_sql[sql_name], name)                             ;
                                                                                                         break                                                           ;
                                                                                                 }
                                                                                                 if ($1 ~ /[a-zA-Z]/)
                                                                                                 {       tab_dep[sql_name] = tab_dep[sql_name]" "job"-"$1                ;
                                                                                                 }
+                                                                                        }
+                                                                                        split(tab_dep[sql_name], temp, " ")     ;
+                                                                                        for (i=1; i<=length(temp); i++)
+                                                                                        {       sub(temp[i], "", job_deps)      ;
                                                                                         }
                                                                                 }
                                                                                 if ($1 == "END_DETAILS")
@@ -628,11 +588,12 @@ END
                                                                         {       with_no_deps=with_no_deps" ""end-"job   ;
                                                                         }
                                                                         printf("%s: %s\n", "end-"job, job_deps)         ;       # End of the job substeps
-                                                                        end_deps = end_deps" end-"job                   ;
-                                                                        #print_txt_ts(job,"End")                        ;
-                                                                        #print_exec(name,"End","info")                  ;
+                                                                        if (end_deps == "")
+                                                                        {       end_deps = "end-"job                    ;
+                                                                        } else {
+                                                                                end_deps = end_deps" end-"job           ;
+                                                                        }
                                                                         print_exec("End",name,"info")                   ;
-                                                                        #printf("\n")                                    ;
                                                                         break                                           ;
                                                                 }
                                                         }
@@ -646,7 +607,6 @@ END
                                 if ($1 == "timeout")                                                    # End of the MASTER job
                                 {
                                         printf("%s: %s\n", "end-"master, end_deps)              ;
-                                        #print_exec(master,"End_master","info")                 ;
                                         print_exec("End_master",master,"info")                  ;
                                         printf ("\n")                                           ;
                                         break                                                   ;
@@ -655,6 +615,8 @@ END
                 }
              }
             ' > ${TMP2}
+
+        makefile_to_mysql ${TMP2}
 
         # May be useful in case of debug
         cp $TMP  ${TMPDIR}/a                                    # Merged JSON file
@@ -684,13 +646,15 @@ END
                    rename_logfile "NOEXEC"
                 fi
         else
-                #make_it ${TMP2}                 | tee -a ${logfile[1]}  # Execute the makefile
                 if [[ -f ${STOP_NOW} ]]         # stop_now detected, we exit
                 then
                         echo "$($TS)${SEP}$($TSM)${SEP}${MASTER}${SEP}${RUN_ID}${SEP}${SHOW_PARALLEL}${SEP}${FROM_MIC}${SEP}${TO_MIC}${SEP}Error$SEP${STOP_NOW}${SEP}666" | tee -a ${logfile[1]}
                         rename_logfile "STOP_NOW"
                         exit 666
                 fi
+                #
+                # Execute the makefile
+                #
                 make -j ${PARALLEL} -f ${TMP2} ${DRYRUN}                | tee -a ${logfile[1]}
                 RET=${PIPESTATUS[0]}
                 if [ ${RET} -eq 0 ]
@@ -705,28 +669,17 @@ END
         # Post script
         #
         cleanup ${POST_SCRIPT}                  | tee -a ${logfile[1]}
-        #cleanup ${POST_SCRIPT}                 | to_bq
         #
         # New FROM_MIC
         #
         FROM_MIC=$(date --date "$(date -d @$((${FROM_MIC}/1000000)) "+%b %d %T %Y") + ${INCR}" "+%s%6N"         )
 done    # End of the date loop
-
-# Import the logs in bq -- to be discussed / modified
 #
-#cat ${LOG}/*${UNIQ}* | grep "^2" | sed s'/_/ /' > ${TMP4}
-#gcloud config configurations activate dagops
-#printf "\n\033[1;36m%s\033[m\n" "Number of lines in ONETM_INGEST_COPY.dagops_logs"
-#bq query --location=EU --use_legacy_sql=false --format=pretty 'select count(*) from ONETM_INGEST_COPY.dagops_logs'
-#printf "\n\033[1;36m%s\033[m\n" "Loading the new logs . . ."
-#bq load -F "|" ONETM_INGEST_COPY.dagops_logs ${TMP4}
-#printf "\n\033[1;36m%s\033[m\n"\n "Number of lines in ONETM_INGEST_COPY.dagops_logs"
-#bq query --location=EU --use_legacy_sql=false --format=pretty 'select count(*) from ONETM_INGEST_COPY.dagops_logs'
-#gcloud config configurations activate default
+#
 #
 # Cleaning
 #
-for F in ${TMP} ${TMP2} ${TMP3} ${TMP4}
+for F in ${TMP} ${TMP2} ${TMP3}
 do
         if [[ -f ${F} ]]
         then
@@ -734,10 +687,13 @@ do
         fi
 done
 #
+# A quick check of the start and the end of the job -- used for debug only
+#
 mysql -u dagops << END
 select min(ts), max(ts) from dagops_logs where uniq = $UNIQ ;
 END
-
+#
+# All done, time to exit
 #
 exit ${DAGOPS_RETURN}
 #
