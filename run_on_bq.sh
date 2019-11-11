@@ -230,11 +230,11 @@ cat ${BQ_OUTPUT}                        # Show the bq output on screen
 #
 # Force an error to test
 #
-if [[ ${SQL} == *"W_STG_WRK_INTERACTOR_KEY_STAGE_create.sql"* ]]
+#if [[ ${SQL} == *"W_STG_WRK_INTERACTOR_KEY_STAGE_create.sql"* ]]
 #if [[ ${SQL} == *"W_EDW_CUSTOMER_merge.sql"* ]]
-then
-       RETURN_CODE=789
-fi
+#then
+#       RETURN_CODE=789
+#fi
 #
 FROM_BQ=$(strings ${BQ_OUTPUT} | grep -v "^$" |  awk '{if ($NF == "DONE") { printf $0; while(getline) { printf $0}}}')
 show_log "Executed${SEP}${SQL}${SEP}${RETURN_CODE}${SEP}${FROM_BQ}"
