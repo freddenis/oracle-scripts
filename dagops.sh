@@ -20,13 +20,15 @@
         IN2=json2.txt                                   # Test Second JSON input file
          IN="/home/autogen/teradata-migration-etl/airflow/dags-generator/generated-master.json" # Main     JSON file
         IN2="/home/autogen/teradata-migration-etl/airflow/dags-generator/generated-trn.json"    # Detailed JSON file
- PRE_SCRIPT=${HERE}"/prescript.sh"                      # A potential pre  script to run
-POST_SCRIPT=${HERE}"/postscript.sh"                     # A potential post script ro run
+        DIR="/home/autogen/teradata-migration-etl"      # Default project home directory
+  YAML_FILE=${DIR}"/environments/etl/bmas-edl-uat-7398.yml" # Variables YAML file
+    PRE_DIR="${DIR}/prescripts"                         # Pre scripts directoy
+ PRE_SCRIPT="prescript.sh"                              # A potential pre  script name to run
+POST_SCRIPT="postscript.sh"                             # A potential post script name to run
 EXEC_SCRIPT="/home/autogen/dagops/run_on_bq.sh"         # Run a SQL on big query
 #
 # Some default values
 #
-        DIR="/home/autogen/teradata-migration-etl"      # Default project home directory
         LOG=${HERE}"/logs"                              # Logfiles directory
      TMPDIR=${HERE}"/tmp"                               # Tempfiles directory
  SYNC_SLEEP=1                                           # Seconds to let the eventual consistency to work
@@ -83,45 +85,95 @@ END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
 cat << END
-        $0 [-j] [-d] [-f] [-F] [-l] [-n] [-e] [-c] [-s] [-i] [-t] [-T] [-V] [-h]
+        $0 [-l] [-j] [-e] [-s] [-i] [-f] [-F] [-y] [-w] [-c] [-t] [-T] [-p] [-d] [-n] [-V] [-h]
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
 cat << END
         $0 reads 2 JSON input file:
-                A main   one which contains some jobs definition with steps and dependencies
-                A second one which contains each step details with the SQL to execute
+                A main   one which contains some jobs definition with steps and dependencies    (-f)
+                A second one which contains each step details with the SQL to execute           (-F)
+        $0 also replaces variables in SQL files from a YAML file                                (-y)
 
         $0 will orchestrate all these jobs with their dependencies in //
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"             ;
 cat << END
-        -j      A job to execute (default is we execute all the jobs specified in the main JSON file)
-        -d      A dry-run execution only (shows what it would be done but dont do anything)
 
         -l      List the jobs from the main JSON file
-        -n      No Exec -- generate the files only
+END
+        if [[ ${DETAILS} = "Yes" ]]
+        then
+                cat << END
 
-        -c      Seconds to let the eventual consistency to work (eventual consistency sleep)
-        -p      Parallel job execution -- default is we use as many // as the system can
-        -t      Tidy up !        run a prescript and a postscript before and after each RUN_ID (default)
-        -T      Do NOT tidy up ! don't run any prescript or postscript
-        -w      Way to the SQL files (a directory)
+                $ ./dagops.sh -l
 
-        -e      End date (same format as START_DATE -- see below)
+                  List of jobs in the /home/autogen/teradata-migration-etl/airflow/dags-generator/generated-master.json file
+                ----------------------------------------------------------------------------------------------------------------
+                | MASTERDATA                                                                                                   |
+                | FM_INTRADAY                                                                                                  |
+                | DEMO_CUSTOMER_E2E                                                                                            |
+                ----------------------------------------------------------------------------------------------------------------
+
+                Logfile:./logs/dagops_1573515867_2019-11-11-23-44-27_MULTIJOBS_PMax_SHOW_ONLY
+                $
+END
+        fi
+
+        cat << END
+
+        -j      A job to execute (default is we execute all the jobs specified in the main JSON file)
+END
+        if [[ ${DETAILS} = "Yes" ]]
+        then
+                cat << END
+
+                        $ ./dagops.sh -j MASTERDATA
+
+END
+        fi
+cat << END
+
+        -e      End date (same format as START_DATE -- see below), if not specified, end date is the current date
         -s      A start date to execute the job -- must be in format "Jan 1 00:00:00 2010" which is the default; example:
                         -s "Jul 14 12:34:56 2015"
 
         -i      Date increment, default is 1year; example:
                         -i 2year
                         -i 1year+1month+1week
+END
+        if [[ ${DETAILS} = "Yes" ]]
+        then
+                cat << END
+
+                        $ ./dagops.sh -j MASTERDATA -s "Oct 16 00:00:00 2019" -e "Nov 11 00:00:00 2019"
+                        => Start MASTERDATA from Oct 16 00:00:00 2019 to Nov 11 00:00:00 2019
+
+                        $ ./dagops.sh -j MASTERDATA -s "Oct 16 00:00:00 2019" -e "Nov 11 00:00:00 2019" -i 1day
+                        => Start MASTERDATA from Oct 16 00:00:00 2019 to Nov 11 00:00:00 2019 with a 1 day interval
+
+                        $ ./dagops.sh -j MASTERDATA -s "Jan 1 00:00:00 2010" -i 2year+2month+5day
+                        => Start MASTERDATA from Jan 1 00:00:00 2010 to the current date with a 2year+2month+5day interval
+END
+        fi
+cat << END
 
         -f      Main JSON input file
         -F      Second JSON input file containing the steps details
+        -y      YAML File containing the variables
+        -w      Path to the SQL files (a directory)
+
+        -c      Seconds to let the eventual consistency to work (eventual consistency sleep)
+        -t      Tidy up !        run a prescript and a postscript before and after each RUN_ID (default)
+        -T      Do NOT tidy up ! don't run any prescript or postscript
+        -p      Parallel job execution -- default is we use as many // as the system can
+        -d      A dry-run execution only (shows what it would be done but dont do anything)
+        -n      No Exec -- generate the files only
 
         -V      Shows the version of the script
         -h      Shows this help
+        -H      Shows a more detailed help
 
 END
 exit 123
@@ -129,7 +181,7 @@ exit 123
 #
 # Options
 #
-while getopts "j:df:F:c:lne:s:i:p:tTw:Vh" OPT; do
+while getopts "j:df:F:c:lne:s:i:p:tTw:y:VhH" OPT; do
         case ${OPT} in
         j)         MASTER="${OPTARG}"                                   ;;
         d)         DRYRUN=" --dry-run"                                  ;;
@@ -145,7 +197,9 @@ while getopts "j:df:F:c:lne:s:i:p:tTw:Vh" OPT; do
         w)            DIR="${OPTARG}"                                   ;;
         f)             IN=${OPTARG}                                     ;;
         F)            IN2=${OPTARG}                                     ;;
+        y)      YAML_FILE="${OPTARG}"                                   ;;
         V)      show_version; exit 567                                  ;;
+        H)      DETAILS="Yes"; usage                                    ;;
         h)         usage                                                ;;
         \?)        echo "Invalid option: -$OPTARG" >&2; usage           ;;
         esac
@@ -163,9 +217,17 @@ do
 done
 if [[ -z "${MASTER}" ]]
 then
-        TAG="MULTIJOBS"
+        if [[  "${LIST_JOBS_ONLY}" = "TRUE" ]]
+        then
+               TAG="MULTIJOBS"                                          # To name the logfile
+        else
+                printf "\n\t\033[1;31m%s\033[m\n\n" "A job has to be specified, please use -l option to list the avaiable jobs."
+                exit 148
+        fi
 else
-        TAG=$MASTER
+               TAG=$MASTER                                              # To name the logfile
+        PRE_SCRIPT=${PRE_DIR}"/"$MASTER"/"${PRE_SCRIPT}                 # Pre script
+       POST_SCRIPT=${PRE_DIR}"/"$MASTER"/"${POST_SCRIPT}                # Post script
 fi
 if [[ "$PARALLEL" = "0" ]]
 then
@@ -176,6 +238,11 @@ then
         SHOW_PARALLEL="Max"
 else
         SHOW_PARALLEL=$PARALLEL
+fi
+if [[ ! -f ${YAML_FILE} ]]
+then
+        printf "\n\t\033[1;31m%s\033[m\n\n" "Cannot find the variable file "${YAML_FILE}"; cannot continue."
+        exit 379
 fi
 #
 # Logfile
@@ -258,16 +325,23 @@ show_log()
 # Execute pre or post script, do some cleanup
 #
 cleanup()
-{       a_script=$1
+{          a_script=$1
+        CLEANUP_TMP=${TMPDIR}"/cleanupfiletmp${RANDOM}$$"
         if [[ "${TIDYUP}" = "YES" ]]
         then
                 if [[ -f ${a_script} ]]
                 then
-                        /bin/bash ${a_script}
-                        show_log "Executed${SEP}${a_script}${SEP}$?"
+                        /bin/bash ${a_script} > ${CLEANUP_TMP}
+                        CLEANUP_OUTPUT=$(cat ${CLEANUP_TMP})    # Then it will be easy to grep what we want in that output
+                        show_log "Executed${SEP}${a_script}${SEP}$?${SEP}${CLEANUP_OUTPUT}"
                 else
                         show_log "Error${SEP}${a_script} does not exist${SEP}123"
                 fi
+        fi
+
+        if [[ -f ${CLEANUP_TMP} ]]
+        then
+                rm -f ${CLEANUP_TMP}
         fi
 }
 #
@@ -467,7 +541,7 @@ END
         # Generate the makefile
         #
         cat ${TMP} | awk -v MASTER="${MASTER}" -v EXEC_SCRIPT="${EXEC_SCRIPT}" -v SYNC_SLEEP="${SYNC_SLEEP}" -v DIR="${DIR}" -v UNIQ="${UNIQ}"\
-                    -v RUN_ID="${RUN_ID}" -v FROM_MIC="${FROM_MIC}" -v  TO_MIC="${TO_MIC}" -v PARALLEL="${SHOW_PARALLEL}"\
+                    -v RUN_ID="${RUN_ID}" -v FROM_MIC="${FROM_MIC}" -v  TO_MIC="${TO_MIC}" -v PARALLEL="${SHOW_PARALLEL}" -v YAML_FILE="${YAML_FILE}"\
              'BEGIN {   FS=":";
                     }
              function print_txt_ts(txt1, txt2)
@@ -483,7 +557,7 @@ END
                         } else {
                                 INFO_TAG=""             ;
                         }
-                        printf("\t%s\n", "@"EXEC_SCRIPT" -s "path" -r "RUN_ID" -f "FROM_MIC" -t "TO_MIC" -j "job_name" "INFO_TAG" -c "SYNC_SLEEP" -p "PARALLEL" -w " DIR" -m "master" -u "UNIQ)  ;
+                        printf("\t%s\n", "@"EXEC_SCRIPT" -s "path" -r "RUN_ID" -f "FROM_MIC" -t "TO_MIC" -j "job_name" "INFO_TAG" -c "SYNC_SLEEP" -p "PARALLEL" -w " DIR" -m "master" -u "UNIQ                                               " -y "YAML_FILE)  ;
                         printf("\n")                                                                    ;
              }
              {  gsub (" ", "", $2)      ;
@@ -648,7 +722,7 @@ END
         else
                 if [[ -f ${STOP_NOW} ]]         # stop_now detected, we exit
                 then
-                        echo "$($TS)${SEP}$($TSM)${SEP}${MASTER}${SEP}${RUN_ID}${SEP}${SHOW_PARALLEL}${SEP}${FROM_MIC}${SEP}${TO_MIC}${SEP}Error$SEP${STOP_NOW}${SEP}666" | tee -a ${logfile[1]}
+                        echo "$($TS)${SEP}$($TSM)${SEP}${MASTER}${SEP}${RUN_ID}${SEP}${SHOW_PARALLEL}${SEP}${FROM_MIC}${SEP}${TO_MIC}${SEP}Error$SEP${STOP_NOW}${SEP}666" | tee -a ${logfile[1                                               ]}
                         rename_logfile "STOP_NOW"
                         exit 666
                 fi
