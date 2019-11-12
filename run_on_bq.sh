@@ -1,4 +1,3 @@
-#!/bin/bash
 # Fred Denis -- Oct 29th 2019 -- ERS-143
 #
 # Receive parameters from dagops.sh and run scripts on bq :
