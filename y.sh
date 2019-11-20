@@ -102,7 +102,7 @@ python -m json.tool ${IN} | sed s'/[",]//g' | sed s'/ *//' |\
              }
             ' > ${TMP}
 #cat $TMP
-make -k -j -f ${TMP}
+make -j -f ${TMP}
 
 if [[ -f ${TMP} ]] 
 then
