@@ -12,6 +12,7 @@
 #
 # History :
 #
+# 20200305 - Fred Denis - Fixed a bug when the hostname contains twice the cluster name
 # 20190906 - Fred Denis - A new -V option to show the version of the script
 # 20190830 - Fred Denis - Show a red "x" also when instances and listeners are disabled
 # 20190829 - Fred Denis - Show a red "x" if a service is disabled as well as a legend below the services table
@@ -389,7 +390,7 @@ then
 
         if [ "$SHORT_NAMES" = "YES" ]
         then
-                        ${SED} -i "s/$CLUSTER_NAME//g" $TMP
+                        ${SED} -i "s/$CLUSTER_NAME//" $TMP
         fi
         NB_NODES=`olsnodes | wc -l`
 else            # If we use an input file
