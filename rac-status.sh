@@ -8,10 +8,12 @@
 # Please have a look at http://bit.ly/2MFkzDw  for some details and screenshots
 # The latest version of the script can be downloaded here : http://bit.ly/2XEXa6j
 #
-# The current script version is 20190906
+# The current script version is 20200317
 #
 # History :
 #
+# 20200317 - Fred Denis - A new -t option (included in -a) which shows the tech resources (DGs, vips, etc ...)
+#                         Also provide insights to the user if we cannot find an ASM entry in oratab as oraenv wont work
 # 20200305 - Fred Denis - Fixed a bug when the hostname contains twice the cluster name
 # 20190906 - Fred Denis - A new -V option to show the version of the script
 # 20190830 - Fred Denis - Show a red "x" also when instances and listeners are disabled
@@ -95,6 +97,8 @@ SHOW_LSNR="YES"                 # Listeners
 #SHOW_LSNR="NO"
  SHOW_SVC="YES"                 # Services
  SHOW_SVC="NO"
+SHOW_TECH="YES"                 # Tech (DGs, ONS, etc ...)
+SHOW_TECH="NO"
 
 # Number of spaces between the status and the "|" of the column - this applies before and after the status
 # A value of 2 would print 2 spaces before and after the status and like |  Open  |
@@ -109,19 +113,23 @@ COL_NODE_OFFSET=99
 OS=`uname`
 case ${OS} in
         SunOS)
-                           AWK=`which gawk`                         ;
-                           SED=`which gsed`                         ;;
+                ORATAB="/var/opt/oracle/oratab"                 ;
+                   AWK=`which gawk`                             ;
+                   SED=`which gsed`                             ;;
         Linux)
-                           AWK=`which awk`                          ;
-                           SED=`which sed`                          ;;
+                ORATAB="/etc/oratab"                            ;
+                   AWK=`which awk`                              ;
+                   SED=`which sed`                              ;;
         HP-UX)
-                           AWK=`which awk`                          ;
-                           SED=`which sed`                          ;;
+                ORATAB="/etc/oratab"                            ;
+                   AWK=`which awk`                              ;
+                   SED=`which sed`                              ;;
         AIX)
-                           AWK=`which gawk`                         ;
-                           SED=`which sed`                          ;;
-        *)                 printf "\n\t\033[1;31m%s\033[m\n\n" "Unsupported OS, cannot continue."           ;
-                           exit 666                            ;;
+                ORATAB="/etc/oratab"                            ;
+                   AWK=`which gawk`                             ;
+                   SED=`which sed`                              ;;
+        *)         printf "\n\t\033[1;31m%s\033[m\n\n" "Unsupported OS, cannot continue."           ;
+                   exit 666                                     ;;
 esac
 # Check if we have an AWK and a SED to continue
 if [[ ! -f ${AWK} ]]
@@ -171,14 +179,15 @@ cat << END
                 - SHOW_DB       # To show the databases instances
                 - SHOW_LSNR     # To show the listeners
                 - SHOW_SVC      # To show the services
+                - SHOW_TECH     # To show the tech stuff (DGs, ONS, etc ...)
                 These variables can be modified in the script itself or you can use command line option to revert their value (see below)
 
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"             ;
 cat << END
-        -a        Show everything regardless of the default behavior defined with SHOW_DB, SHOW_LSNR and SHOW_SVC
-        -n        Show nothing  regardless of the default behavior defined with SHOW_DB, SHOW_LSNR and SHOW_SVC
+        -a        Show everything regardless of the default behavior defined with SHOW_DB, SHOW_LSNR, SHOW_SVC and SHOW_TECH
+        -n        Show nothing  regardless of the default behavior defined with SHOW_DB, SHOW_LSNR, SHOW_SVC and SHOW_TECH
         -a and -n are handy to erase the defaults values:
                         $ ./rac-status.sh -n -d                         # Show the databases output only
                         $ ./rac-status.sh -a -s                         # Show everything but the services (then the listeners and the databases)
@@ -186,6 +195,7 @@ cat << END
         -d        Revert the behavior defined by SHOW_DB  ; if SHOW_DB   is set to YES to show the databases by default, then the -d option will hide the databases
         -l        Revert the behavior defined by SHOW_LSNR; if SHOW_LSNR is set to YES to show the listeners by default, then the -l option will hide the listeners
         -s        Revert the behavior defined by SHOW_SVC ; if SHOW_SVC  is set to YES to show the services  by default, then the -s option will hide the services
+        -t        Revert the behavior defined by SHOW_TECH; if SHOW_TECH is set to YES to show the tech resources  by default, then the -t option will hide the tech resources
 
         -g        Act as a grep command to grep a pattern from the output (key sensitive)
         -v        Act as "grep -v" to ungrep from the output
@@ -231,13 +241,14 @@ exit 123
 }
 
 # Options
-while getopts "andslLhg:v:o:f:eruw:c:V" OPT; do
+while getopts "andslLhg:v:o:f:eruw:c:tV" OPT; do
         case ${OPT} in
-        a)         SHOW_DB="YES"        ; SHOW_LSNR="YES"       ; SHOW_SVC="YES"                ;;
-        n)         SHOW_DB="NO"         ; SHOW_LSNR="NO"        ; SHOW_SVC="NO"                 ;;
+        a)         SHOW_DB="YES"        ; SHOW_LSNR="YES"       ; SHOW_SVC="YES";       SHOW_TECH="YES" ;;
+        n)         SHOW_DB="NO"         ; SHOW_LSNR="NO"        ; SHOW_SVC="NO" ;       SHOW_TECH="NO"  ;;
         d)         if [ "$SHOW_DB"   = "YES" ]; then   SHOW_DB="NO"; else   SHOW_DB="YES"; fi   ;;
         s)         if [ "$SHOW_SVC"  = "YES" ]; then  SHOW_SVC="NO"; else  SHOW_SVC="YES"; fi   ;;
         l)         if [ "$SHOW_LSNR" = "YES" ]; then SHOW_LSNR="NO"; else SHOW_LSNR="YES"; fi   ;;
+        t)         if [ "$SHOW_TECH" = "YES" ]; then SHOW_TECH="NO"; else SHOW_TECH="YES"; fi   ;;
         L)     LONG_NAMES="YES"                                                                 ;;
         g)           GREP=${OPTARG}                                                             ;;
         c)        SORT_BY=${OPTARG}                                                             ;;
@@ -313,7 +324,19 @@ then
                 # Set the ASM env to be able to use crsctl commands
                 #
                 ORACLE_SID=`ps -ef | grep pmon | grep asm | ${AWK} '{print $NF}' | sed s'/asm_pmon_//' | egrep "^[+]"`
-
+                #
+                # If oratab exists, we check if there is an ASM entry trying to know if oraenv will work -- if we cannot find an ASM entry
+                # in oratab, we try to point the user in the right direction to fix it
+                #
+                if [[ -f "${ORATAB}" ]]
+                then
+                        grep ^${ORACLE_SID} ${ORATAB} > /dev/null 2>&1
+                        if [ $? -ne 0 ]
+                        then
+                                printf "\n\t\033[1;31m%s\033[m\n\n" "Cannot find an entry for ${ORACLE_SID} in ${ORATAB}. You can consider using the -e option or you may suffer from https://unknowndba.blogspot.com/2019/01/lost-entries-in-oratab-after-gi-122.html ; cannot continue at this point."
+                                exit 888
+                        fi
+                fi
                 export ORAENV_ASK=NO
                 . oraenv > /dev/null 2>&1
         fi
@@ -365,23 +388,32 @@ then
         printf "\n"
 
         # Get the info we want
-        cat /dev/null                                                           >  $TMP
+        cat /dev/null                                                    >  $TMP
         if [ "$SHOW_DB" = "YES" ]
         then
-                        crsctl stat res -p -w "TYPE = ora.database.type"        >> $TMP
-                        crsctl stat res -v -w "TYPE = ora.database.type"        >> $TMP
+                crsctl stat res -p -w "TYPE = ora.database.type"        >> $TMP
+                crsctl stat res -v -w "TYPE = ora.database.type"        >> $TMP
         fi
         if [ "$SHOW_LSNR" = "YES" ]
         then
-                        crsctl stat res -v -w "TYPE = ora.listener.type"        >> $TMP
-                        crsctl stat res -p -w "TYPE = ora.listener.type"        >> $TMP
-                        crsctl stat res -v -w "TYPE = ora.scan_listener.type"   >> $TMP
-                        crsctl stat res -p -w "TYPE = ora.scan_listener.type"   >> $TMP
+                crsctl stat res -v -w "TYPE = ora.listener.type"        >> $TMP
+                crsctl stat res -p -w "TYPE = ora.listener.type"        >> $TMP
+                crsctl stat res -v -w "TYPE = ora.scan_listener.type"   >> $TMP
+                crsctl stat res -p -w "TYPE = ora.scan_listener.type"   >> $TMP
+                crsctl stat res -v -w "TYPE = ora.leaf_listener.type"   >> $TMP
+                crsctl stat res -p -w "TYPE = ora.leaf_listener.type"   >> $TMP
+                crsctl stat res -v -w "TYPE = ora.asm_listener.type"    >> $TMP
+                crsctl stat res -p -w "TYPE = ora.asm_listener.type"    >> $TMP
         fi
         if [ "$SHOW_SVC" = "YES" ]
         then
-                        crsctl stat res -v -w "TYPE = ora.service.type"          >> $TMP
-                        crsctl stat res -p -w "TYPE = ora.service.type"          >> $TMP         # not used, in case we need it one day
+                crsctl stat res -v -w "TYPE = ora.service.type"          >> $TMP
+                crsctl stat res -p -w "TYPE = ora.service.type"          >> $TMP
+        fi
+        if [ "$SHOW_TECH" = "YES" ]
+        then
+                crsctl stat res -v -w "((TYPE != ora.database.type) AND (TYPE != ora.listener.type) AND (TYPE != ora.scan_listener.type) AND (TYPE != ora.service.type) AND (TYPE != ora.leaf_listener.type) AND (TYPE != ora.asm_listener.type))" >> $TMP
+                crsctl stat res -p -w "((TYPE != ora.database.type) AND (TYPE != ora.listener.type) AND (TYPE != ora.scan_listener.type) AND (TYPE != ora.service.type) AND (TYPE != ora.leaf_listener.type) AND (TYPE != ora.asm_listener.type))" >> $TMP
         fi
 
         # Easiest way to manage the different versions of crsctl outputs
@@ -477,8 +509,12 @@ fi
         # Get a date in format MM/DD/YYYY HH24:MI:SS and return the rounded number hours difference between this date and the current date
         #
         function diff_hours(a_date)
-        {       split(a_date, temp, /[\/ :]/)                                                                   ;
-                return (systime()-mktime (temp[3]" "temp[1]" "temp[2]" "temp[4]" "temp[5]" "temp[6]))/(60*60)   ;
+        {       if ((a_date == "NEVER ") || (a_date == " "))
+                {       return (999999999999999999999)                                                          ;
+                } else {
+                        split(a_date, temp, /[\/ :]/)                                                           ;
+                        return (systime()-mktime (temp[3]" "temp[1]" "temp[2]" "temp[4]" "temp[5]" "temp[6]))/(60*60)   ;
+                }
         }
         #
         # Get a string and return it with a nice case: first character in upper case ad the others in lower case (ABCD => Abcd)
@@ -541,9 +577,15 @@ fi
         {
                # Fill 2 tables with the OH and the version from "crsctl stat res -p -w "TYPE = ora.database.type""
                if ($1 == "NAME")
-               {        type = "DB"                                                                             ;
+               {
                         sub("^ora.", "", $2)                                                                    ;
-                        sub(".db$",  "", $2)                                                                    ;
+                        sub(/\(.*$/, "", $2)                                                                    ;       # Remove the consumer group
+                        type = "TECH"                                                                           ;
+                        if ($2 ~ ".db$")
+                        {
+                                type = "DB"                                                                     ;
+                                sub(".db$",  "", $2)                                                            ;
+                        }
                         if ($2 ~ ".lsnr")                                                                               # Listeners
                         {       sub(".lsnr$", "", $2)                                                           ;
                                 tab_lsnr[$2]    = $2                                                            ;
@@ -563,6 +605,21 @@ fi
                         split($2, temp, ".")                                                                    ;
                         if (length(temp[1]) > COL_DB-1)                                                                  # To adapt the 1st column size
                         {     COL_DB = length(temp[1]) +1                                                       ;
+                        }
+                        if (type == "TECH")
+                        {       if ($2 ~ /\./)
+                                {
+                                        sub(/\.[[:alnum:]]*$/, "", $2)                                          ;
+                                        # We put the type before the name to sort it by type easily later
+                                        type_name = temp[length(temp)]"."$2                                     ;
+                                        tab_tech[$2] = type_name                                                ;
+                                        if (length($2) > COL_VER-1)
+                                        {     COL_VER = length($2) + 1                                          ;
+                                        }
+                                } else {
+                                        #tab_tech[temp[1]] = temp[1]"."temp[1]                                  ;
+                                        tab_tech[temp[1]] = temp[1]                                             ;
+                                }
                         }
 
                         getline; getline                                                                        ;
@@ -668,6 +725,27 @@ fi
                                                 }
                                         }
                                 }
+                                if (type == "TECH")
+                                {       while (getline)
+                                        {       if ($1 == "ENABLED")
+                                                {       for (i=1; i<=n; i++)                                            # n = number of nodes
+                                                        {       is_enabled[DB,nodes[i]]= $2                     ;
+                                                        }
+                                                        while(getline)
+                                                        {       if ($1 ~ /ENABLED@SERVERNAME/ )
+                                                                {       sub("ENABLED@SERVERNAME[(]", "", $1)    ;
+                                                                        sub(")", "", $1)                        ;
+                                                                        is_enabled[DB,$1] = $2                  ;
+                                                                } else {
+                                                                        break                                   ;
+                                                                }
+                                                        }
+                                                }
+                                                if ($0 ~ /^$/)
+                                                {       break                                                   ;
+                                                }
+                                        }
+                                }
                         }       # End if ($1 == "ACL")
                         if ($1 == "LAST_SERVER")        # crsctl stat res -v output
                         {           NB = 0      ;       # Number of instance as CARDINALITY_ID is sometimes irrelevant
@@ -685,6 +763,9 @@ fi
                                         if ($1 == "TARGET")             {       target[DB,SERVER]=$2                    ;}
                                         if ($1 == "LAST_RESTART")       {       started[DB,SERVER]=diff_hours($2" "$3)  ;}
                                         if ($1 == "STATE_DETAILS")      {       NB++                                    ;       # Number of instances we came through
+                                                                                if (DB ~ /acfs/)
+                                                                                {       acfs_mount[DB] = $2             ;
+                                                                                }
                                                                                 sub("STATE_DETAILS=", "", $0)           ;
                                                                                 sub(",HOME=.*$", "", $0)                ;       # Manage the 12cR2 new feature, check 20170606 for more details
                                                                                 sub("),.*$", ")", $0)                   ;       # To make clear multi status like "Mounted (Closed),Readonly,Open Initiated"
@@ -693,16 +774,112 @@ fi
                                                                                 if ($0 ~  /Mount/)              {  status_details[DB,SERVER] = "Mounted"        ;       } else
                                                                                 if ($0 ~  /running from old/)   {  status_details[DB,SERVER] = "Open from old OH";      } else
                                                                                                                 {  status_details[DB,SERVER] = $0               ;       }
-                                                                                if (length(status_details[DB,SERVER]) > COL_NODE)
+                                                                                if ((length(status_details[DB,SERVER]) > COL_NODE) && (type != "TECH"))
                                                                                 {       COL_NODE = length(status_details[DB,SERVER]) + COL_NODE_OFFSET  ;
                                                                                 }
                                                                         }
-                                                                        if ($1 == "BREAK_HERE") { break;}
+                                        if ($1 == "BREAK_HERE") { break;}
                                 }
                         }
                 }       # End of if ($1 ~ /^NAME/)
             }
             END {       #
+                        # Tech stuff
+                        #
+                        if (length(tab_tech) > 0)                # We print only if we have something to show
+                        {
+                                # A header for the listeners
+                                printf("%s", center("Type" ,  COL_DB, WHITE, COL_SEP))                          ;
+                                printf("%s", center("Name"     , COL_VER+1, WHITE, COL_SEP))                    ;
+                                n=asort(nodes)                                                                  ;       # sort array nodes
+                                for (i = 1; i <= n; i++) {
+                                        printf("%s", center(nodes[i], COL_NODE, WHITE, COL_SEP))                ;
+                                }
+                                printf("\n")                                                                    ;
+
+                                # a "---" line under the header
+                                print_a_line(COL_DB+COL_NODE*n+COL_VER+n+2)                                     ;
+
+                                # Print the tech stuff
+                                # Sort by type
+                                y = asort(tab_tech, tech_sorted)                                                ;
+                                for (i = 1; i<=y; i++)
+                                {       the_type = tech_sorted[i]                                               ;
+                                        the_name = tech_sorted[i]                                               ;
+                                        sub(/\..*$/, "", the_type)                                              ;
+                                        sub(/^[[:alnum:]]*\./, "", the_name)
+                                        printf(COLOR_BEGIN WHITE " %-"COL_DB-1"s" COLOR_END"|", the_type, WHITE);
+                                        printf(COLOR_BEGIN WHITE " %-"COL_VER"s" COLOR_END"|", the_name, WHITE) ;
+                                        if (the_name == the_type)
+                                        {       a = the_type                                                    ;
+                                        } else {
+                                                a = the_name"."the_type                                         ;
+                                        }
+                                        for (j = 1; j <= n; j++)                        # For each node
+                                        {       if (is_enabled[a, nodes[j]] == "")
+                                                { tech_enabled = 1                                              ;
+                                                } else {
+                                                 tech_enabled = is_enabled[a, nodes[j]]                         ;
+                                                }
+                                                 tech_status = status[a, nodes[j]]                              ;
+                                                 tech_target = target[a, nodes[j]]                              ;
+                                                if (tech_status == "")
+                                                {       tech_status = status[a, ""]                             ;
+                                                }
+                                                COL_ONLINE=GREEN                                                ;
+                                                 COL_OTHER=RED                                                  ;
+                                                if ((started[a,nodes[j]] < DIFF_HOURS) && (started[a,nodes[j]]))
+                                                {         COL_ONLINE=WITH_BACK                                  ;
+                                                           COL_OTHER=WITH_BACK                                  ;
+                                                    RECENT_RESTARTED=1                                          ;
+                                                } else {
+                                                          COL_ONLINE=GREEN                                      ;
+                                                           COL_OTHER=RED                                        ;
+                                                }
+                                                if (tech_status != tech_target)
+                                                {         COL_ONLINE=WITH_BACK2                                 ;
+                                                           COL_OTHER=WITH_BACK2                                 ;
+                                                        STATUS_ISSUE=1                                          ;
+                                                }
+                                                if (tech_enabled == 1)                                                  # Resource is enabled
+                                                {       TECH_DISABLED = 1                                       ;
+                                                        if (tech_status == "")
+                                                        {       printf("%s", center(UNKNOWN, COL_NODE, COL_DEFAULT, COL_SEP ))    ;
+                                                        } else {
+                                                                printf("%s", center(nice_case(tech_status), COL_NODE, COL_ONLINE,  COL_SEP))      ;
+                                                        }
+                                                } else                                                                  # Resource is disabled
+                                                {
+                                                        right = int((COL_NODE - length(tech_status)) / 2)       ;
+                                                        left  = COL_NODE - length(tech_status) - right          ;
+                                                        if (length(tech_status) < COL_DB+4)
+                                                        {       left--                                          ;
+                                                        }
+                                                        if (tech_status == "")
+                                                        {       printf("%s", center(DISABLED,           COL_NODE, RED, COL_SEP ))      ;
+                                                        } else {
+                                                                if (toupper(tech_status) == "ONLINE")
+                                                                {       printf("%"left"s%s %s%"right"s", "", in_color(nice_case(tech_status), COL_ONLINE), in_color(DISABLED, RED),COL_SEP);
+                                                                } else { printf("%"left"s%s %s%"right"s", "", in_color(nice_case(tech_status), COL_OTHER ), in_color(DISABLED, RED),COL_SEP);
+                                                                }
+                                                        }
+                                                }
+                                        }
+                                        if (acfs_mount[the_name"."the_type])
+                                        {       printf("  %s", acfs_mount[the_name"."the_type])                 ;
+                                        }
+                                        printf("\n")                                                            ;
+                                }
+                                # a "---" line under the header
+                                print_a_line(COL_DB+COL_NODE*n+COL_VER+n+2)                                     ;
+                                print_legend_disabled(TECH_DISABLED, "Resource")                                ;
+                                print_legend_recent_restarted()                                                 ;
+                                print_legend_status_issue()                                                     ;
+                                    STATUS_ISSUE=0                                                              ;
+                                RECENT_RESTARTED=0                                                              ;
+                                printf("\n")                                                                    ;
+                        }
+                        #
                         # Listeners
                         #
                         if (length(tab_lsnr) > 0)                # We print only if we have something to show
@@ -757,10 +934,12 @@ fi
                                                         LISTENER_DISABLED = 1                                   ;
                                                         right = int((COL_NODE - length(dbstatus)) / 2)          ;
                                                         left  = COL_NODE - length(dbstatus) - right             ;
-
+                                                        if (length(dbstatus) < COL_DB+4)
+                                                        {       left--                                          ;
+                                                        }
                                                         if (dbstatus == "")             {printf("%s", center(DISABLED,           COL_NODE, RED, COL_SEP ))      ;} else
-                                                        if (dbstatus == "ONLINE")       {printf("%"left"s%s %s%"right-1"s", "", in_color(nice_case(dbstatus), COL_ONLINE), in_color(DISABLED, RED), COL_SEP);}
-                                                        else                            {printf("%"left"s%s %s%"right-1"s", "", in_color(nice_case(dbstatus), COL_OTHER ), in_color(DISABLED, RED), COL_SEP);}
+                                                        if (dbstatus == "ONLINE")       {printf("%"left"s%s %s%"right"s", "", in_color(nice_case(dbstatus), COL_ONLINE), in_color(DISABLED, RED), COL_SEP);}
+                                                        else                            {printf("%"left"s%s %s%"right"s", "", in_color(nice_case(dbstatus), COL_OTHER ), in_color(DISABLED, RED), COL_SEP);}
                                                 } else {
                                                         if (dbstatus == "")             {printf("%s", center(UNKNOWN,             COL_NODE, COL_DEFAULT, COL_SEP    ))      ;}      else
                                                         if (dbstatus == "ONLINE")       {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_ONLINE,  COL_SEP    ))      ;}
@@ -782,9 +961,12 @@ fi
                                 # a "---" line under the header
                                 print_a_line()                                                                  ;
                                 print_legend_disabled(LISTENER_DISABLED, "Listener")                            ;
+                                print_legend_recent_restarted()                                                 ;
+                                print_legend_status_issue()                                                     ;
+                                    STATUS_ISSUE=0                                                              ;
+                                RECENT_RESTARTED=0                                                              ;
                                 printf("\n")                                                                    ;
                         }
-
                         #
                         # Services
                         #
@@ -841,22 +1023,28 @@ fi
                                                         SERVICE_DISABLED = 1                                    ;
                                                         right = int((COL_NODE - length(dbstatus)) / 2)          ;
                                                         left  = COL_NODE - length(dbstatus) - right             ;
-
+                                                        if (length(dbstatus) < COL_DB+4)
+                                                        {       left--                                          ;
+                                                        }
                                                         if (dbstatus == "")             {printf("%s", center(DISABLED, COL_NODE, RED, COL_SEP ))      ;} else
-                                                        if (dbstatus == "ONLINE")       {printf("%"left"s%s %s%"right-1"s", "", in_color(nice_case(dbstatus), COL_ONLINE), in_color(DISABLED, RED), COL_SEP);}
-                                                        else                            {printf("%"left"s%s %s%"right-1"s", "", in_color(nice_case(dbstatus), COL_OTHER ), in_color(DISABLED, RED), COL_SEP);}
+                                                        if (dbstatus == "ONLINE")       {printf("%"left"s%s %s%"right"s", "", in_color(nice_case(dbstatus), COL_ONLINE), in_color(DISABLED, RED), COL_SEP);}
+                                                        else                            {printf("%"left"s%s %s%"right"s", "", in_color(nice_case(dbstatus), COL_OTHER ), in_color(DISABLED, RED), COL_SEP);}
                                                 } else {
                                                         if (dbstatus == "")             {printf("%s", center(UNKNOWN,             COL_NODE, COL_DEFAULT, COL_SEP   ))      ;} else
                                                         if (dbstatus == "ONLINE")       {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_ONLINE,  COL_SEP   ))      ;}
                                                         else                            {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_OTHER,   COL_SEP   ))      ;}
                                                 }
                                         }
-                                        printf("\n")                                                             ;
+                                        printf("\n")                                                            ;
                                 }
                                 # a "---" line under the header
-                                print_a_line(COL_DB+COL_NODE*n+COL_VER+n+2)                                      ;
-                                print_legend_disabled(SERVICE_DISABLED, "Service")                               ;
-                                printf("\n")                                                                     ;
+                                print_a_line(COL_DB+COL_NODE*n+COL_VER+n+2)                                     ;
+                                print_legend_disabled(SERVICE_DISABLED, "Service")                              ;
+                                print_legend_recent_restarted()                                                 ;
+                                print_legend_status_issue()                                                     ;
+                                    STATUS_ISSUE=0                                                              ;
+                                RECENT_RESTARTED=0                                                              ;
+                                printf("\n")                                                                    ;
                         }
 
                         #
@@ -918,12 +1106,15 @@ fi
                                                         INSTANCE_DISABLED = 1                                   ;
                                                         right = int((COL_NODE - length(dbdetail)) / 2)          ;
                                                         left  = COL_NODE - length(dbdetail) - right             ;
+                                                        if (length(dbdetail) < COL_DB+4)
+                                                        {       left--                                          ;
+                                                        }
 
                                                         if (dbdetail == "")             {printf("%s",                           center(DISABLED, COL_NODE, RED, COL_SEP ))                                    ;} else
-                                                        if (dbdetail == "Open")         {printf("%"left"s%s %s%"right-1"s", "", in_color(nice_case(dbdetail), COL_ONLINE),   in_color(DISABLED, RED), COL_SEP);} else
-                                                        if (dbdetail ~  /Readonly/)     {printf("%"left"s%s %s%"right-1"s", "", in_color(nice_case(dbdetail), COL_READONLY), in_color(DISABLED, RED), COL_SEP);} else
-                                                        if (dbdetail ~  /Shut/)         {printf("%"left"s%s %s%"right-1"s", "", in_color(nice_case(dbdetail), COL_SHUT),     in_color(DISABLED, RED), COL_SEP);} else
-                                                                                        {printf("%"left"s%s %s%"right-1"s", "", in_color(nice_case(dbdetail), COL_OTHER),    in_color(DISABLED, RED), COL_SEP);}
+                                                        if (dbdetail == "Open")         {printf("%"left"s%s %s%"right"s", "", in_color(nice_case(dbdetail), COL_ONLINE),   in_color(DISABLED, RED), COL_SEP);} else
+                                                        if (dbdetail ~  /Readonly/)     {printf("%"left"s%s %s%"right"s", "", in_color(nice_case(dbdetail), COL_READONLY), in_color(DISABLED, RED), COL_SEP);} else
+                                                        if (dbdetail ~  /Shut/)         {printf("%"left"s%s %s%"right"s", "", in_color(nice_case(dbdetail), COL_SHUT),     in_color(DISABLED, RED), COL_SEP);} else
+                                                                                        {printf("%"left"s%s %s%"right"s", "", in_color(nice_case(dbdetail), COL_OTHER),    in_color(DISABLED, RED), COL_SEP);}
 
                                                 } else {
                                                         if (dbdetail == "")             {printf("%s", center(UNKNOWN,             COL_NODE, COL_DEFAULT, COL_SEP ))  ;}      else
