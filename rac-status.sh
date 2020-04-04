@@ -646,19 +646,34 @@ fi
                                                 {              role[DB] = $2                                    ;
                                                 }
                                                 if ($1 == "ENABLED")                                                    # Instance is enabled (1) or disabled (0)
-                                                {       for (i=1; i<=n; i++)                                            # n = number of nodes
-                                                        {       is_enabled[DB,nodes[i]]= $2                     ;
-                                                        }
-                                                        while(getline)
-                                                        {       if ($1 ~ /ENABLED@SERVERNAME/ )
-                                                                {       sub("ENABLED@SERVERNAME[(]", "", $1)    ;
-                                                                        sub(")", "", $1)                        ;
-                                                                        is_enabled[DB,$1] = $2                  ;
-                                                                } else {
-                                                                        break                                   ;
-                                                                }
-                                                        }
+                                                {       #for (i=1; i<=n; i++)                                            # n = number of nodes
+                                                        #{       is_enabled[DB,nodes[i]]= $2                     ;
+                                                        #}
+							#ici
+							enabled = $2						 ;	# Save it for later
+                                                        #is_enabled[DB,nodes]= $2                     	;
+                                                        #while(getline)
+                                                        #{       if ($1 ~ /ENABLED@SERVERNAME/ )
+                                                        #        {       sub("ENABLED@SERVERNAME[(]", "", $1)    ;
+                                                        #                sub(")", "", $1)                        ;
+                                                        #                is_enabled[DB,$1] = $2                  ;
+                                                        #        } else {
+                                                        #                break                                   ;
+                                                        #        }
+                                                        #}
                                                 }
+						if ($1 == "GEN_USR_ORA_INST_NAME")
+						{	instance = $2						;
+							while (getline)
+							{	if (($1 ~ /^GEN_USR_ORA_INST_NAME@SERVERNAME/) && ($2 == instance))
+								{
+									sub("GEN_USR_ORA_INST_NAME@SERVERNAME[(]", "", $1)	;
+									sub(")", "", $1)			;
+									is_enabled[DB,$1] = enabled		;
+									break					;
+								}
+							}
+						}
                                                 if ($0 ~ /^$/)
                                                 {           version[DB] = VERSION                               ;
                                                                  oh[DB] = OH                                    ;

@@ -11,24 +11,24 @@ for X in `dbcli list-databases | tac | awk '{if ($1 ~ /^--------/) {exit;} else 
 do
         dbcli list-jobs | grep -i $X | tail -$N |\
         awk -v DB="$X" 'BEGIN {failed=0;}
-                        {       if ($0 ~ /Failure/)
-                                {
-                                        "dbcli describe-job -i "$1 " | grep Message " | getline err             ;
-                                        sub(/^ *Message:/, "", err);
-                                        printf("\033[1;36m%s\033[m\n", "=>" err)        ;
-                                        printf("\033[1;31m%s\033[m\n", $0)      ;
-                                        failed++                                ;
-                                } else 
-                                {       print $0                                ;
-                                }
-                        } END\
-                        {       for (i=1;i<=80;i++)
-                                {       printf("\033[1;37m%s\033[m", "-")       ;
-                                }
-                                printf("\n")                                    ;
-                                printf("\033[1;37m%s\033[m", "*** " DB " backup jobs *** -- ")              ;
-                                printf("\033[1;31m%s\033[m\n", failed " failures"  )    ;
-                        }' | tac
+		{       if ($0 ~ /Failure/)
+			{
+				"dbcli describe-job -i "$1 " | grep Message " | getline err             ;
+				sub(/^ *Message:/, "", err);
+				printf("\033[1;36m%s\033[m\n", "=>" err)        ;
+				printf("\033[1;31m%s\033[m\n", $0)      ;
+				failed++                                ;
+			} else 
+			{       print $0                                ;
+			}
+		} END\
+		{       for (i=1;i<=80;i++)
+			{       printf("\033[1;37m%s\033[m", "-")       ;
+			}
+			printf("\n")                                    ;
+			printf("\033[1;37m%s\033[m", "*** " DB " backup jobs *** -- ")              ;
+			printf("\033[1;31m%s\033[m\n", failed " failures"  )    ;
+		}' | tac
 done
 
 
