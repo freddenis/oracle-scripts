@@ -8,10 +8,11 @@
 # Please have a look at http://bit.ly/2MFkzDw  for some details and screenshots
 # The latest version of the script can be downloaded here : http://bit.ly/2XEXa6j
 #
-# The current script version is 20200413
+# The current script version is 20200415
 #
 # History :
 #
+# 20200415 - Fred Denis - mktemp to create tempfiles
 # 20200413 - Fred Denis - Fixed a bug with offline resources in green for the tech resources
 #                       - Fixed a bug with disabled instances
 #                       - Indentation
@@ -79,8 +80,8 @@
 #
 # Variables
 #
-        TMP=/tmp/status$$.tmp                                             # A tempfile
-       TMP2=/tmp/status2$$.tmp                                            # Another tempfile
+        TMP=$(mktemp)                                                     # A tempfile
+       TMP2=$(mktemp)                                                     # Another tempfile
   DBMACHINE=/opt/oracle.SupportTools/onecommand/databasemachine.xml       # File where we should find the Exadata model as oracle user
        GREP="."                                                           # What we grep                  -- default is everything
      UNGREP="nothing_to_ungrep_unless_v_option_is_used$$"                 # What we don't grep (grep -v)  -- default is nothing
@@ -1225,9 +1226,7 @@ if [ -f ${TMP} ]; then
     fi
     rm -f ${TMP}
 fi
-if [ -f ${TMP2} ]; then
-    rm -f ${TMP2}
-fi
+rm -f ${TMP2}
 
 #*********************************************************************************************************
 #                               E N D     O F      S O U R C E
