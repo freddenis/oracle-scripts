@@ -14,12 +14,14 @@
 #      node4:12.2.1.1.3.171017:success
 #    If a DB servers or cell has a status = failure returned by the imageinfo command, the host will appear
 #    in red and a note about this will be shown at the end of the report
+# If you run X8M+, as there is no way to have a dynamic list of the components (https://bit.ly/38gtrGP), we have
+# to rely on hardcoded list (see the X8M_* values for the default and the -C -D -R parameter to specify your own lists)
 #
 #
 # The current version of the script is 20200715
 #
 
-# 20200715 - Fred Denis - Management the ROCE switches which come with X8M+
+# 20200715 - Fred Denis - Manage the ROCE switches which come with X8M+
 #                         Keep in mind that you can deploy the SSH keys to the ROCE switches using /opt/oracle.SupportTools/RoCE/setup_switch_ssh_equiv.sh
 # 20190528 - Fred Denis - Fixed a bug on the headers
 # 20190524 - Fred Denis - Better management of the naming of the hosts, cells and IB
@@ -63,7 +65,7 @@ END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"                    ;
 cat << END
-        $0 [-d] [-c] [-i] [-n] [-h]
+        $0 [-d] [-c] [-i] [-n] [-C] [-D] [-R] [-I] [-h]
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"                 ;
@@ -80,6 +82,11 @@ cat << END
         -c      Show the Cells (storage servers) versions
         -i      Show the Switches versions (IB if < X8M, ROCE if X8M+)
         -r      Show the Switches versions (IB if < X8M, ROCE if X8M+)
+
+        -C      A specific cell_group file
+        -D      A specific dbs_group file
+        -R      A specific roce_group file
+        -I      A specific ib_group file
 
         -n      Number of nodes to show per line (default adapts the output to the current screen size)
 
@@ -120,6 +127,7 @@ export ORAENV_ASK=NO
 #
 if [ -f ${DBMACHINE} ] && [ -r ${DBMACHINE} ];  then
     cat << !
+
         Cluster is a `grep -i MACHINETYPES ${DBMACHINE} | sed s'/\t*//' | sed -e s':</*MACHINETYPES>::g' -e s'/^ *//' -e s'/ *$//'`
 
 !
