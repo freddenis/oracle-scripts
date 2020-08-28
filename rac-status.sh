@@ -743,6 +743,7 @@ function print_a_line(size) {
                 sub("),.*$", ")", $0)                   ;       # To make clear multi status like "Mounted (Closed),Readonly,Open Initiated"
                 if ($0 == "Instance Shutdown")  {  status_details[DB,SERVER] = "Shutdown"       ;       } else
                 if ($0 ~  "Readonly")           {  status_details[DB,SERVER] = "Readonly"       ;       } else
+	        if ($0 ~  "Abnormal Termination") {  status_details[DB,SERVER] = "Abnorm Term"       ;       } else
                 if ($0 ~  /Mount/)              {  status_details[DB,SERVER] = "Mounted"        ;       } else
                 if ($0 ~  /running from old/)   {  status_details[DB,SERVER] = "Open from old OH";      } else
                                                 {  status_details[DB,SERVER] = $0               ;       }
