@@ -42,7 +42,7 @@ NB_PER_LINE=$(bc <<< "`tput cols`/22")          # Number of element to print per
  X8M_DBS_GROUP=~/dbs_group
 X8M_CELL_GROUP=~/cell_group
 X8M_ROCE_GROUP=~/roce_group
-     ROCE_USER="admin"
+     ROCE_USER="ciscoexa"
 #
 # Check if ibhosts works (if not, we are on X8M+)
 #
@@ -195,7 +195,7 @@ fi
       else
           # dcli does not seem to work with the roce switches
           for S in $(cat ${IB_GROUP} | sort); do
-              ssh ${ROCE_USER}@${S} show version | grep "System version" | awk -v SWITCH="${S}" '{print "ib:", SWITCH":", $NF}'
+              ssh -q ${ROCE_USER}@${S} show version | grep "System version" | awk -v SWITCH="${S}" '{print "ib:", SWITCH":", $NF}'
          done
       fi
         echo ""
