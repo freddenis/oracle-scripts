@@ -10,12 +10,14 @@
 # More information here : https://unknowndba.blogspot.com.au/2018/04/rac-onalldbsh-easily-execute-query-on.html
 #
 # Version of the script is 20180318
+# 20210407 -- Fred Denis -- Remove the use of bc as some dont have bc installed and it is easy to bypass
+# 20180318 -- Fred Denis -- Initial release
 #
 
 #
 # Set the default output to 90% of the screen size
 #
-COLS=$(printf %.f $(bc <<< "`tput cols`*.9"))
+COLS=$(printf %.f $(($(tput cols)*90/100)))
 
 #
 # If for any reason we couldn't get the number of cols, we set it to 120
