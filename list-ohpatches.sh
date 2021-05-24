@@ -79,7 +79,7 @@ END
     cat << END
        $0                                                       # Analyze and show all the homes of nodes of a cluster
        $0 --show                                                # Show the homes from oratab (only show, dont do anything else)
-       $0 --grep grid                                           # Analyze the grid homes
+       $0 --grep grid                                           # Analyze the grid home
        $0 --grep db --ungrep 12                                 # Only the DB homes but not the 12 ones
        $0 --grep db --ungrep 12 --groupfile ~/dbs_group         # Same as above on the hosts contained in the ~/dbs_group file
        $0 --home db --ignore 12 --hosts exa01,exa06             # Same as above but only on hosts exa02 and exa06
