@@ -324,12 +324,22 @@ if [ -z "$FILE" ]; then               # This is not needed when using an input f
         if [[ -f "${ORATAB}" ]]; then
             grep ^${ORACLE_SID} ${ORATAB} > /dev/null 2>&1
             if [ $? -ne 0 ]; then
-                printf "\n\t\033[1;31m%s\033[m\n\n" "Cannot find an entry for ${ORACLE_SID} in ${ORATAB}. You can consider using the -e option or you may suffer from https://unknowndba.blogspot.com/2019/01/lost-entries-in-oratab-after-gi-122.html ; cannot continue at this point."
-                exit 888
+	       #
+	       # Use OLR as last resort
+	       #
+	       if [[ -f "/etc/oracle/olr.loc" ]]; then
+	           export ORACLE_HOME="$(cat "/etc/oracle/olr.loc" | sed -ne 's/^crs_home=//p')"
+	           export ORACLE_BASE="$($ORACLE_HOME/bin/orabase)"
+	           export PATH="$PATH:$ORACLE_HOME/bin"
+	       else
+                   printf "\n\t\033[1;31m%s\033[m\n\n" "Cannot find an entry for ${ORACLE_SID} in ${ORATAB} and also wasn't able to detect Oracle Local Cluster Registry. You can consider using the -e option or you may suffer from https://unknowndba.blogspot.com/2019/01/lost-entries-in-oratab-after-gi-122.html ; cannot continue at this point."
+                   exit 888
+               fi
+            else
+                export ORAENV_ASK=NO
+                . oraenv > /dev/null 2>&1
             fi
         fi
-        export ORAENV_ASK=NO
-        . oraenv > /dev/null 2>&1
     fi
     if ! type crsctl > /dev/null 2>&1; then
         printf "\n\t\033[1;31m%s\033[m\n\n" "Cannot find crsctl, cannot continue, please check if oraenv works or set your environment manually and use the -e option."          ;
