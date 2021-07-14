@@ -8,10 +8,20 @@
 # Please have a look at http://bit.ly/2MFkzDw  for some details and screenshots
 # The latest version of the script can be downloaded here : http://bit.ly/2XEXa6j
 #
-# The current script version is 20200415
+# The current script version is 20210714
 #
 # History :
 #
+# 20210714 - Fred Denis - Upgrade state is now shown (you want it to be NORMAL)
+#                       - Use of olr.loc to set up the crs environment before using oratab
+#                       - OH are sorted to avoid random order from CRS (useful when using rac-mon.sh)
+#                       - All standby resources (instances, instances type, services) are now shown in BLUE, primary resources in WHITE
+#                       - Offline standby type services on a primary instance now appear with a GREEN Offline as it is
+#                          expected to have these services to be offline, they will be online only if the DB becomes a standby
+#                          Same applies for primary services on standby databases
+#                       - advm devices are now shown on the right of the table
+#                       - Option -k shows the advm devices next to the acfs FS (handy if you need to remount some)
+#                       - Option -K hides the acfs fs and the advm devices
 # 20200415 - Fred Denis - mktemp to create tempfiles
 # 20200413 - Fred Denis - Fixed a bug with offline resources in green for the tech resources
 #                       - Fixed a bug with disabled instances
@@ -89,10 +99,16 @@
     REVERSE="NO"                                                          # Revert the colors to make them visible, useful for clear terminal backgrounds
 WITH_COLORS="YES"                                                         # Output with colors, (-b changes this to NO); set to NO for permanent no colored output
       WHITE="37m"                                                         # White color code
+       TEAL="36m"                                                         # Teal color code
+      GREEN="32m"                                                         # Green color code
+    REDBACK="41m"                                                         # Nothing related to the spider, just a red background :)
  DIFF_HOURS="24"                                                          # Nb of hours the instance has been restarted
     SORT_BY=""                                                            # Column to sort by (see the help for possible values)
  LONG_NAMES="NO"                                                          # If we try to shorten the host names in the tables or not
-
+        OLR="/etc/oracle/olr.loc"                                         # olr.loc file to get crs home if oratab does not have ASM entry
+   ADVM_DEV="False"                                                       # Show ADVM devices next to ACFS FS
+   HIDE_DEV="False"                                                       # Hide ACFS FS and ADVM devices
+#
 # Choose the information what you want to see -- the last uncommented value wins
 # ./rac-status.sh -h for more information
   SHOW_DB="YES"                 # Databases
@@ -103,14 +119,13 @@ SHOW_LSNR="YES"                 # Listeners
  SHOW_SVC="NO"
 SHOW_TECH="YES"                 # Tech (DGs, ONS, etc ...)
 SHOW_TECH="NO"
-
+#
 # Number of spaces between the status and the "|" of the column - this applies before and after the status
 # A value of 2 would print 2 spaces before and after the status and like |  Open  |
 # A value of 8 would print |        Open         |
 # A value of 99 means that this parameter is dynamically calculated depending on the number of nodes
 # A non 99 value is applied regardless of the number of nodes
 COL_NODE_OFFSET=99
-
 #
 # Different OS support
 #
@@ -135,15 +150,17 @@ case ${OS} in
        *)  printf "\n\t\033[1;31m%s\033[m\n\n" "Unsupported OS, cannot continue."           ;
            exit 666                                     ;;
 esac
+#
 # Check if we have an AWK and a SED to continue
-if [[ ! -f ${AWK} ]]; then
+#
+if [[ ! -f "${AWK}" ]]; then
     printf "\n\t\033[1;31m%s" "No awk found on your system, cannot continue, if you run Solaris, please ensure that gawk is in your path"
-    printf "\t%s\033[m\n\n" ${AWK}
+    printf "\t%s\033[m\n\n" "${AWK}"
     exit 678
 fi
-if [[ ! -f ${SED} ]]; then
+if [[ ! -f "${SED}" ]]; then
     printf "\n\t\033[1;31m%s" "No sed found on your system, cannot continue, if you run Solaris, please ensure that gsed is in your path"
-    printf "\t%s\033[m\n\n" ${SED}
+    printf "\t%s\033[m\n\n" "${SED}"
     exit 679
 fi
 #
@@ -159,12 +176,12 @@ show_version() {
 usage() {
     printf "\n\033[1;37m%-8s\033[m\n" "NAME"                ;
     cat << END
-        `basename $0` - A nice overview of databases, listeners and services running across a GI 12c
+        `basename $0` - A nice overview of databases, listeners, services and tech resources running across a GI 12c+
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
     cat << END
-        $0 [-a] [-n] [-d] [-l] [-s] [-o] [-f] [-r] [-u] [-h]
+        $0 [-a] [-n] [-d] [-l] [-s] [-t] [-g] [-v] [-c] [-o] [-f] [-e] [-L] [-r] [-u] [-k] [-K] [-w] [-h]
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
@@ -221,7 +238,10 @@ END
 
         -u        Shows the Uncolored output (no colors); set WITH_COLORS="NO" on top of the script to have it permanently
 
-        -w        Shows a yellow background when a resource has been restarted less than the number of hours in parameter (default is $DIFF_HOURS)
+        -k        Shows the ADVM devices on the same line as the ACFS FS (handy to remount some FS), default is ${ADVM_DEV}
+        -K        Do not show the ACFS FS nor the ADVM devices, default is ${HIDE_DEV}
+
+        -w        Shows a yellow background when a resource has been restarted less than the number of hours in parameter (default is ${DIFF_HOURS})
                     h for hours (default) d for day, w for week, m for month and y for year can be used to specify the delay:
                         $ ./rac-status.sh -w 24         # 24 hours
                         $ ./rac-status.sh -w 24h        # 24 hours
@@ -239,38 +259,39 @@ END
 END
 exit 123
 }
-
+#
 # Options
-while getopts "andslLhg:v:o:f:eruw:c:tV" OPT; do
+#
+while getopts "andslLhg:v:o:f:eruw:c:tkKV" OPT; do
     case ${OPT} in
     a)         SHOW_DB="YES"        ; SHOW_LSNR="YES"       ; SHOW_SVC="YES";       SHOW_TECH="YES" ;;
     n)         SHOW_DB="NO"         ; SHOW_LSNR="NO"        ; SHOW_SVC="NO" ;       SHOW_TECH="NO"  ;;
-    d)         if [ "$SHOW_DB"   = "YES" ]; then   SHOW_DB="NO"; else   SHOW_DB="YES"; fi   ;;
-    s)         if [ "$SHOW_SVC"  = "YES" ]; then  SHOW_SVC="NO"; else  SHOW_SVC="YES"; fi   ;;
-    l)         if [ "$SHOW_LSNR" = "YES" ]; then SHOW_LSNR="NO"; else SHOW_LSNR="YES"; fi   ;;
-    t)         if [ "$SHOW_TECH" = "YES" ]; then SHOW_TECH="NO"; else SHOW_TECH="YES"; fi   ;;
-    L)     LONG_NAMES="YES"                                                                 ;;
-    g)           GREP=${OPTARG}                                                             ;;
-    c)        SORT_BY=${OPTARG}                                                             ;;
-    v)         UNGREP=${OPTARG}                                                             ;;
-    f)           FILE=${OPTARG}                                                             ;;
-    o)            OUT=${OPTARG}                                                             ;;
-    e)     USE_ORAENV="NO"                                                                  ;;
-    r)        REVERSE="YES"                                                                 ;;
-    w)     DIFF_HOURS=${OPTARG}                                                             ;;
-    u)    WITH_COLORS="NO"                                                                  ;;
-    V)      show_version; exit 567                                                          ;;
-    h)         usage                                                                        ;;
-    \?)        echo "Invalid option: -$OPTARG" >&2; usage                                   ;;
+    d)         if [[ "${SHOW_DB}"   == "YES" ]]; then   SHOW_DB="NO"; else   SHOW_DB="YES"; fi      ;;
+    s)         if [[ "${SHOW_SVC}"  == "YES" ]]; then  SHOW_SVC="NO"; else  SHOW_SVC="YES"; fi      ;;
+    l)         if [[ "${SHOW_LSNR}" == "YES" ]]; then SHOW_LSNR="NO"; else SHOW_LSNR="YES"; fi      ;;
+    t)         if [[ "${SHOW_TECH}" == "YES" ]]; then SHOW_TECH="NO"; else SHOW_TECH="YES"; fi      ;;
+    L)     LONG_NAMES="YES"                                                                         ;;
+    g)           GREP="${OPTARG}"                                                                   ;;
+    c)        SORT_BY="${OPTARG}"                                                                   ;;
+    v)         UNGREP="${OPTARG}"                                                                   ;;
+    f)           FILE="${OPTARG}"                                                                   ;;
+    o)            OUT="${OPTARG}"                                                                   ;;
+    e)     USE_ORAENV="NO"                                                                          ;;
+    r)        REVERSE="YES"                                                                         ;;
+    w)     DIFF_HOURS="${OPTARG}"                                                                   ;;
+    u)    WITH_COLORS="NO"                                                                          ;;
+    k)       ADVM_DEV="True"                                                                        ;;
+    K)       HIDE_DEV="True"                                                                        ;;
+    V)      show_version; exit 567                                                                  ;;
+    h)         usage                                                                                ;;
+    \?)        echo "Invalid option: -${OPTARG}" >&2; usage                                         ;;
     esac
 done
-
-
 #
 # Manage the diff hours depending on the unit in the -w option
 #
 DIFF_HOURS_UNIT=${DIFF_HOURS: -1}
-
+#
 if [[ ! "${DIFF_HOURS_UNIT}" =~ [0-9] ]]; then
     HOURS=`echo ${DIFF_HOURS} | sed s'/.$//'`
 
@@ -285,17 +306,14 @@ if [[ ! "${DIFF_HOURS_UNIT}" =~ [0-9] ]]; then
     DIFF_HOURS=$(($HOURS * $NB_HOURS))
 else
     DIFF_HOURS_UNIT="h"
-              HOURS=${DIFF_HOURS}
+              HOURS="${DIFF_HOURS}"
 fi
-
 #
 # If we dont show the DB we dont need to sort
 #
-if [ "$SHOW_DB" = "NO" ]; then
+if [[ "${SHOW_DB}" == "NO" ]]; then
     SORT_BY=""
 fi
-
-
 #
 # Check that the input file is here if specified
 #
@@ -310,146 +328,162 @@ if [ -n "$FILE" ]; then       # Input file specified, we wont run any crsctl com
         printf "\n\t\033[1;34m%s\033[m\n\n" "Proceeding with the ${FILE} file as input file"
     fi
 fi
-
-if [ -z "$FILE" ]; then               # This is not needed when using an input file
+if [[ -z "$FILE" ]]; then               # This is not needed when using an input file
     if [[ "${USE_ORAENV}" == "YES" ]]; then
         #
         # Set the ASM env to be able to use crsctl commands
         #
-        ORACLE_SID=`ps -ef | grep pmon | grep asm | ${AWK} '{print $NF}' | sed s'/asm_pmon_//' | egrep "^[+]"`
         #
         # If oratab exists, we check if there is an ASM entry trying to know if oraenv will work -- if we cannot find an ASM entry
         # in oratab, we try to point the user in the right direction to fix it
         #
-        if [[ -f "${ORATAB}" ]]; then
-            grep ^${ORACLE_SID} ${ORATAB} > /dev/null 2>&1
-            if [ $? -ne 0 ]; then
-                printf "\n\t\033[1;31m%s\033[m\n\n" "Cannot find an entry for ${ORACLE_SID} in ${ORATAB}. You can consider using the -e option or you may suffer from https://unknowndba.blogspot.com/2019/01/lost-entries-in-oratab-after-gi-122.html ; cannot continue at this point."
-                exit 888
+        if [[ -f "${OLR}" ]]; then
+            export ORACLE_HOME=$(cat "${OLR}" | grep "^crs_home" | awk -F "=" '{print $2}')
+            export ORACLE_BASE=$(${ORACLE_HOME}/bin/orabase)
+            export        PATH="${PATH}:${ORACLE_HOME}/bin"
+        else
+            ORACLE_SID=$(ps -ef | grep pmon | grep asm | ${AWK} '{print $NF}' | sed s'/asm_pmon_//' | egrep "^[+]")
+            if [[ -f "${ORATAB}" ]]; then
+                grep ^${ORACLE_SID} ${ORATAB} > /dev/null 2>&1
+                if [ $? -ne 0 ]; then
+                    printf "\n\t\033[1;31m%s\033[m\n\n" "Cannot find an entry for ${ORACLE_SID} in ${ORATAB}. You can consider using the -e option or you may suffer from https://unknowndba.blogspot.com/2019/01/lost-entries-in-oratab-after-gi-122.html; cannot continue at this point."
+                    exit 888
+                fi
             fi
+            export ORAENV_ASK=NO
+            . oraenv > /dev/null 2>&1
         fi
-        export ORAENV_ASK=NO
-        . oraenv > /dev/null 2>&1
     fi
     if ! type crsctl > /dev/null 2>&1; then
         printf "\n\t\033[1;31m%s\033[m\n\n" "Cannot find crsctl, cannot continue, please check if oraenv works or set your environment manually and use the -e option."          ;
         exit 777
     fi
-
     #
     # List of the nodes of the cluster
-    #
     # Try to find if there is "db" in the hostname, if yes we can delete the common "<clustername>" pattern from the hosts for visibility
+    #
     SHORT_NAMES="NO"
-    if [[ `olsnodes | head -1 | sed s'/,.*$//g' | tr '[:upper:]' '[:lower:]'` == *"db"* && "${LONG_NAMES}" == "NO" ]]; then
-               NODES=`olsnodes | sed s'/^.*db/db/g' | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}'`
-        CLUSTER_NAME=`olsnodes | head -1 | sed s'/db.*$//g'`
+    if [[ $(olsnodes | head -1 | sed s'/,.*$//g' | tr '[:upper:]' '[:lower:]') == *"db"* && "${LONG_NAMES}" == "NO" ]]; then
+               NODES=$(olsnodes | sed s'/^.*db/db/g' | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}')
+        CLUSTER_NAME=$(olsnodes | head -1 | sed s'/db.*$//g')
          SHORT_NAMES="YES"
     else
-               NODES=`olsnodes | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}'`
-        CLUSTER_NAME=`olsnodes -c`
+               NODES=$(olsnodes | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}')
+        CLUSTER_NAME=$(olsnodes -c)
     fi
-    NAME_OF_THE_CLUSTER=`olsnodes -c`
+    NAME_OF_THE_CLUSTER=$(olsnodes -c)
     # if oracle restart, olsnodes is here but returns nothing, we then set the NODES with the current hostname
-    if [ -z "${NODES}" ]; then
-        NODES=`hostname -s`
+    if [[ -z "${NODES}" ]]; then
+        NODES=$(hostname -s)
     fi
-
-    if [[ "$WITH_COLORS" == "YES" ]]; then
-        COLOR_FOR_CLUSTER="\e[1;"${WHITE}
+    if [[ "${WITH_COLORS}" == "YES" ]]; then
+        COLOR_FOR_CLUSTER="\e[1;"${TEAL}
     else
         COLOR_FOR_CLUSTER=""
     fi
-    printf "\n\t\t%s"${COLOR_FOR_CLUSTER}"%s\e[m" "Cluster " "$NAME_OF_THE_CLUSTER"
-
+    printf "\n\t%s"${COLOR_FOR_CLUSTER}"%s\e[m" "Cluster " "${NAME_OF_THE_CLUSTER}"
     #
     # Show the Exadata model if possible (if this cluster is an Exadata)
     #
-    if [ -f ${DBMACHINE} ] && [ -r ${DBMACHINE} ]; then
-        MODEL=`grep -i MACHINETYPES ${DBMACHINE} | sed -e s':</*MACHINETYPES>::g' -e s'/^ *//' -e s'/ *$//'`
-        printf "%s"${COLOR_FOR_CLUSTER}"%s\e[m\n" " is a " "$MODEL"
+    if [[ -f "${DBMACHINE}" ]] && [[ -r "${DBMACHINE}" ]]; then
+        MODEL=$(grep -i MACHINETYPES ${DBMACHINE} | sed -e s':</*MACHINETYPES>::g' -e s'/^ *//' -e s'/ *$//')
+        printf "%s"${COLOR_FOR_CLUSTER}"%s\e[m" " is a " "$MODEL"
+    fi
+    #
+    # Check the status of the cluster to show an alert if it is not NORMAL
+    #
+    CLUSTER_STATUS=$(crsctl query crs activeversion -f | sed  s'/^.*The cluster upgrade state is \[//' | sed s'/\].*$//')
+    if [[ "${WITH_COLORS}" == "YES" ]]; then
+        if [[ "${CLUSTER_STATUS}" == "NORMAL" ]]; then
+            COLOR_FOR_CLUSTER="\e[1;"${GREEN}
+        else
+            COLOR_FOR_CLUSTER="\e[1;${REDBACK}"
+        fi
     else
-        printf "\n"
+        COLOR_FOR_CLUSTER=""
     fi
-    printf "\n"
-
+    printf "%s"${COLOR_FOR_CLUSTER}"%s\e[m%s" " (upgrade state is " "${CLUSTER_STATUS}" ")"
+    printf "\n\n"
+    #
     # Get the info we want
-    cat /dev/null                                              > $TMP
-    if [ "$SHOW_DB" = "YES" ]; then
-        crsctl stat res -p -w "TYPE = ora.database.type"        >> $TMP
-        crsctl stat res -v -w "TYPE = ora.database.type"        >> $TMP
+    #
+    cat /dev/null                                               > "${TMP}"
+    if [[ "${SHOW_DB}" == "YES" ]]; then
+        crsctl stat res -p -w "TYPE = ora.database.type"        >> "${TMP}"
+        crsctl stat res -v -w "TYPE = ora.database.type"        >> "${TMP}"
     fi
-    if [ "$SHOW_LSNR" = "YES" ]; then
-        crsctl stat res -v -w "TYPE = ora.listener.type"        >> $TMP
-        crsctl stat res -p -w "TYPE = ora.listener.type"        >> $TMP
-        crsctl stat res -v -w "TYPE = ora.scan_listener.type"   >> $TMP
-        crsctl stat res -p -w "TYPE = ora.scan_listener.type"   >> $TMP
-        crsctl stat res -v -w "TYPE = ora.leaf_listener.type"   >> $TMP
-        crsctl stat res -p -w "TYPE = ora.leaf_listener.type"   >> $TMP
-        crsctl stat res -v -w "TYPE = ora.asm_listener.type"    >> $TMP
-        crsctl stat res -p -w "TYPE = ora.asm_listener.type"    >> $TMP
+    if [[ "${SHOW_LSNR}" == "YES" ]]; then
+        crsctl stat res -v -w "TYPE = ora.listener.type"        >> "${TMP}"
+        crsctl stat res -p -w "TYPE = ora.listener.type"        >> "${TMP}"
+        crsctl stat res -v -w "TYPE = ora.scan_listener.type"   >> "${TMP}"
+        crsctl stat res -p -w "TYPE = ora.scan_listener.type"   >> "${TMP}"
+        crsctl stat res -v -w "TYPE = ora.leaf_listener.type"   >> "${TMP}"
+        crsctl stat res -p -w "TYPE = ora.leaf_listener.type"   >> "${TMP}"
+        crsctl stat res -v -w "TYPE = ora.asm_listener.type"    >> "${TMP}"
+        crsctl stat res -p -w "TYPE = ora.asm_listener.type"    >> "${TMP}"
     fi
-    if [ "$SHOW_SVC" = "YES" ]; then
-        crsctl stat res -v -w "TYPE = ora.service.type"          >> $TMP
-        crsctl stat res -p -w "TYPE = ora.service.type"          >> $TMP
+    if [[ "${SHOW_SVC}" == "YES" ]]; then
+        crsctl stat res -v -w "TYPE = ora.service.type"         >> "${TMP}"
+        crsctl stat res -p -w "TYPE = ora.service.type"         >> "${TMP}"
     fi
-    if [ "$SHOW_TECH" = "YES" ]; then
-        crsctl stat res -v -w "((TYPE != ora.database.type) AND (TYPE != ora.listener.type) AND (TYPE != ora.scan_listener.type) AND (TYPE != ora.service.type) AND (TYPE != ora.leaf_listener.type) AND (TYPE != ora.asm_listener.type))" >> $TMP
-        crsctl stat res -p -w "((TYPE != ora.database.type) AND (TYPE != ora.listener.type) AND (TYPE != ora.scan_listener.type) AND (TYPE != ora.service.type) AND (TYPE != ora.leaf_listener.type) AND (TYPE != ora.asm_listener.type))" >> $TMP
+    if [[ "${SHOW_TECH}" == "YES" ]]; then
+        crsctl stat res -v -w "((TYPE != ora.database.type) AND (TYPE != ora.listener.type) AND (TYPE != ora.scan_listener.type) AND (TYPE != ora.service.type) AND (TYPE != ora.leaf_listener.type) AND (TYPE != ora.asm_listener.type))" >> "${TMP}"
+        crsctl stat res -p -w "((TYPE != ora.database.type) AND (TYPE != ora.listener.type) AND (TYPE != ora.scan_listener.type) AND (TYPE != ora.service.type) AND (TYPE != ora.leaf_listener.type) AND (TYPE != ora.asm_listener.type))" >> "${TMP}"
     fi
 
     # Easiest way to manage the different versions of crsctl outputs
-    awk '{if ($1 ~ /^NAME=/) {print "BREAK_HERE"; print  $0} else {print $0}}' $TMP > $TMP2
-    cp ${TMP2} ${TMP}
+    awk '{if ($1 ~ /^NAME=/) {print "BREAK_HERE"; print  $0} else {print $0}}' "${TMP}" > "${TMP2}"
+    cp "${TMP2}" "${TMP}"
 
-    if [ "$SHORT_NAMES" = "YES" ]; then
-        ${SED} -i "s/$CLUSTER_NAME//" $TMP
+    if [[ "${SHORT_NAMES}" == "YES" ]]; then
+        "${SED}" -i "s/$CLUSTER_NAME//" "${TMP}"
     fi
-    NB_NODES=`olsnodes | wc -l`
+    NB_NODES=$(olsnodes | wc -l)
 else            # If we use an input file
-    cp ${FILE} ${TMP}
-       NODES=`grep LAST_SERVER $TMP | awk -F"=" '{print $2}' | sort | uniq | grep -v "^$" | awk '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}'`
-    NB_NODES=`grep LAST_SERVER $TMP | awk -F"=" '{print $2}' | sort | uniq | wc -l`
+    cp "${FILE}" "${TMP}"
+       NODES=$(grep LAST_SERVER $TMP | awk -F"=" '{print $2}' | sort | uniq | grep -v "^$" | awk '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}')
+    NB_NODES=$(grep LAST_SERVER $TMP | awk -F"=" '{print $2}' | sort | uniq | wc -l)
 fi      # End if [ -z "$FILE" ]
-
-
 #
 # Define the offset to apply to the status column depending on the number of nodes to make the tables visible for big implementations
 #
-if [ "$COL_NODE_OFFSET" = "99" ]; then
+if [[ "${COL_NODE_OFFSET}" == "99" ]]; then
     COL_NODE_OFFSET=3       ;
     if [ "$NB_NODES" -eq "2" ]; then COL_NODE_OFFSET=6      ;       fi      ;
     if [ "$NB_NODES" -eq "4" ]; then COL_NODE_OFFSET=5      ;       fi      ;
     if [ "$NB_NODES" -gt "4" ]; then COL_NODE_OFFSET=3      ;       fi      ;
 fi
 
-${AWK} -v           NODES="$NODES"           \
-       -v col_node_offset="$COL_NODE_OFFSET" \
-       -v         REVERSE="$REVERSE"         \
-       -v      DIFF_HOURS="$DIFF_HOURS"      \
-       -v           HOURS="$HOURS"           \
-       -v DIFF_HOURS_UNIT="$DIFF_HOURS_UNIT" \
+"${AWK}" -v           NODES="${NODES}"           \
+         -v col_node_offset="${COL_NODE_OFFSET}" \
+         -v         REVERSE="${REVERSE}"         \
+         -v      DIFF_HOURS="${DIFF_HOURS}"      \
+         -v           HOURS="${HOURS}"           \
+         -v DIFF_HOURS_UNIT="${DIFF_HOURS_UNIT}" \
+         -v    ADVM_DEVICES="${ADVM_DEV}"        \
+         -v    HIDE_DEVICES="${HIDE_DEV}"        \
 'BEGIN\
 { FS = "="                                   ;
    n = split(NODES, nodes, ",")              ;       # Make a table with the nodes of the cluster
   # some colors
   COLOR_BEGIN =       "\033[1;"              ;
-  #COLOR_BEGIN =       "\033["               ;
-    COLOR_END =       "\033[m"               ;
+    COLOR_END =       "\033[0m"              ;
           RED =       "31m"                  ;
         GREEN =       "32m"                  ;
        YELLOW =       "33m"                  ;
          BLUE =       "34m"                  ;
+       PURPLE =       "35m"                  ;
          TEAL =       "36m"                  ;
         WHITE =       "37m"                  ;
     WITH_BACK =       "43m"                  ;       # Yellow background
    WITH_BACK2 =       "44m"                  ;       # Blue background
    WITH_BACK2 =       "41m"                  ;       # Red background
-  if (REVERSE == "YES")
-  {
-          WHITE =     "30m"                  ;       # Black
-           TEAL =     "34m"                  ;       # Blue
-    COLOR_BEGIN =     "\033[2;"              ;       # Bold
+COLOR_PRIMARY =       WHITE                  ;
+COLOR_STANDBY =       BLUE                   ;
+  if (REVERSE == "YES"){
+        WHITE =     "30m"                    ;       # Black
+         TEAL =     "34m"                    ;       # Blue
+  COLOR_BEGIN =     "\033[2;"                ;       # Bold
   }
 
    UNKNOWN = "-"                             ;       # Something to print when the status is unknown
@@ -669,6 +703,9 @@ function print_a_line(size) {
                         }
                     }
                 }
+                if ($1 == "ROLE") {                                                                         # Service type (primary / standby)
+                    tab_svc_type[service]=$2                                                         ;
+                }
                 if ($0 ~ /^$/) {
                     break                                                                            ;
                 }
@@ -715,6 +752,12 @@ function print_a_line(size) {
                          }
                      }
                  }
+                 if ($1 == "VOLUME_DEVICE"){
+                     tempdb=tolower(DB)                                                              ;
+                     sub(/^[[:alnum:]_]*\./, "", tempdb)                                             ;
+                     sub(/\.[[:alnum:]_]*$/, "", tempdb)                                             ;
+                     advm_device[tempdb] = tolower($2)                                               ;
+                 }
                  if ($0 ~ /^$/) {
                      break                                                                           ;
                  }
@@ -723,7 +766,7 @@ function print_a_line(size) {
     }       # End if ($1 == "ACL")
 
     if ($1 == "LAST_SERVER") {        # crsctl stat res -v output
-        NB = 0      ;       # Number of instances we went through 
+        NB = 0      ;       # Number of instances we went through
         SERVER = $2     ;
         if (length(SERVER) > COL_NODE) {
             COL_NODE = length(SERVER) + COL_NODE_OFFSET                             ;
@@ -737,24 +780,30 @@ function print_a_line(size) {
             if ($1 == "TARGET")             {       target[DB,SERVER]=$2                    ;}
             if ($1 == "LAST_RESTART")       {       started[DB,SERVER]=diff_hours($2" "$3)  ;}
             if ($1 == "STATE_DETAILS")      {       NB++                                    ;       # Number of instances we came through
-                if (DB ~ /acfs/)                { acfs_mount[DB] = $2             ; }
+                if (DB ~ /acfs/)            {       sub ("mounted on ", "", $2)             ;      
+                                                    tempdb=tolower(DB)                      ;
+                                                    sub(/^[[:alnum:]_]*\./, "", tempdb)     ;
+                                                    sub(/\.[[:alnum:]_]*$/, "", tempdb)     ;
+                                                    acfs_mount[tempdb] = $2                 ;
+                                                    if (length($2) > COL_ACFS) {COL_ACFS = length($2)}
+                                            }
                 sub("STATE_DETAILS=", "", $0)           ;
                 sub(",HOME=.*$", "", $0)                ;       # Manage the 12cR2 new feature, check 20170606 for more details
                 sub("),.*$", ")", $0)                   ;       # To make clear multi status like "Mounted (Closed),Readonly,Open Initiated"
                 if ($0 == "Instance Shutdown")  {  status_details[DB,SERVER] = "Shutdown"       ;       } else
                 if ($0 ~  "Readonly")           {  status_details[DB,SERVER] = "Readonly"       ;       } else
-	        if ($0 ~  "Abnormal Termination") {  status_details[DB,SERVER] = "Abnorm Term"       ;       } else
+                if ($0 ~  "Abnormal Termination") {  status_details[DB,SERVER] = "Abnorm Term"       ;       } else
                 if ($0 ~  /Mount/)              {  status_details[DB,SERVER] = "Mounted"        ;       } else
                 if ($0 ~  /running from old/)   {  status_details[DB,SERVER] = "Open from old OH";      } else
                                                 {  status_details[DB,SERVER] = $0               ;       }
                 if ((length(status_details[DB,SERVER]) > COL_NODE) && (type != "TECH")) {
                     COL_NODE = length(status_details[DB,SERVER]) + COL_NODE_OFFSET  ;
                 }
-            }
+            } # End of $1 == "STATE_DETAILS"
             if ($1 == "BREAK_HERE") { break;}
         }
     }     # End of if ($1 == LAST_SERVER)
-	}       # End of if ($1 ~ /^NAME/)
+        }       # End of if ($1 ~ /^NAME/)
 }         # End of main awk section
 END {       #
     # Tech stuff
@@ -781,8 +830,11 @@ END {       #
             sub(/\..*$/, "", the_type)                                                  ;
             sub(/^[[:alnum:]]*\./, "", the_name)
             printf(COLOR_BEGIN WHITE " %-"COL_DB-1"s" COLOR_END"|", the_type, WHITE)    ;
-            printf(COLOR_BEGIN WHITE " %-"COL_VER"s" COLOR_END"|", the_name, WHITE)     ;
-
+            if (the_type == "advm") {  # advm more readable in lowercase
+                printf(COLOR_BEGIN WHITE " %-"COL_VER"s" COLOR_END"|", tolower(the_name), WHITE)     ;
+            } else {
+                printf(COLOR_BEGIN WHITE " %-"COL_VER"s" COLOR_END"|", the_name, WHITE)     ;
+            }
             if (the_name == the_type) {
                 a = the_type                                                            ;
             } else {
@@ -813,7 +865,6 @@ END {       #
                     STATUS_ISSUE=1                                                      ;
                 }
                 if (tech_enabled == 1) {                                                  # Resource is enabled
-                    TECH_DISABLED = 1                                                   ;
                     if (tech_status == "") {
                         printf("%s", center(UNKNOWN, COL_NODE, COL_DEFAULT, COL_SEP ))  ;
                     } else {
@@ -825,6 +876,7 @@ END {       #
                         printf("%s", center(nice_case(tech_status), COL_NODE, THE_COLOR, COL_SEP))      ;
                    }
                 } else {                                                                  # Resource is disabled
+                    TECH_DISABLED = 1                                                   ;
                     right = int((COL_NODE - length(tech_status)) / 2)                   ;
                     left  = COL_NODE - length(tech_status) - right                      ;
                     if (length(tech_status) < COL_DB+4) {
@@ -841,9 +893,23 @@ END {       #
                    }
                }
            }    # End for each node
-           if (acfs_mount[the_name"."the_type]) {
-               printf("  %s", acfs_mount[the_name"."the_type])                          ;
-           }
+           # ACFS / ADVM devices
+           if (HIDE_DEVICES == "False") {
+               name_only=tolower(the_name)                                              ;
+               sub(/^[[:alnum:]_]*\./, "", name_only)                                   ;
+
+               if (the_type == "acfs") {
+                   printf("  %-"COL_ACFS"s", acfs_mount[name_only])                     ;
+                   if (ADVM_DEVICES == "True") {
+                       printf(" - %s", advm_device[name_only])                          ;
+                   }
+               }
+               if (the_type == "advm") {
+                   if (advm_device[name_only]) {
+                       printf("  %s ", advm_device[name_only])                          ;
+                   }
+               }
+           } # End of ACFS / ADVM devices
            printf("\n")                                                                 ;
         }
         # a "---" line under the header
@@ -855,7 +921,7 @@ END {       #
         RECENT_RESTARTED=0                                                              ;
         printf("\n")                                                                    ;
     }
-    # 
+    #
     # Listeners
     #
     if (length(tab_lsnr) > 0) {                # We print only if we have something to show
@@ -894,12 +960,12 @@ END {       #
                     RECENT_RESTARTED=1                                                  ;
                 } else {
                           COL_ONLINE=GREEN                                              ;
-                           COL_OTHER=RED                                                ; 
+                           COL_OTHER=RED                                                ;
                 }
                 if (dbstatus != dbtarget) {
                           COL_ONLINE=WITH_BACK2                                         ;
-	                   COL_OTHER=WITH_BACK2                                         ;
-	                STATUS_ISSUE=1                                                  ;
+                           COL_OTHER=WITH_BACK2                                         ;
+                        STATUS_ISSUE=1                                                  ;
                 }
                 if (is_enabled[lsnr_sorted[j],nodes[i]] == 0) {                            # Listener disabled
                     LISTENER_DISABLED = 1                                               ;
@@ -929,7 +995,7 @@ END {       #
                 printf(COLOR_BEGIN WHITE " %-"COL_VER-1"s" COLOR_END, port[lsnr_sorted[j]], WHITE);      # Port
             }
             printf("\n")                                                                ;
-	}
+        }
         # a "---" line under the header
         print_a_line()                                                                  ;
         print_legend_disabled(LISTENER_DISABLED, "Listener")                            ;
@@ -939,7 +1005,7 @@ END {       #
        RECENT_RESTARTED=0                                                               ;
        printf("\n")                                                                     ;
     } # End of listeners
-    # 
+    #
     # Services
     #
     if (length(tab_svc) > 0) {                # We print only if we have something to show
@@ -964,12 +1030,15 @@ END {       #
             sub(/^[^.]*\./, "", service)                                                ; # Remove the DB name only
 
             if (previous_db != to_print[1]) {                                             # Do not duplicate the DB names on the output
-                printf(COLOR_BEGIN WHITE " %-"COL_DB-1"s" COLOR_END COL_SEP, to_print[1], WHITE);     # Database
+                if (role[to_print[1]] == "PRIMARY") { COLOR_SVC = COLOR_PRIMARY} else {COLOR_SVC = COLOR_STANDBY}
+
+                printf(COLOR_BEGIN COLOR_SVC " %-"COL_DB-1"s" COLOR_END COL_SEP, to_print[1]);     # Database
                 previous_db = to_print[1]                                               ;
             } else {
                 printf("%s", center("",  COL_DB, WHITE, COL_SEP))                       ;
             }
-            printf(COLOR_BEGIN WHITE " %-"COL_VER"s" COLOR_END"|", service, WHITE)      ; # Service
+            if (tab_svc_type[service] == "PRIMARY") { COLOR_SVC = COLOR_PRIMARY} else {COLOR_SVC = COLOR_STANDBY}
+            printf(COLOR_BEGIN COLOR_SVC " %-"COL_VER"s" COLOR_END"|", service, WHITE)      ; # Service
 
             for (i = 1; i <= n; i++) {                                                    # For each node
                 dbstatus =           status[svc_sorted[j],nodes[i]]                     ;
@@ -980,20 +1049,25 @@ END {       #
                            COL_OTHER=WITH_BACK                                          ;
                     RECENT_RESTARTED=1                                                  ;
                 } else {
-                    COL_ONLINE=GREEN                                                    ;
-                     COL_OTHER=RED                                                      ;
+                    if (role[to_print[1]] != tab_svc_type[service] && role[to_print[1]] != "") {
+                        COL_OTHER=GREEN                                                 ;
+                       COL_ONLINE=RED                                                   ;
+                    } else {
+                        COL_OTHER=RED                                                   ;
+                       COL_ONLINE=GREEN                                                 ;
+                    }
                 }
                 if (dbstatus != dbtarget) {
-	              COL_ONLINE=WITH_BACK2                                             ;
-	               COL_OTHER=WITH_BACK2                                             ;
-	            STATUS_ISSUE=1                                                      ;
-                } 
+                      COL_ONLINE=WITH_BACK2                                             ;
+                       COL_OTHER=WITH_BACK2                                             ;
+                    STATUS_ISSUE=1                                                      ;
+                }
                 if (is_enabled[svc_sorted[j],nodes[i]] == 0) {                            # Service disabled
                     SERVICE_DISABLED = 1                                                ;
-                    right = int((COL_NODE - length(dbstatus)) / 2)                      ;  
+                    right = int((COL_NODE - length(dbstatus)) / 2)                      ;
                     left  = COL_NODE - length(dbstatus) - right                         ;
                     if (length(dbstatus) < COL_DB+4) {
-                        left--                                                          ; 
+                        left--                                                          ;
                     }
                     if (dbstatus == "")             {printf("%s", center(DISABLED, COL_NODE, RED, COL_SEP ))      ;} else
                     if (dbstatus == "ONLINE")       {printf("%"left"s%s %s%"right"s", "", in_color(nice_case(dbstatus), COL_ONLINE), in_color(DISABLED, RED), COL_SEP);}
@@ -1019,6 +1093,11 @@ END {       #
     # Databases
     #
     if (length(version) > 0) {   # We print only if we have something to show
+        # sort the OH array by OH names
+        k=asorti(oh_list, oh_list_sorted)
+        for (j=1; j<=k; j++){
+            oh_list[oh_list_sorted[j]]=j ;
+        }
         # A header for the databases
         printf("%s", center("DB"        , COL_DB, WHITE, COL_SEP))                       ;
         printf("%s", center("Version"   , COL_VER+1, WHITE, COL_SEP))                    ;
@@ -1035,9 +1114,10 @@ END {       #
         # Print the databases
         m=asorti(version, version_sorted)                                                ;
         for (j = 1; j <= m; j++) {
-            printf(COLOR_BEGIN WHITE " %-"COL_DB-1"s" COLOR_END"|", version_sorted[j], WHITE)                ;     # Database
-            printf(COLOR_BEGIN WHITE " %-"COL_VER-6"s" COLOR_END, version[version_sorted[j]], COL_VER, WHITE);     # Version
-            printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")             ;     # OH id
+            if (role[version_sorted[j]] == "PRIMARY") { COLOR_DB = COLOR_PRIMARY} else {COLOR_DB = COLOR_STANDBY}
+            printf(COLOR_BEGIN COLOR_DB "%-"COL_DB"s" COLOR_END"|", version_sorted[j])             ;     # Database
+            printf(COLOR_BEGIN WHITE " %-"COL_VER-6"s" COLOR_END, version[version_sorted[j]], COL_VER);     # Version
+            printf(COLOR_BEGIN WHITE "%6s" COLOR_END"|"," ("oh_list[oh[version_sorted[j]]] ") ")      ;     # OH id
 
             for (i = 1; i <= n; i++) {                                                     # For each node
                 dbstatus =           status[version_sorted[j],nodes[i]]                  ;
@@ -1066,7 +1146,7 @@ END {       #
                         STATUS_ISSUE=1                                                   ;
                 }
                 if ((is_enabled[version_sorted[j],nodes[i]] == 0) && (is_enabled[version_sorted[j],nodes[i]] != "")) { # Instance disabled
-                    INSTANCE_DISABLED = 1                                                ; 
+                    INSTANCE_DISABLED = 1                                                ;
                     right = int((COL_NODE - length(dbdetail)) / 2)                       ;
                     left  = COL_NODE - length(dbdetail) - right                          ;
                     if (length(dbdetail) < COL_DB+4) {
@@ -1096,11 +1176,12 @@ END {       #
             # Color the DB Type column depending on the ROLE of the database (20170619)
             #
             if (role[version_sorted[j]] == "PRIMARY") {
-                ROLE_COLOR=WHITE                                                         ;
-                ROLE_SHORT=" (P)"                                                        ; 
+                ROLE_COLOR=COLOR_PRIMARY
+                ROLE_SHORT=" (P)"                                                        ;
             } else {
-                ROLE_COLOR=RED                                                           ;
-                ROLE_SHORT=" (S)"                                                        ; 
+                #ROLE_COLOR=RED                                                           ;
+                ROLE_COLOR=COLOR_STANDBY
+                ROLE_SHORT=" (S)"                                                        ;
             }
             printf("%s", center(dbtype[version_sorted[j]] ROLE_SHORT, COL_TYPE, ROLE_COLOR, COL_SEP)) ;
             printf("\n")                                                                 ;
@@ -1130,7 +1211,7 @@ END {       #
         }
         for (i=1; i<=oh_ref; i++) {
             # to ease the naming
-	    the_oh=to_print[i]                                                           ;
+            the_oh=to_print[i]                                                           ;
              owner=o_list[to_print[i]]                                                   ;
              group=g_list[to_print[i]]                                                   ;
             if (group == previous_group) {
@@ -1153,7 +1234,7 @@ END {       #
     print_legend_disabled(INSTANCE_DISABLED, "Instance")                                 ;
     print_legend_recent_restarted()                                                      ;
     print_legend_status_issue()                                                          ;
-} ' $TMP | ${AWK} -v GREP="$GREP" -v UNGREP="$UNGREP" ' BEGIN {FS="|"}                                              # AWK used to grep and ungrep
+} ' "${TMP}" | "${AWK}" -v GREP="${GREP}" -v UNGREP="${UNGREP}" ' BEGIN {FS="|"}                 # AWK used to grep and ungrep
            {    if ((NF >= 3) && ($(NF-1) !~ /Type/) && ($2 !~ /Service/)) {
                     if (($0 ~ GREP) && ($0 !~ UNGREP)) {
                         print $0                                                         ;
@@ -1161,12 +1242,12 @@ END {       #
                 } else {
                    print  $0                                                             ;
                 }
-           }' | sed s'/^/  /'              > ${TMP2}                       # We can reuse TMP2 here
+           }' | sed s'/^/  /'              > "${TMP2}"                      # We can reuse TMP2 here
 
 #
 # Special sort order (option -c)
 #
-if [[ -n ${SORT_BY} ]]; then                                                # Special sort order
+if [[ -n "${SORT_BY}" ]]; then                                              # Special sort order
       SORT_COL="${SORT_BY:0:1}"                                             # First character
      SORT_NODE="${SORT_BY:1:1}"                                             # Second character
     SORT_ORDER="${SORT_BY: -1}"                                             # Last character
@@ -1196,7 +1277,7 @@ if [[ -n ${SORT_BY} ]]; then                                                # Sp
     d)   SORT_NUM=2                                                                              ;;  # Sort by DB name
     v)   SORT_NUM=4                                                                              ;;  # Sort by version
     s)    SORT_NUM=$(((${SORT_NODE}*2)+6))                                                        ;  # Sort by status (Shutdown, Open)
-	 SORT_NUM2=$((${SORT_NUM}-1))                                                            ;;
+         SORT_NUM2=$((${SORT_NUM}-1))                                                            ;;
     t)    TYPE_COL=`cat ${TMP2} | awk 'BEGIN {FS="|"}{if ($2 ~ "Version"){print (NF-1); exit}}'`  ;
           SORT_NUM=$(((${TYPE_COL}*2)+1))                                                         ;; # Sort by Type
     esac
@@ -1205,29 +1286,29 @@ if [[ -n ${SORT_BY} ]]; then                                                # Sp
     SORT_K_2=" -k"${SORT_NUM2}" "
     SORT_K_3=" -k"${SORT_NUM3}" "
 
-    cat ${TMP2} | awk 'BEGIN {FS="|"} {print $0; if ($2 ~ "Version"){getline; print $0; exit;}}' > ${TMP}
-    cat ${TMP2} | awk 'BEGIN {FS="|"}{if ($2 ~ "Version"){getline; while(getline){if ($0 ~ /---------------/){break}; print $0; }}}' | sort -i ${SORT_K_1} ${SORT_K_2} ${SORT_K_3} >> ${TMP}
-    tac ${TMP2} | awk '{print $0; if ($0 ~ /---------------/){exit;}}' | tac >> ${TMP}
+    cat "${TMP2}" | awk 'BEGIN {FS="|"} {print $0; if ($2 ~ "Version"){getline; print $0; exit;}}' > ${TMP}
+    cat "${TMP2}" | awk 'BEGIN {FS="|"}{if ($2 ~ "Version"){getline; while(getline){if ($0 ~ /---------------/){break}; print $0; }}}' | sort -i ${SORT_K_1} ${SORT_K_2} ${SORT_K_3} >> ${TMP}
+    tac "${TMP2}" | awk '{print $0; if ($0 ~ /---------------/){exit;}}' | tac >> ${TMP}
 
-    cp ${TMP} ${TMP2}
+    cp "${TMP}" "${TMP2}"
 fi
 
 if [[ "$WITH_COLORS" == "YES" ]]; then
-    cat ${TMP2}
+    cat "${TMP2}"
 else
-    cat ${TMP2} | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g"      # Remove the colors
+    cat "${TMP2}" | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g"      # Remove the colors
 fi
 
 printf "\n"
 
-if [ -f ${TMP} ]; then
-    if [ -n "$OUT" ]; then
-        cp $TMP $OUT
-        printf "\n\t\033[1;34m%s\033[m\n\n" "Output file $OUT has been generated"
+if [[ -f "${TMP}" ]]; then
+    if [[ -n "$OUT" ]]; then
+        cp "${TMP}" "${OUT}"
+        printf "\n\t\033[1;34m%s\033[m\n\n" "Output file ${OUT} has been generated"
     fi
-    rm -f ${TMP}
+    rm -f "${TMP}"
 fi
-rm -f ${TMP2}
+rm -f "${TMP2}"
 
 #*********************************************************************************************************
 #                               E N D     O F      S O U R C E
