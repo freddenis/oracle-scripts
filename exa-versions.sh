@@ -267,7 +267,7 @@ fi
                                                         for (i=a+1; i<=a+NB_PER_LINE; i++)
                                                         {
                                                                 COLOR=WHITE                                             ;
-                                                                if(db_status[i] == "failure") {COLOR=RED; FAILURES=1}   ;
+                                                                if(db_status[i] != "success") {COLOR=RED; FAILURES=1}   ;
                                                                 if (length(db_node[i]) > 0)
                                                                 {
                                                                         printf("%s", center(db_node[i],COL_SIZE,COLOR)) ;
@@ -312,7 +312,7 @@ fi
                                 }       # END while (getline)
                         }       # END  if ($0 !~ /^$/)
                 } END { if (FAILURES == 1)
-                        {       printf("%s\n\n", "Note : Please investigate the hosts in red as they have a status = failure returned by the imageinfo command.")       ;
+                        {       printf("%s\n\n", "Note : Please investigate the hosts in red as they have a status != success returned by the imageinfo command.")       ;
                         }
                 }'
 #
