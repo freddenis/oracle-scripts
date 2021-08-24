@@ -12,6 +12,9 @@
 #
 # History :
 #
+# 20210824 - Fred Denis - New -D option to specify a list of DB to show (and not the others)
+#                         New -S option to specify a list of services to show (and not the others)
+#                         The VIP IPs are not also shown on the right of the table
 # 20210714 - Fred Denis - Upgrade state is now shown (you want it to be NORMAL)
 #                       - Use of olr.loc to set up the crs environment before using oratab
 #                       - OH are sorted to avoid random order from CRS (useful when using rac-mon.sh)
@@ -181,7 +184,7 @@ END
 
     printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
     cat << END
-        $0 [-a] [-n] [-d] [-l] [-s] [-t] [-g] [-v] [-c] [-o] [-f] [-e] [-L] [-r] [-u] [-k] [-K] [-w] [-h]
+        $0 [-a] [-n] [-d] [-l] [-s] [-t] [-g] [-v] [-D] [-S] [-c] [-o] [-f] [-e] [-L] [-r] [-u] [-k] [-K] [-w] [-h]
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
@@ -221,6 +224,13 @@ END
                         $ ./rac-status.sh -g Open                       # Show only the lines with "Open" on it
                         $ ./rac-status.sh -g "Open|Online"              # Show only the lines with "Open" or "Online" on it
                         $ ./rac-status.sh -g "Open|Online" -v 12        # Show only the lines with "Open" or "Online" on it but no those containing 12
+
+        -D        Comma separated list of databases (key sensitive) to show -- only the services related to these DBs will be shown:
+                        $ ./rac-status.sh -D prod                       # Show only the "prod" database
+                        $ ./rac-status.sh -D prod1,prod2,prod3          # Show only the prod1, prod2 and prod3 databases
+
+        -S        Comma separated list of services (key sensitive) to show -- default is we show all the services:
+                        $ ./rac-status.sh -D prod -S svc1,svc4          # Show only the svc1 and svc4 services
 
         -c        Column to sort by, please have a look at "Sort the database output" in http://bit.ly/2MFkzDw for more details on this -c option
 
@@ -262,7 +272,7 @@ exit 123
 #
 # Options
 #
-while getopts "andslLhg:v:o:f:eruw:c:tkKV" OPT; do
+while getopts "andslLhg:v:o:f:eruw:c:tkKVD:S:" OPT; do
     case ${OPT} in
     a)         SHOW_DB="YES"        ; SHOW_LSNR="YES"       ; SHOW_SVC="YES";       SHOW_TECH="YES" ;;
     n)         SHOW_DB="NO"         ; SHOW_LSNR="NO"        ; SHOW_SVC="NO" ;       SHOW_TECH="NO"  ;;
@@ -270,6 +280,8 @@ while getopts "andslLhg:v:o:f:eruw:c:tkKV" OPT; do
     s)         if [[ "${SHOW_SVC}"  == "YES" ]]; then  SHOW_SVC="NO"; else  SHOW_SVC="YES"; fi      ;;
     l)         if [[ "${SHOW_LSNR}" == "YES" ]]; then SHOW_LSNR="NO"; else SHOW_LSNR="YES"; fi      ;;
     t)         if [[ "${SHOW_TECH}" == "YES" ]]; then SHOW_TECH="NO"; else SHOW_TECH="YES"; fi      ;;
+    D)         LISTDB="${OPTARG}"                                                                   ;;
+    S)        LISTSVC="${OPTARG}"                                                                   ;;
     L)     LONG_NAMES="YES"                                                                         ;;
     g)           GREP="${OPTARG}"                                                                   ;;
     c)        SORT_BY="${OPTARG}"                                                                   ;;
@@ -408,9 +420,18 @@ if [[ -z "$FILE" ]]; then               # This is not needed when using an input
     # Get the info we want
     #
     cat /dev/null                                               > "${TMP}"
+    if [[ -n "${LISTDB}" ]]; then                               # A list of DB is specified with the -D option
+        for X in $(echo "${LISTDB}" | sed s'/,/ /g'); do
+            [[ -n "${DBCRSFILTER}" ]] && DBCRSFILTER="${DBCRSFILTER} or"
+            DBCRSFILTER="${DBCRSFILTER} (NAME = ora.${X}.db)"
+        done 
+        DBCRSFILTER="(TYPE = ora.database.type) AND ${DBCRSFILTER}"
+    else                                                        # No specific Db list specified
+        DBCRSFILTER="TYPE = ora.database.type"
+    fi
     if [[ "${SHOW_DB}" == "YES" ]]; then
-        crsctl stat res -p -w "TYPE = ora.database.type"        >> "${TMP}"
-        crsctl stat res -v -w "TYPE = ora.database.type"        >> "${TMP}"
+        crsctl stat res -p -w "${DBCRSFILTER}"                  >> "${TMP}"
+        crsctl stat res -v -w "${DBCRSFILTER}"                  >> "${TMP}"
     fi
     if [[ "${SHOW_LSNR}" == "YES" ]]; then
         crsctl stat res -v -w "TYPE = ora.listener.type"        >> "${TMP}"
@@ -462,6 +483,7 @@ fi
          -v DIFF_HOURS_UNIT="${DIFF_HOURS_UNIT}" \
          -v    ADVM_DEVICES="${ADVM_DEV}"        \
          -v    HIDE_DEVICES="${HIDE_DEV}"        \
+         -v         LISTSVC="${LISTSVC}"         \
 'BEGIN\
 { FS = "="                                   ;
    n = split(NODES, nodes, ",")              ;       # Make a table with the nodes of the cluster
@@ -503,6 +525,9 @@ COLOR_STANDBY =       BLUE                   ;
      STATUS_ISSUE = 0                        ;       # To show a legend if we found an issue with the status
  SERVICE_DISABLED = 0                        ;       # To show a legend of a service is disabled
           COL_SEP = "|"                      ;       # Column separator
+
+  nbsvcshow = split(LISTSVC, temp, ",")      ;       # Array of services to show, if none, we show everything
+  for (i=0;i<=nbsvcshow; i++){ svcshow[temp[i]]=temp[i]; }  # An associative array for easy search with for in
 }  # End BEGIN
 #
 # A function to center the outputs with colors
@@ -600,12 +625,26 @@ function print_a_line(size) {
 
     if ($2 ~ ".svc") {                                                                                 # Services
         sub(".svc$", "", $2)                                                                          ;
-        tab_svc[$2]=$2                                                                                ;
+       dbandservice=$2
             service=$2                                                                                ;
-        sub(/^[^.]*\./, "", service)                                                                  ; # Remove the DB name
+             svc_db=$2
 
-        if (length(service) > COL_VER-1) {                                                              # To adapt the column size
-            COL_VER = length(service) +1                                                              ;
+        sub(/^[^.]*\./, "", service)                                                                  ; # Remove the DB name
+        sub(/\..*$/, "", svc_db)                                                                      ; # DB name only
+
+        if (oh[svc_db]){                   # We ignore the services not related to an already found DB (see -D option)
+            if (nbsvcshow > 0){
+                if (service in svcshow){   # If we want specific services (see -S option)
+                    tab_svc[dbandservice]=dbandservice                                                ;
+                } 
+            } else {
+                tab_svc[dbandservice]=dbandservice                                                    ;
+            }
+            if (length(service) > COL_VER-1) {                                                          # To adapt the column size
+                COL_VER = length(service) +1                                                          ;
+            }
+        } else {
+            next                                                                                      ;
         }
         type             =       "SERVICE"                                                            ;
     }
@@ -758,6 +797,9 @@ function print_a_line(size) {
                      sub(/\.[[:alnum:]_]*$/, "", tempdb)                                             ;
                      advm_device[tempdb] = tolower($2)                                               ;
                  }
+                 if ($1 == "USR_ORA_VIP"){
+                     vip[DB]=$2                                                                      ;
+                 }
                  if ($0 ~ /^$/) {
                      break                                                                           ;
                  }
@@ -795,7 +837,7 @@ function print_a_line(size) {
                 if ($0 ~  "Abnormal Termination") {  status_details[DB,SERVER] = "Abnorm Term"       ;       } else
                 if ($0 ~  /Mount/)              {  status_details[DB,SERVER] = "Mounted"        ;       } else
                 if ($0 ~  /running from old/)   {  status_details[DB,SERVER] = "Open from old OH";      } else
-                                                {  status_details[DB,SERVER] = $0               ;       }
+                                                {  if ($0 != "") {status_details[DB,SERVER] = $0};      }
                 if ((length(status_details[DB,SERVER]) > COL_NODE) && (type != "TECH")) {
                     COL_NODE = length(status_details[DB,SERVER]) + COL_NODE_OFFSET  ;
                 }
@@ -910,6 +952,10 @@ END {       #
                    }
                }
            } # End of ACFS / ADVM devices
+           # Show the VIP IPs
+           if (vip[the_name"."the_type]){
+               printf("  %s ", vip[the_name"."the_type])                                ;
+           }
            printf("\n")                                                                 ;
         }
         # a "---" line under the header
