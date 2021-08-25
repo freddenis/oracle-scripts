@@ -14,7 +14,7 @@
 #
 # 20210825 - Fred Denis - Cluster upgrade status was causing an issue for HAS -- now fixed
 #                         There was some leftover color codes with -u option -- now fixed
-#                         Added the PDB associated to the services (the PDB status is not shown as only GI 12c should have this information)
+#                         Added the PDB associated to the services (the PDB status is not shown as only GI 21c should have this information)
 # 20210824 - Fred Denis - New -D option to specify a list of DB to show (and not the others)
 #                         New -S option to specify a list of services to show (and not the others)
 #                         The VIP IPs are not also shown on the right of the table
