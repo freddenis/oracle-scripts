@@ -12,6 +12,9 @@
 #
 # History :
 #
+# 20210825 - Fred Denis - Cluster upgrade status was causing an issue for HAS -- now fixed
+#                         There was some leftover color codes with -u option -- now fixed
+#                         Added the PDB associated to the services (the PDB status is not shown as only GI 12c should have this information)
 # 20210824 - Fred Denis - New -D option to specify a list of DB to show (and not the others)
 #                         New -S option to specify a list of services to show (and not the others)
 #                         The VIP IPs are not also shown on the right of the table
@@ -389,22 +392,24 @@ if [[ -z "$FILE" ]]; then               # This is not needed when using an input
         NODES=$(hostname -s)
     fi
     if [[ "${WITH_COLORS}" == "YES" ]]; then
-        COLOR_FOR_CLUSTER="\e[1;"${TEAL}
+            COLOR_FOR_CLUSTER="\e[1;"${TEAL}
+        END_COLOR_FOR_CLUSTER="\e[m"
     else
-        COLOR_FOR_CLUSTER=""
+            COLOR_FOR_CLUSTER=""
+        END_COLOR_FOR_CLUSTER=""
     fi
-    printf "\n\t%s"${COLOR_FOR_CLUSTER}"%s\e[m" "Cluster " "${NAME_OF_THE_CLUSTER}"
+    printf "\n\t%s"${COLOR_FOR_CLUSTER}"%s${END_COLOR_FOR_CLUSTER}" "Cluster " "${NAME_OF_THE_CLUSTER}"
     #
     # Show the Exadata model if possible (if this cluster is an Exadata)
     #
     if [[ -f "${DBMACHINE}" ]] && [[ -r "${DBMACHINE}" ]]; then
         MODEL=$(grep -i MACHINETYPES ${DBMACHINE} | sed -e s':</*MACHINETYPES>::g' -e s'/^ *//' -e s'/ *$//')
-        printf "%s"${COLOR_FOR_CLUSTER}"%s\e[m" " is a " "$MODEL"
+        printf "%s"${COLOR_FOR_CLUSTER}"%s${END_COLOR_FOR_CLUSTER}" " is a " "$MODEL"
     fi
     #
     # Check the status of the cluster to show an alert if it is not NORMAL
     #
-    CLUSTER_STATUS=$(crsctl query crs activeversion -f | sed  s'/^.*The cluster upgrade state is \[//' | sed s'/\].*$//')
+    CLUSTER_STATUS=$(crsctl query crss activeversion -f > /dev/null && (crsctl query crs activeversion -f | sed  s'/^.*The cluster upgrade state is \[//' | sed s'/\].*$//') || echo "")
     if [[ "${WITH_COLORS}" == "YES" ]]; then
         if [[ "${CLUSTER_STATUS}" == "NORMAL" ]]; then
             COLOR_FOR_CLUSTER="\e[1;"${GREEN}
@@ -414,7 +419,9 @@ if [[ -z "$FILE" ]]; then               # This is not needed when using an input
     else
         COLOR_FOR_CLUSTER=""
     fi
-    printf "%s"${COLOR_FOR_CLUSTER}"%s\e[m%s" " (upgrade state is " "${CLUSTER_STATUS}" ")"
+    if [[ -n "${CLUSTER_STATUS}" ]]; then
+        printf "%s"${COLOR_FOR_CLUSTER}"%s\e[m%s" " (upgrade state is " "${CLUSTER_STATUS}" ")"
+    fi
     printf "\n\n"
     #
     # Get the info we want
@@ -518,6 +525,7 @@ COLOR_STANDBY =       BLUE                   ;
           COL_VER = 15                       ;
          COL_TYPE = 14                       ;
            COL_OH = 24                       ;       # to print the ORACLE_HOMEs
+          COL_PDB = COL_TYPE-1               ;       # PDB right of the services
         COL_OWNER = 6                        ;       # to print owner:group
         COL_GROUP = 3                        ;       # to print owner:group
       COL_DEFAULT = BLUE                     ;       # for the "-"
@@ -744,6 +752,10 @@ function print_a_line(size) {
                 }
                 if ($1 == "ROLE") {                                                                         # Service type (primary / standby)
                     tab_svc_type[service]=$2                                                         ;
+                }
+                if ($1 == "PLUGGABLE_DATABASE") {
+                    tab_pdb[service] = $2                                                            ;
+                    if (length($2) > COL_PDB) { COL_PDB = length($2)                                 ; }
                 }
                 if ($0 ~ /^$/) {
                     break                                                                            ;
@@ -1056,17 +1068,19 @@ END {       #
     #
     if (length(tab_svc) > 0) {                # We print only if we have something to show
         # A header for the services
-        printf("%s", center("DB"      ,  COL_DB, WHITE, COL_SEP))                       ;
+        printf("%s", center("DB"      ,  COL_DB   , WHITE, COL_SEP))                    ;
         printf("%s", center("Service" ,  COL_VER+1, WHITE, COL_SEP))                    ;
         n=asort(nodes)                                                                  ;       # sort array nodes
 
         for (i = 1; i <= n; i++) {
             printf("%s", center(nodes[i], COL_NODE, WHITE, COL_SEP))                    ;
         }
+        printf("%s", center("PDB"     ,  COL_PDB+1, WHITE, COL_SEP))                    ;
         printf("\n")
 
         # a "---" line under the header
-        print_a_line(COL_DB+COL_NODE*n+COL_VER+n+2)                                     ;
+        size_line_svc=COL_DB+COL_NODE*n+COL_VER+n+4+COL_PDB                             ;
+        print_a_line(size_line_svc)                                                     ;
 
         # Print the Services
         x=asorti(tab_svc, svc_sorted)                                                   ;
@@ -1124,10 +1138,16 @@ END {       #
                     else                            {printf("%s", center(nice_case(dbstatus), COL_NODE, COL_OTHER,   COL_SEP   ))      ;}
                 }
             }                                                                             # End of each node
+            # PDB associated to a service
+            if (tab_pdb[service]) {
+                printf(" %-"COL_PDB"s"COL_SEP, tab_pdb[service])                        ;
+            } else {
+                printf("%s", center(UNKNOWN, COL_PDB+1, COL_DEFAULT, COL_SEP))          ;
+            }
             printf("\n")                                                                ;
         }
         # a "---" line under the header
-        print_a_line(COL_DB+COL_NODE*n+COL_VER+n+2)                                     ;
+        print_a_line(size_line_svc)                                                     ;
         print_legend_disabled(SERVICE_DISABLED, "Service")                              ;
         print_legend_recent_restarted()                                                 ;
         print_legend_status_issue()                                                     ;
