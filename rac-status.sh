@@ -409,7 +409,7 @@ if [[ -z "$FILE" ]]; then               # This is not needed when using an input
     #
     # Check the status of the cluster to show an alert if it is not NORMAL
     #
-    CLUSTER_STATUS=$(crsctl query crss activeversion -f > /dev/null && (crsctl query crs activeversion -f | sed  s'/^.*The cluster upgrade state is \[//' | sed s'/\].*$//') || echo "")
+    CLUSTER_STATUS=$(crsctl query crs activeversion -f > /dev/null && (crsctl query crs activeversion -f | sed  s'/^.*The cluster upgrade state is \[//' | sed s'/\].*$//') || echo "")
     if [[ "${WITH_COLORS}" == "YES" ]]; then
         if [[ "${CLUSTER_STATUS}" == "NORMAL" ]]; then
             COLOR_FOR_CLUSTER="\e[1;"${GREEN}
