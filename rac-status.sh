@@ -12,6 +12,7 @@
 #
 # History :
 #
+# 20210908 - Fred Denis - Fixed a bad character next to cluster status with -u (no color) option
 # 20210825 - Fred Denis - Cluster upgrade status was causing an issue for HAS -- now fixed
 #                         There was some leftover color codes with -u option -- now fixed
 #                         Added the PDB associated to the services (the PDB status is not shown as only GI 21c should have this information)
@@ -420,7 +421,7 @@ if [[ -z "$FILE" ]]; then               # This is not needed when using an input
         COLOR_FOR_CLUSTER=""
     fi
     if [[ -n "${CLUSTER_STATUS}" ]]; then
-        printf "%s"${COLOR_FOR_CLUSTER}"%s\e[m%s" " (upgrade state is " "${CLUSTER_STATUS}" ")"
+        printf "%s"${COLOR_FOR_CLUSTER}"%s${END_COLOR_FOR_CLUSTER}%s" " (upgrade state is " "${CLUSTER_STATUS}" ")"
     fi
     printf "\n\n"
     #
