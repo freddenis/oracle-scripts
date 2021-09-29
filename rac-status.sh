@@ -644,13 +644,18 @@ function set_color_status(i_db, i_node, i_status, i_target) {
 		    COL_SHUT=WITH_BACK                                                              ;
 		   COL_OTHER=WITH_BACK                                                              ;
 	    RECENT_RESTARTED=1                                                                      ;
+	} else if(role[l_db] == "PHYSICAL_STANDBY") {
+                    COL_OPEN=GREEN                                                                  ;
+                COL_READONLY=WHITE                                                                  ;
+                    COL_SHUT=YELLOW                                                                 ;
+                   COL_OTHER=GREEN
 	} else  {
 		    COL_OPEN=GREEN                                                                  ;
 		COL_READONLY=WHITE                                                                  ;
 		    COL_SHUT=YELLOW                                                                 ;
 		   COL_OTHER=RED                                                                    ;
 	}
-	if (i_status != i_target) {
+	if ((role[l_db] == "PHYSICAL_STANDBY" && i_status != i_target && i_status == "OFFLINE") || (role[l_db] != "PHYSICAL_STANDBY" && i_status != i_target)) {
 		    COL_OPEN=WITH_BACK2                                                             ;
 		COL_READONLY=WITH_BACK2                                                             ;
 		    COL_SHUT=WITH_BACK2                                                             ;
