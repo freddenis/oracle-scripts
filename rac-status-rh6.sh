@@ -5,6 +5,10 @@
 # The script just needs to have a working oraenv, if rac-status.sh hangs, you may suffer from http://bit.ly/2IODPJo (alternatively ,see the -e option)
 # Ultimately, feel free to contact me
 #
+# OEL 6 (Exadata < 19) ships gawk 3.1.7 (released in 2009 !) which does not support the code I wrote to show the PDB status
+# (gawk 4 is needed which has been released in 2012; not 2021, 2012 !) which is a GI 21C new features so this code is for older system with gawk < 4
+#
+#
 # Please have a look at http://bit.ly/2MFkzDw  for some details and screenshots
 # The latest version of the script can be downloaded here : http://bit.ly/2XEXa6j
 #
