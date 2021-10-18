@@ -18,9 +18,9 @@
 # to rely on hardcoded list (see the X8M_* values for the default and the -C -D -R parameter to specify your own lists)
 #
 #
-# The current version of the script is 20200715
+# The current version of the script is 20211018
 #
-
+# 20211018 - Fred Denis - oraenv not needed here so I removed it; cosmetic
 # 20200715 - Fred Denis - Manage the ROCE switches which come with X8M+
 #                         Keep in mind that you can deploy the SSH keys to the ROCE switches using /opt/oracle.SupportTools/RoCE/setup_switch_ssh_equiv.sh
 # 20190528 - Fred Denis - Fixed a bug on the headers
@@ -30,7 +30,7 @@
 #
 # Variables
 #
-DBMACHINE=/opt/oracle.SupportTools/onecommand/databasemachine.xml       # File where we should find the Exadata model
+  DBMACHINE=/opt/oracle.SupportTools/onecommand/databasemachine.xml       # File where we should find the Exadata model
    SHOW_ALL="Yes"
    SHOW_DBS="No"
  SHOW_CELLS="No"
@@ -55,8 +55,7 @@ fi
 #
 # usage function
 #
-usage()
-{
+usage() {
 printf "\n\033[1;37m%-8s\033[m\n" "NAME"                        ;
 cat << END
         exa_versions.sh - Show a nice summary of the versions of each component of an Exadata stack
@@ -99,33 +98,24 @@ exit 123
 # Options management
 #
 while getopts "dcirn:D:C:I:R:h" OPT; do
-        case ${OPT} in
-        d)         SHOW_ALL="No"; SHOW_DBS="Yes";               ;;
-        D)         SHOW_ALL="No"; SHOW_DBS="Yes";   P_DBS_GROUP="${OPTARG}"   ;;
-        c)         SHOW_ALL="No"; SHOW_CELLS="Yes"              ;;
-        C)         SHOW_ALL="No"; SHOW_CELLS="Yes"; P_CELL_GROUP="${OPTARG}"  ;;
-        i)         SHOW_ALL="No"; SHOW_IBS="Yes"                ;;
-        I)         SHOW_ALL="No"; SHOW_IBS="Yes";   P_IB_GROUP="${OPTARG}"    ;;
-        r)         SHOW_ALL="No"; SHOW_IBS="Yes"                ;;
-        R)         SHOW_ALL="No"; SHOW_IBS="Yes";   P_IB_GROUP="${OPTARG}"    ;;
-        n)      NB_PER_LINE=${OPTARG}                           ;;
-        h)      usage                                           ;;
-        \?) echo "Invalid option: -$OPTARG" >&2; usage          ;;
-        esac
+   case ${OPT} in
+   d)       SHOW_ALL="No";   SHOW_DBS="Yes";                           ;;
+   D)       SHOW_ALL="No";   SHOW_DBS="Yes";  P_DBS_GROUP="${OPTARG}"  ;;
+   c)       SHOW_ALL="No"; SHOW_CELLS="Yes"                            ;;
+   C)       SHOW_ALL="No"; SHOW_CELLS="Yes"; P_CELL_GROUP="${OPTARG}"  ;;
+   i)       SHOW_ALL="No";   SHOW_IBS="Yes"                            ;;
+   I)       SHOW_ALL="No";   SHOW_IBS="Yes";   P_IB_GROUP="${OPTARG}"  ;;
+   r)       SHOW_ALL="No";   SHOW_IBS="Yes"                            ;;
+   R)       SHOW_ALL="No";   SHOW_IBS="Yes";   P_IB_GROUP="${OPTARG}"  ;;
+   n)    NB_PER_LINE=${OPTARG}                                         ;;
+   h)    usage                                                         ;;
+   \?) echo "Invalid option: -$OPTARG" >&2; usage                      ;;
+   esac
 done
-#
-# Set the ASM env to be able to use some commands (future use)
-#
-ORACLE_SID=`ps -ef | grep pmon | grep asm | awk '{print $NF}' | sed s'/asm_pmon_//' | egrep "^[+]"`
-
-export ORAENV_ASK=NO
-. oraenv > /dev/null 2>&1
-
-
 #
 # Show the Exadata model if possible
 #
-if [ -f ${DBMACHINE} ] && [ -r ${DBMACHINE} ];  then
+if [ -f "${DBMACHINE}" ] && [ -r "${DBMACHINE}" ];  then
     cat << !
 
         Cluster is a `grep -i MACHINETYPES ${DBMACHINE} | sed s'/\t*//' | sed -e s':</*MACHINETYPES>::g' -e s'/^ *//' -e s'/ *$//'`
@@ -178,143 +168,130 @@ else
 fi
 
 
-( if [[ "$SHOW_DBS" = "Yes" ]] || [[ "$SHOW_ALL" = "Yes" ]]
+( if [[ "$SHOW_DBS" = "Yes" ]] || [[ "$SHOW_ALL" = "Yes" ]] && [[ -f "${DBS_GROUP}" ]] 
   then
         dcli -g ${DBS_GROUP} -l root "imageinfo -ver -status" | sort | awk -F ": " '{if(node==""){node=$1}; if($2 != "") {status=$3; getline; printf ("%s:%s:%s:%s\n","db", node, $3, status);  node="" ;}}'
         echo ""
   fi
-  if [[ "$SHOW_CELLS" = "Yes" ]] || [[ "$SHOW_ALL" = "Yes" ]]
+  if [[ "$SHOW_CELLS" = "Yes" ]] || [[ "$SHOW_ALL" = "Yes" ]] && [[ -f "${CELL_GROUP}" ]]
   then
         dcli -g ${CELL_GROUP} -l root "imageinfo -ver -status" | grep "Active" | sort | awk -F ": " '{if(node==""){node=$1}; if($2 != "") {status=$3; getline; printf ("%s:%s:%s:%s\n","cel", node, $3, status);  node="" ;}}'
         echo ""
   fi
   if [[ "$SHOW_IBS" = "Yes" ]] || [[ "$SHOW_ALL" = "Yes" ]]
   then
-      if [[ "${X8M}" = "False" ]] ; then
-          dcli -g ${IB_GROUP}  -l root version | grep -v BIOS | grep "version:" | awk '{print "ib:", $1, $NF}' | sort
-      else
-          # dcli does not seem to work with the roce switches
-          for S in $(cat ${IB_GROUP} | sort); do
-              ssh -q ${ROCE_USER}@${S} show version | grep "System version" | awk -v SWITCH="${S}" '{print "ib:", SWITCH":", $NF}'
-         done
+      if [[ -f "${IB_GROUP}" ]] ; then
+          if [[ "${X8M}" = "False" ]]; then
+              dcli -g ${IB_GROUP}  -l root version | grep -v BIOS | grep "version:" | awk '{print "ib:", $1, $NF}' | sort
+          else
+              # dcli does not seem to work with the roce switches
+              for S in $(cat ${IB_GROUP} | sort); do
+                  ssh -q ${ROCE_USER}@${S} show version | grep "System version" | awk -v SWITCH="${S}" '{print "ib:", SWITCH":", $NF}'
+             done
+          fi
       fi
         echo ""
   fi
 )\
-        | awk -v NB_PER_LINE="$NB_PER_LINE" -v X8M="${X8M}" ' BEGIN \
-                {             FS =      ":"                                                                             ;
-                  # some colors
-                     COLOR_BEGIN =      "\033[1;"                                                                       ;
-                       COLOR_END =      "\033[m"                                                                        ;
-                             RED =      "31m"                                                                           ;
-                           GREEN =      "32m"                                                                           ;
-                          YELLOW =      "33m"                                                                           ;
-                            BLUE =      "34m"                                                                           ;
-                            TEAL =      "36m"                                                                           ;
-                           WHITE =      "37m"                                                                           ;
+| awk -v NB_PER_LINE="$NB_PER_LINE" -v X8M="${X8M}" ' BEGIN \
+    {   FS =      ":"                                                     ;
+        # some color
+        COLOR_BEGIN =      "\033[1;"                                      ;
+          COLOR_END =      "\033[m"                                       ;     
+                RED =      "31m"                                          ;
+              GREEN =      "32m"                                          ;
+             YELLOW =      "33m"                                          ;
+               BLUE =      "34m"                                          ;
+               TEAL =      "36m"                                          ;
+              WHITE =      "37m"                                          ;
+        # Columns size
+           COL_SIZE =      20                                             ;
+        # Some variables 
+           nb_node  =      0                                              ;
+           FAILURES =      0                                              ;
+    }
+    function print_a_line(size) {
+        printf("%s", COLOR_BEGIN WHITE)                                   ;
+        for (k=1; k<=size;k++) {printf("%s", "-");}                       ;
+        printf("%s", COLOR_END"\n")                                       ;
+    }
+    #
+    # A function to center the outputs with colors
+    #
+    function center(str, n, color) {
+        right = int((n - length(str)) / 2)                                ;
+        left = n - length(str) - right                                    ;
+        return sprintf(COLOR_BEGIN color "%" left "s%s%" right "s" COLOR_END, "", str, "" )  ;
+    }
+    {   if ($0 !~ /^$/) {
+                        nb_node++                                         ;
+                           type = $1                                      ;
+               db_node[nb_node] = $2                                      ;
+            db_version[nb_node] = $3                                      ;
+             db_status[nb_node] = $4                                      ;
 
-                  # Columns size
-                        COL_SIZE =      20                                                                              ;
-
-                  # Some variables
-                        nb_node  =      0                                                                               ;
-                        FAILURES =      0                                                                               ;
+        while (getline) {
+            if ($0 ~ /^$/) {
+                # A Header
+                if (type == "db")      {printf("%s\n", center("-- Database Servers",         40,RED))};
+                if (type == "cel")     {printf("%s\n", center("-- Cells",                    30,RED))};
+                if (type == "ib") {
+                if (X8M == "False") {
+                    printf("%s\n", center("-- Infiniband Switches",      40,RED))       ;
+                } else {
+                    printf("%s\n", center("-- ROCE Switches",            40,RED))       ;
                 }
-                function print_a_line(size)
-                {
-                        printf("%s", COLOR_BEGIN WHITE)                                                                 ;
-                        for (k=1; k<=size;k++) {printf("%s", "-");}                                                     ;
-                        printf("%s", COLOR_END"\n")                                                                     ;
+            }
+            printf("\n")                                                   ;
+            version_ref = db_version[1]                                    ;
+
+            for (a=0; a<nb_node; a+=NB_PER_LINE) {
+                nb_printed = 0                                             ;
+                # Print the node names
+                for (i=a+1; i<=a+NB_PER_LINE; i++) {
+                    COLOR=WHITE                                            ;
+                    if (db_status[i] != "success") {COLOR=RED; FAILURES=1} ;
+                    if (length(db_node[i]) > 0) {
+                        printf("%s", center(db_node[i],COL_SIZE,COLOR))    ;
+                        nb_printed++                                       ;
+                    }
                 }
-                #
-                # A function to center the outputs with colors
-                #
-                function center(str, n, color)
-                {       right = int((n - length(str)) / 2)                                                              ;
-                         left = n - length(str) - right                                                                 ;
-                        return sprintf(COLOR_BEGIN color "%" left "s%s%" right "s" COLOR_END, "", str, "" )             ;
-                }
-                {       if ($0 !~ /^$/)
-                        {
-                                            nb_node++                                                                   ;
-                                               type = $1                                                                ;
-                                   db_node[nb_node] = $2                                                                ;
-                                db_version[nb_node] = $3                                                                ;
-                                 db_status[nb_node] = $4                                                                ;
 
-                                while (getline)
-                                {
-                                        if ($0 ~ /^$/)
-                                        {
-                                                # A Header
-                                                if (type == "db")      {printf("%s\n", center("-- Database Servers",         40,RED))};
-                                                if (type == "cel")     {printf("%s\n", center("-- Cells",                    30,RED))};
-                                                if (type == "ib") {
-                                                  if (X8M == "False") {
-                                                    printf("%s\n", center("-- Infiniband Switches",      40,RED))       ;
-                                                  } else {
-                                                    printf("%s\n", center("-- ROCE Switches",            40,RED))       ;
-                                                  }
-                                                }
-                                                printf("\n")                                                            ;
-                                                version_ref = db_version[1]                                             ;
-
-                                                for (a=0; a<nb_node; a+=NB_PER_LINE)
-                                                {
-                                                        nb_printed = 0                                                  ;
-
-                                                        # Print the node names
-                                                        for (i=a+1; i<=a+NB_PER_LINE; i++)
-                                                        {
-                                                                COLOR=WHITE                                             ;
-                                                                if(db_status[i] != "success") {COLOR=RED; FAILURES=1}   ;
-                                                                if (length(db_node[i]) > 0)
-                                                                {
-                                                                        printf("%s", center(db_node[i],COL_SIZE,COLOR)) ;
-                                                                        nb_printed++                                    ;
-                                                                }
-                                                        }
-
-                                                        printf("\n")                                                    ;
-                                                        print_a_line(COL_SIZE*nb_printed+NB_TO_SHOW)                    ;
-
-                                                        # Print the nodes versions
-                                                        for (i=a+1; i<=a+NB_PER_LINE; i++)
-                                                        {
-                                                                if (length(db_version[i]) > 0)
-                                                                {
-                                                                        if (db_version[i] == version_ref)
-                                                                        {       A_COLOR=BLUE                            ;
-                                                                        }
-                                                                        else
-                                                                        {
-                                                                                A_COLOR=TEAL                            ;
-                                                                        }
-                                                                        printf("%s", center(db_version[i],COL_SIZE,A_COLOR));
-                                                                }
-                                                        }
-                                                        printf("\n")                                                    ;
-                                                        print_a_line(COL_SIZE*nb_printed+NB_TO_SHOW)                    ;
-                                                        printf("\n\n")                                                  ;
-                                                }       # END  for (a=0; a<nb_node; a+=NB_PER_LINE)
-
-                                                nb_node = 0                                                             ;
-                                                delete db_node                                                          ;
-                                                delete db_version                                                       ;
-                                                delete db_status                                                        ;
-                                                break                                                                   ;
-                                        }       # END if ($0 ~ /^$/)
-
-                                                  nb_node++                                                             ;
-                                           db_node[nb_node] = $2                                                        ;
-                                        db_version[nb_node] = $3                                                        ;
-                                         db_status[nb_node] = $4                                                        ;
-                                }       # END while (getline)
-                        }       # END  if ($0 !~ /^$/)
-                } END { if (FAILURES == 1)
-                        {       printf("%s\n\n", "Note : Please investigate the hosts in red as they have a status != success returned by the imageinfo command.")       ;
+                printf("\n")                                               ;
+                print_a_line(COL_SIZE*nb_printed+NB_TO_SHOW)               ;
+                # Print the nodes versions
+                for (i=a+1; i<=a+NB_PER_LINE; i++) {
+                    if (length(db_version[i]) > 0) {
+                        if (db_version[i] == version_ref) {
+                            A_COLOR=BLUE                                   ;
+                        } else {
+                            A_COLOR=TEAL                                   ;
                         }
-                }'
+                        printf("%s", center(db_version[i],COL_SIZE,A_COLOR));
+                    }
+                }
+                printf("\n")                                               ;
+                print_a_line(COL_SIZE*nb_printed+NB_TO_SHOW)               ;
+                printf("\n\n")                                             ;
+            }       # END  for (a=0; a<nb_node; a+=NB_PER_LINE)
+
+            nb_node = 0                                                    ;
+            delete db_node                                                 ;
+            delete db_version                                              ;
+            delete db_status                                               ;
+            break                                                          ;
+        }       # END if ($0 ~ /^$/)
+
+                   nb_node++                                               ;
+           db_node[nb_node] = $2                                           ;
+        db_version[nb_node] = $3                                           ;
+         db_status[nb_node] = $4                                           ;
+     }       # END while (getline)
+                        }       # END  if ($0 !~ /^$/)
+     } END { if (FAILURES == 1) {
+             printf("%s\n\n", "Note : Please investigate the hosts in red as they have a status != success returned by the imageinfo command.")       ;
+             }
+           }'
 #
 # Cleanup
 #
