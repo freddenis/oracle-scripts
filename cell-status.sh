@@ -4,33 +4,33 @@
 # Shows a status of the cell disks and grid disks across all the nodes of an Exadata, see usage function (option -h) for more information
 # More details on this scrit: https://unknowndba.blogspot.com/2019/05/cell-status-sh-overview-exadata-cells.html
 #
-# The current script version is 20190510
+# The current script version is 20211019
 #
 # History :
 #
-# 20190510 - Fred Denis - Initial release
+# 20211019 - Fred Denis - Code cleaning, set a default cell_group which is $HOME/cell_group as it is mainly
+#                           what everybody uses so it makes sense not to have to specify it at each execution
 # 20200914 - Fred Denis - Passing a cell_group file now works correctly
+# 20190510 - Fred Denis - Initial release
 #
 # Variables
 #
-        NB_PER_LINE=$(bc <<< "`tput cols`/30")                                  # Number of DG to show per line,  can be changed with -n option
-                TMP=/tmp/cell-status$$.tmp                                      # A tempfile
-               TMP2=/tmp/cell-status2$$.tmp                                     # A tempfile
-     SHOW_BAD_DISKS="NO"                                                        # Shows the details of the bad disks (-v option)
-          DBMACHINE="/opt/oracle.SupportTools/onecommand/databasemachine.xml"   # databasemachine.xml file
+    NB_PER_LINE=$(bc <<< "`tput cols`/30")                                  # Number of DG to show per line,  can be changed with -n option
+            TMP=$(mktemp)                                                   # A tempfile
+           TMP2=$(mktemp)                                                   # A tempfile
+ SHOW_BAD_DISKS="NO"                                                        # Shows the details of the bad disks (-v option)
+      DBMACHINE="/opt/oracle.SupportTools/onecommand/databasemachine.xml"   # databasemachine.xml file
+     CELL_GROUP="${HOME}/cell_group"                                        # default cell_group file as it is usually what everybody uses
 #
 # User used to connect to the cells `basename $0` -h for more information on this
 #
-               USER="root"                                                      # User to connect to the cells (-u option)
-        NONROOTUSER="cellmonitor"                                               # User to connect to the cells if a non root user runs cell-status.sh (-u option)
-
-        # If root is not used to run the script it is then less likely than root SSH keys will be deployed for this user
-        # We then use ${NONROOTUSER} to connect
-        if [[ $(id -u) -ne 0 ]]
-        then
-                USER=${NONROOTUSER}
-        fi
-
+           USER="root"                                                      # User to connect to the cells (-u option)
+    NONROOTUSER="cellmonitor"                                               # User to connect to the cells if a non root user runs cell-status.sh (-u option)
+    # If root is not used to run the script it is then less likely than root SSH keys will be deployed for this user
+    # We then use ${NONROOTUSER} to connect
+    if [[ $(id -u) -ne 0 ]]; then
+	USER="${NONROOTUSER}"
+    fi
 #
 # An usage function
 #
@@ -38,7 +38,7 @@ usage()
 {
 printf "\n\033[1;37m%-8s\033[m\n" "NAME"                ;
 cat << END
-        `basename $0` shows a status of the Cell disks and the Grid disks on all the cells of an Exadata
+       $(basename $0) shows a status of the Cell disks and the Grid disks on all the cells of an Exadata
 END
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
 cat << END
@@ -46,59 +46,58 @@ cat << END
 END
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
 cat << END
-        - `basename $0` shows a status of the Cell disks and the Grid disks on all the cells of an Exadata
+        - $(basename $0) shows a status of the Cell disks and the Grid disks on all the cells of an Exadata
         - It has be be executed by a user with SSH equivalence on the cell servers
-                - If `basename $0` is executed as root, then $USER is used to connect to the cells
-                - If `basename $0` is executed as a non root user, then $NONROOTUSER is used to connect to the cells
-                - You can change this behavior by forcing the use of a specific user with the -u option
-        - About the cells `basename $0` reports about:
-                - If `basename $0` is executed as root, it uses ibhosts to build the list of cells to connect to
-                - If `basename $0` is executed as a non root user, it uses the databasemachine.xml file to build the list of cells to connect to
-                - You can also specify a specific list of cells to analyze using the -c option
+            - If $(basename $0) is executed as root, then $USER is used to connect to the cells
+            - If $(basename $0) is executed as a non root user, then $NONROOTUSER is used to connect to the cells
+            - You can change this behavior by forcing the use of a specific user with the -u option
+        - About the cells $(basename $0) reports about:
+            - If $(basename $0) is executed as root:
+                The default cell_group file "${CELL_GROUP}" file is used
+                If "${CELL_GROUP}" does not exist:
+                  - on < X8M it uses ibhosts to build the list of cells to connect to
+                  - On >= X8M, it fails as there is no ibhosts so a hardcoded cell_group file has to be specified (-c option)
+            - If $(basename $0) is executed as a non root user, it uses the databasemachine.xml file to build the list of cells to connect to
 END
 printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"             ;
 cat << END
         -v      Shows the details of the bad disks (with error or bad status)
         -u      User to connect to the cells (if the default does not suit you)
-        -c -C   Specify a file which contains the cell list to connect to (aka cell_group)
+        -c -C   Specify a file which contains the cell list to connect to (aka cell_group), default is: "${CELL_GROUP}"
 
-        -o      Save the output of the dcli commands in a file (`basename $0` -o outputfile.log)
-        -f      Use a file generated by the -o option as input (`basename $0` -f outputfile.log)
-        -n      Number of diskgroups to show per line (if not specified, `basename $0` adapts it to the terminal size)
+        -o      Save the output of the dcli commands in a file ($(basename $0) -o outputfile.log)
+        -f      Use a file generated by the -o option as input ($(basename $0) -f outputfile.log)
+        -n      Number of diskgroups to show per line (if not specified, $(basename $0) adapts it to the terminal size)
 
         -h      Shows this help
 
 END
 exit 123
 }
-
 #
 # Options
 #
 while getopts "ho:f:n:vu:c:C:" OPT; do
-        case ${OPT} in
-        o)           OUT=${OPTARG}                                                              ;;
-        f)            IN=${OPTARG}                                                              ;;
-        n)   NB_PER_LINE=${OPTARG}                                                              ;;
-        v)SHOW_BAD_DISKS="YES"                                                                  ;;
-        u)          USER=${OPTARG}                                                              ;;
-        c)    CELL_GROUP=${OPTARG}                                                              ;;
-        C)    CELL_GROUP=${OPTARG}                                                              ;;
-        h)         usage                                                                        ;;
-        \?)        echo "Invalid option: -$OPTARG" >&2; usage                                   ;;
-        esac
+    case ${OPT} in
+    o)           OUT="${OPTARG}"                                                            ;;
+    f)            IN="${OPTARG}"                                                            ;;
+    n)   NB_PER_LINE="${OPTARG}"                                                            ;;
+    v)SHOW_BAD_DISKS="YES"                                                                  ;;
+    u)          USER="${OPTARG}"                                                            ;;
+    c)    CELL_GROUP="${OPTARG}"                                                            ;;
+    C)    CELL_GROUP="${OPTARG}"                                                            ;;
+    h)         usage                                                                        ;;
+    \?)        echo "Invalid option: -$OPTARG" >&2; usage                                   ;;
+    esac
 done
 
-if [[ -z ${IN} ]]       # No input file specified, we dynamically find the info from the cells
-then
+if [[ -z "${IN}" ]]; then                # No input file specified, we dynamically find the info from the cells
    if [[ -z "${CELL_GROUP}" ]]; then
-        if [[ $(id -u) -eq 0 ]]
-        then    # root is executing the script
+        if [[ $(id -u) -eq 0 ]]; then    # root is executing the script
                  ibhosts | sed s'/"//' | grep cel | awk '{print $6}' | sort > ${TMP2}   # list of cells
         else    # When no root
-                if [[ -f ${DBMACHINE} ]]
-                then
-                        cat ${DBMACHINE} | awk 'BEGIN {FS="<|>"} {if ($3 == "cellnode") {while(getline) {if ($2 == "ADMINNAME") {print $3; break; } } }}' > ${TMP2}
+                if [[ -f "${DBMACHINE}" ]]; then
+                        cat "${DBMACHINE}" | awk 'BEGIN {FS="<|>"} {if ($3 == "cellnode") {while(getline) {if ($2 == "ADMINNAME") {print $3; break; } } }}' > "${TMP2}"
                 else
                         cat << END
                         Cannot access ${DBMACHINE}, cannot continue.
@@ -107,43 +106,37 @@ END
                 fi
         fi
    fi
-        if [[ -n ${CELL_GROUP} && -f ${CELL_GROUP} ]]                           # If a cell_group file is specified we use it
-        then
-                cp ${CELL_GROUP} ${TMP2}
+        if [[ -n "${CELL_GROUP}" && -f "${CELL_GROUP}" ]]; then            # If a cell_group file is specified we use it
+                cp "${CELL_GROUP}" "${TMP2}"
         fi
-        dcli -g ${TMP2} -l ${USER} "echo celldisk; cellcli -e list celldisk attributes name,status,size,errorcount,disktype; echo BREAK; echo griddisk; cellcli -e list griddisk attributes asmDiskGroupName,name,asmmodestatus,asmdeactivationoutcome,size,errorcount,disktype; echo BREAK_CELL" > ${TMP}
-        IN=${TMP}
+        dcli -g "${TMP2}" -l "${USER}" "echo celldisk; cellcli -e list celldisk attributes name,status,size,errorcount,disktype; echo BREAK; echo griddisk; cellcli -e list griddisk attributes asmDiskGroupName,name,asmmodestatus,asmdeactivationoutcome,size,errorcount,disktype; echo BREAK_CELL" > "${TMP}"
+        IN="${TMP}"
 fi
-if [[ -n ${OUT} ]]      # Output file specified, we save the cell infos in and we exit
-then
-        cp ${TMP} ${OUT}
-        rm ${TMP}
+if [[ -n "${OUT}" ]]; then      # Output file specified, we save the cell infos in and we exit
+        cp "${TMP}" "${OUT}"
+        rm "${TMP}"
         cat << END
         Output file ${OUT} has been successfully generated.
 END
 exit 456
 fi
-if [[ ! -f ${IN} ]]
-then
+if [[ ! -f "${IN}" ]]; then
         cat << !
         Cannot find the file ${IN}; cannot continue.
 !
 exit 123
 fi
-
 #
 # Show the Exadata model if possible
 #
 printf "\n"
-if [ -f ${DBMACHINE} ] && [ -r ${DBMACHINE} ]
-then
+if [ -f "${DBMACHINE}" ] && [ -r "${DBMACHINE}" ]; then
         cat << !
-                Cluster is a `grep -i MACHINETYPES ${DBMACHINE} | sed s'/\t*//' | sed -e s':</*MACHINETYPES>::g' -e s'/^ *//' -e s'/ *$//'`
+                Cluster is a $(grep -i MACHINETYPES ${DBMACHINE} | sed s'/\t*//' | sed -e s':</*MACHINETYPES>::g' -e s'/^ *//' -e s'/ *$//')
 !
 else
         printf "\n"
 fi
-
 #
 # Read the information from the cells and make nice tables
 #
@@ -477,19 +470,15 @@ awk -v nb_per_line="$NB_PER_LINE" -v show_bad_disks="$SHOW_BAD_DISKS" 'BEGIN\
                 }
         printf("\n")                                                                    ;
         printf("\n")                                                                    ;
-        }' ${IN}
-
+        }' "${IN}"
 #
 # Delete tempfiles
 #
-for F in ${TMP} ${TMP2}
-do
-        if [[ -f ${F} ]]
-        then
-                rm -f ${F}
-        fi
+for F in "${TMP}" "${TMP2}"; do
+    rm -f "${F}"
 done
 
 #****************************************************************#
 #               E N D      O F       S O U R C E                *#
 #****************************************************************#
+
