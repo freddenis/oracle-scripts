@@ -1,0 +1,292 @@
+#!/bin/bash
+# Fred Denis -- fred.denis3@gmail.com -- October 28th 2021
+# oraenv++ is a step forward towards an easy and powerful tool to set up your Oracle environment
+# --help for more information
+#
+set -o pipefail
+#
+# Variables
+#
+           ME="oraenv++"                     # For the usage function
+           TS="date "+%Y-%m-%d_%H%M%S""      # A timestamp for a nice outut in a logfile
+          OLR="/etc/oracle/olr.loc"          # olr file to set up crs env
+         GREP="."
+       UNGREP="donotgrepme$$"
+     HOSTNAME=$(hostname -s)                 # Local hostname
+    CRSFILTER="(TYPE = ora.database.type"    # crsctl stat res command filter (no closing parenthesis)
+    ASMFILTER="(TYPE = ora.asm.type)"        # crsctl stat res command filter for ASM
+           nb=0                              # A counter
+       COL_DB=6
+      COL_SID=8
+       COL_OH=20
+       COL_ID=3
+      COL_SEP=""
+    unset tab                                # An aray
+#
+# oraenv++ needs to be sourced (. oraenv++) and not executed (./oraenv++) as it sets environment variable in the current shell
+#
+if [[ "${0}" == "${BASH_SOURCE[0]}" ]]; then
+    printf "\033[1;31m%s\033[m\n" "$($TS) [ERROR] oraenv++ needs to be sourced (. oraenv++) and not executed (./oraenv++) as it sets environment variable in the current shell; cannot continue." >&2
+    exit 123
+fi
+#
+# To make it easy, DB can be the first parameter but we need to check as more options will also be possible
+#
+         DB=$1
+    if [[ "${DB:0:1}" == "-" ]]; then DB=""; fi
+    if [[ $(echo "${DB}" | tr '[:upper:]' '[:lower:]') == "asm" ]]; then DB="+ASM"; fi    # Nice shortcut
+#
+# Usage function
+#
+usage() {
+    printf "\n\033[1;37m%-8s\033[m\n" "NAME"                ;
+    cat << END
+    ${ME} is a step forward towards an easy and powerful tool to set up your Oracle environment
+END
+
+    printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
+    cat << END
+        . ${ME} <DB_NAME>
+        . ${ME} [-d]   [-g]     [-v]       [-h]
+        . ${ME} [--db] [--grep] [--ungrep] [--help]
+END
+
+    printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
+    cat << END
+    ${ME} is meant to set up your Oracle environment without the limitations of oraenv
+    ${ME} is NOT based on oratab but gets the environment information from a GI/Oracle restart
+             so you do not have to hardcode nor maintain oratab
+    ${ME} is then able to set up the correct SID of a RAC database for example
+    If ${ME} finds more than 1 database matching your grep/ungrep combinaison, it will show you a menu to choose from
+    If no parameters are given, ${ME} will show you all the databases resgistered in the GI and a menu to choose from
+    As ${ME} sets environment variable in a parent shell, it needs to be invocated with "." or "source"
+    oraenv++ does not manage the PDBs yet
+ 
+END
+
+    printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"             ;
+    cat << END
+        -d | --db        ) Database to set the environment (this is the DB_NAME registered into the GI/CRS)
+                            to make is easy, this option can also not be specified if grep and ungrep are not used (see examples below)
+                           Note that the database name is key sensitive
+        -g | --grep      ) grep a pattern in the database list registered in the GI/CRS
+        -v | --ungrep    ) ungrep (grep -v) a pattern in the database list registered in the GI/CRS
+
+        -h | --help      ) Shows this help
+END
+
+    printf "\n\033[1;37m%-8s\033[m\n" "EXAMPLES"            ;
+    cat << END
+    . ${ME}                           # Show a menu with all the databases registered in the cluster
+    . ${ME} PROD                      # Set the env for the PROD database
+    . ${ME} --db PROD                 # Same as above
+    . ${ME} +ASM1                     # Set the ASM environment
+    . ${ME} asm                       # Set the ASM environment (a nice shortcut for the asm instances, just enter "asm")
+    . ${ME} --grep PROD --ungrep PS   # All the "PROD" databases not containing "PS"
+
+END
+}
+#
+# Just print a "-" line
+#
+print_a_line() {
+    local l_i=$1
+    for x in $(seq 1 ${l_i}); do
+        printf "%s" "-"
+    done
+    printf "\n"
+}
+#
+# Make a menu with a list of DB/Instances to choose from
+#
+makemenu() {
+    local l_i
+
+    # First, we check the length to adapt the table for a nice output
+    for l_i in $(seq 1 ${#tab[@]}); do
+         DB=$(echo "${tab[${l_i}]}" | awk -F ":" '{print $1}')
+         OH=$(echo "${tab[${l_i}]}" | awk -F ":" '{print $2}')
+        SID=$(echo "${tab[${l_i}]}" | awk -F ":" '{print $3}')
+
+        if [[ "${#DB}"  -gt "${COL_DB}"  ]]; then  COL_DB="${#DB}" ; fi
+        if [[ "${#OH}"  -gt "${COL_OH}"  ]]; then  COL_OH="${#OH}" ; fi
+        if [[ "${#SID}" -gt "${COL_SID}" ]]; then COL_SID="${#SID}"; fi
+    done
+    # Add a few spaces to have a better looking table
+    ((  COL_DB+=3 ))
+    ((  COL_OH+=3 ))
+    (( COL_SID+=3 ))
+
+    LINESIZE=$((COL_DB+COL_OH+COL_SID+COL_ID))
+
+    printf "\n"                                              ;
+    printf "%${COL_ID}s "            ""                      ; 
+    printf "%-${COL_DB}s${COL_SEP}"  " Database"             ; # DB
+    printf "%-${COL_SID}s${COL_SEP}" "  SID"                 ; # SID
+    printf "%-${COL_OH}s${COL_SEP}"  "    ORACLE_HOME"       ; # OH
+    printf "\n"                                              ;
+    print_a_line "${LINESIZE}"
+
+    for l_i in $(seq 1 ${#tab[@]}); do
+         DB=$(echo "${tab[${l_i}]}" | awk -F ":" '{print $1}')
+         OH=$(echo "${tab[${l_i}]}" | awk -F ":" '{print $2}')
+        SID=$(echo "${tab[${l_i}]}" | awk -F ":" '{print $3}')
+
+        printf "%${COL_ID}s/"            " ${l_i}"           ; 
+        printf "%-${COL_DB}s${COL_SEP}"  " ${DB}"            ; # DB
+        printf "%-${COL_SID}s${COL_SEP}" " ${SID}"           ; # SID
+        printf "%-${COL_OH}s${COL_SEP}"  " ${OH}"            ; # OH
+        printf "\n"                                          ;
+    done
+    print_a_line "${LINESIZE}"
+    printf "\n"                                              ;
+}
+#
+# Just show the current env
+#
+showenv() {
+    printf "\n"
+    printf "%-12s: %-s\n" "Database"    "${DB}"
+    printf "%-12s: %-s\n" "ORACLE_HOME" "${ORACLE_HOME}"
+    printf "%-12s: %-s\n" "ORACLE_BASE" "${ORACLE_BASE}"
+    printf "%-12s: %-s\n" "ORACLE_SID"  "${ORACLE_SID}"
+    printf "%-12s: %-s\n" "sqlplus is"   $(type sqlplus | awk '{print $3}' )
+    printf "\n"
+}
+#
+# Get an indice as a parameter and export the env variables from the tab array for this indice
+#
+exportvar() {
+    local l_i=$1
+    local  DB=$(echo "${tab[${l_i}]}" | awk -F ":" '{print $1}')
+    local  OH=$(echo "${tab[${l_i}]}" | awk -F ":" '{print $2}')
+    local SID=$(echo "${tab[${l_i}]}" | awk -F ":" '{print $3}')
+#
+    export ORACLE_HOME="${OH}"
+    export  ORACLE_SID="${SID}"
+    export ORACLE_BASE=$(${ORACLE_HOME}/bin/orabase)
+    export        PATH="${ORACLE_HOME}/bin:${PATH}"
+#
+showenv
+}
+#
+# Setup env
+#
+setupenv() {
+    if [[ ${#tab[@]} == 0  ]]; then     # nothing to do !
+        printf "\033[1;34m%s\033[m\n" "$($TS) [INFO] Found no DB/Instance, nothing to do !"
+        return 123
+    fi
+    if [[ ${#tab[@]} -gt 1 ]]; then     # Many DB/Instances, lets make a menu to choose from
+        makemenu
+        printf "\033[1;36m%s\033[m\n" "$($TS) Which environment you want to set up ? (CTRL+C for exit)"
+        read answer
+        if ! [[ "${answer}" =~ ^[0-9]+$ ]] || [[ "${answer}" -eq 0 ]] || [[ "${answer}" -gt ${#tab[@]} ]] ; then
+            printf "\033[1;31m%s\033[m\n" "$($TS) [ERROR] This does not look like a valid choice, exiting."
+            return 124
+        else
+            exportvar "${answer}"
+        fi
+    else                                # 1 DB/Instance, we set up the env
+        exportvar 1
+    fi
+}
+#
+# Options -- Long and Short, options needs to be separa
+# Options are comma separated list, options requiring a parameter need to be followed by a ":"
+#
+SHORT="d:,g:,v:,h"
+ LONG="db:,grep:,ungrep:,help"
+# Check if the specified options are good
+options=$(getopt -a --longoptions "${LONG}" --options "${SHORT}" -n "$0" -- "$@")
+# If not, show the usage and exit
+if [[ $? -ne 0 ]]; then
+    printf "\033[1;31m%s\033[m\n" "$($TS) [ERROR] Invalid options provided: $*; use -h for help; cannot continue." >&2
+    return 864
+fi
+#
+eval set -- "${options}"
+# Option management, not the "shift 2" when an option requires a parameter and "shift" when no parameter needed
+while true; do
+    case "$1" in
+        -d | --db        )        DB="$2"                  ; shift 2 ;;
+        -g | --grep      )      GREP="$2"                  ; shift 2 ;;
+        -v | --ungrep    )    UNGREP="$2"                  ; shift 2 ;;
+        -h | --help      ) usage && return 999             ; shift   ;;
+        --               ) shift                           ; break   ;;
+    esac
+done
+#
+# Options verification -- important to check that what is needed for the script is correctly provided
+#
+# A database name is specified, we update the CRS filter to get info of only this DB
+if [[ -n "${DB}" ]]; then
+    if [[ "${DB}" != "+"* ]]; then         # Not ASM
+        CRSFILTER="${CRSFILTER} AND (NAME = ora.${DB}.db)"
+    else                                   # ASM
+        CRSFILTER="${ASMFILTER}"
+    fi
+else   # No database specified
+    CRSFILTER="${CRSFILTER}) OR ${ASMFILTER}"
+fi
+#
+# Do things :)
+#
+if [[ -f "${OLR}" ]]; then
+    export ORACLE_HOME=$(cat "${OLR}" | grep "^crs_home" | awk -F "=" '{print $2}')
+    export ORACLE_BASE=$(${ORACLE_HOME}/bin/orabase)
+    export        PATH="${PATH}:${ORACLE_HOME}/bin"
+else
+    printf "\033[1;31m%s\033[m\n" "$($TS) [ERROR] Cannot find ${OLR} file to set the ASM env; cannot continue." >&2
+fi
+for X in $((crsctl stat res -p -w "${CRSFILTER}"; crsctl stat res -w "${CRSFILTER}") | grep -E "^NAME=|^TYPE=|GEN_USR_ORA_INST_NAME@SERVERNAME|STATE=|^ORACLE_HOME=|^$" | \
+    awk -F "=" -v I_GREP="${GREP}" -v I_UNGREP="${UNGREP}" -v I_HOSTNAME="${HOSTNAME}" -v I_CRS_HOME="${ORACLE_HOME}" ' \
+        { if ($1 == "NAME" && $2 ~ I_UNGREP) { next }
+          if ($1 == "NAME" && $2 ~ I_GREP) {
+               sub("^ora.", "", $2)                                     ;
+               sub(".db$", "", $2)                                      ; # Remove the consumer group
+               sub(/\(.*$/, "", $2)                                     ; # Cleaning up: asm(ora.asmgroup)
+              DB = $2                                                   ;
+              if (tab_db[DB] == DB) {
+                  next                                                  ;
+              } else {
+                  tab_db[DB] = DB                                       ; # List of databases
+              }
+              while(getline)
+              {   
+                  if ($1 == "TYPE" && $2 == "ora.asm.type") {             # GI does not explicitly give CRS HOME path so I set it here
+                      tab_oh[DB] = I_CRS_HOME                           ; # CRS HOME (OH for ASM)
+                  }
+                  if ($1 == "ORACLE_HOME") {
+                      tab_oh[DB] = $2                                   ; # List of OH
+                  }
+                  if ($1 ~ /^GEN_USR_ORA_INST_NAME@SERVERNAME/) {
+                      sub("GEN_USR_ORA_INST_NAME@SERVERNAME[(]", "", $1);
+                      sub(")", "", $1)                                  ;
+                      if ($1 == I_HOSTNAME) {
+                          tab_sid[DB] = $2                              ; # SID
+                      }
+                  }
+                  if ($0 ~ /^$/){ break; }
+              }
+          }
+        } END {
+            for (x in tab_db) {
+                if (tab_sid[x] != "") {
+                    printf("%s:", tab_db[x])                            ; # DB
+                    printf("%s:", tab_oh[x])                            ; # OH
+                    printf("%s:", tab_sid[x])                           ; # SID
+                    printf("\n")                                        ;
+                }
+            }
+        }' | sort); do
+        ((nb++))
+        tab[${nb}]="${X}"
+done
+
+setupenv
+
+#************************************************************************#
+#*                     E N D        O F      S O U R C E                *#
+#************************************************************************#
+
