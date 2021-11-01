@@ -10,8 +10,6 @@ set -o pipefail
            ME="oraenv++"                     # For the usage function
            TS="date "+%Y-%m-%d_%H%M%S""      # A timestamp for a nice outut in a logfile
           OLR="/etc/oracle/olr.loc"          # olr file to set up crs env
-         GREP="."
-       UNGREP="donotgrepme$$"
      HOSTNAME=$(hostname -s)                 # Local hostname
     CRSFILTER="(TYPE = ora.database.type"    # crsctl stat res command filter (no closing parenthesis)
     ASMFILTER="(TYPE = ora.asm.type)"        # crsctl stat res command filter for ASM
@@ -21,7 +19,14 @@ set -o pipefail
        COL_OH=20
        COL_ID=3
       COL_SEP=""
+           DB=""                             # -d/--db option
+          PDB=""                             # -p/--pdb option
+         GREP="."                            # -g/--grep option
+       UNGREP="donotgrepme$$"                # -v/--ungrep option
+           IN=""                             # -f option
+          OUT=""                             # -o option
     unset tab                                # An aray
+          TMP=$(mktemp -u)                   # A tempfile 
 #
 # oraenv++ needs to be sourced (. oraenv++) and not executed (./oraenv++) as it sets environment variable in the current shell
 #
@@ -34,7 +39,7 @@ fi
 #
          DB=$1
     if [[ "${DB:0:1}" == "-" ]]; then DB=""; fi
-    if [[ $(echo "${DB}" | tr '[:upper:]' '[:lower:]') == "asm" ]]; then DB="+ASM"; fi    # Nice shortcut
+    if [[ $(echo "${DB}" | tr '[:upper:]' '[:lower:]') == "asm" ]]; then DB="+ASM"; PDB=""; fi    # Nice shortcut
 #
 # Usage function
 #
@@ -47,8 +52,8 @@ END
     printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
     cat << END
         . ${ME} <DB_NAME>
-        . ${ME} [-d]   [-g]     [-v]       [-h]
-        . ${ME} [--db] [--grep] [--ungrep] [--help]
+        . ${ME} [-d]   [-p]    [-g]     [-v]       [-h]
+        . ${ME} [--db] [--pdb] [--grep] [--ungrep] [--help]
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
@@ -60,7 +65,7 @@ END
     If ${ME} finds more than 1 database matching your grep/ungrep combinaison, it will show you a menu to choose from
     If no parameters are given, ${ME} will show you all the databases resgistered in the GI and a menu to choose from
     As ${ME} sets environment variable in a parent shell, it needs to be invocated with "." or "source"
-    oraenv++ does not manage the PDBs yet
+    oraenv++ does not list all the PDBs per CDB (yet)
  
 END
 
@@ -69,20 +74,23 @@ END
         -d | --db        ) Database to set the environment (this is the DB_NAME registered into the GI/CRS)
                             to make is easy, this option can also not be specified if grep and ungrep are not used (see examples below)
                            Note that the database name is key sensitive
-        -g | --grep      ) grep a pattern in the database list registered in the GI/CRS
-        -v | --ungrep    ) ungrep (grep -v) a pattern in the database list registered in the GI/CRS
+        -p | --pdb       ) PDB to set the ORACLE_PDB_SID variable to; requires DB to be set
+        -g | --grep      ) grep one or multiple comma separated pattern in the database list registered in the GI/CRS
+        -v | --ungrep    ) ungrep (grep -v) one or multiple comma separated a pattern in the database list registered in the GI/CRS
 
         -h | --help      ) Shows this help
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "EXAMPLES"            ;
     cat << END
-    . ${ME}                           # Show a menu with all the databases registered in the cluster
-    . ${ME} PROD                      # Set the env for the PROD database
-    . ${ME} --db PROD                 # Same as above
-    . ${ME} +ASM1                     # Set the ASM environment
-    . ${ME} asm                       # Set the ASM environment (a nice shortcut for the asm instances, just enter "asm")
-    . ${ME} --grep PROD --ungrep PS   # All the "PROD" databases not containing "PS"
+    . ${ME}                                # Show a menu with all the databases registered in the cluster
+    . ${ME} PROD                           # Set the env for the PROD database
+    . ${ME} --db PROD                      # Same as above
+    . ${ME} PROD --pdb REPORTING           # Set env to PROD CDB and REPORTING CDB
+    . ${ME} +ASM1                          # Set the ASM environment
+    . ${ME} asm                            # Set the ASM environment (a nice shortcut for the asm instances, just enter "asm")
+    . ${ME} --grep PROD --ungrep PS        # All the "PROD" databases not containing "PS"
+    . ${ME} -g PROD,prod -v ab.[1-9],xyz   # Try it out :)
 
 END
 }
@@ -146,11 +154,12 @@ makemenu() {
 #
 showenv() {
     printf "\n"
-    printf "%-12s: %-s\n" "Database"    "${DB}"
-    printf "%-12s: %-s\n" "ORACLE_HOME" "${ORACLE_HOME}"
-    printf "%-12s: %-s\n" "ORACLE_BASE" "${ORACLE_BASE}"
-    printf "%-12s: %-s\n" "ORACLE_SID"  "${ORACLE_SID}"
-    printf "%-12s: %-s\n" "sqlplus is"   $(type sqlplus | awk '{print $3}' )
+    printf "%-20s: %-s\n" "Database"        "${DB}"
+    printf "%-20s: %-s\n" "ORACLE_HOME"     "${ORACLE_HOME}"
+    printf "%-20s: %-s\n" "ORACLE_BASE"     "${ORACLE_BASE}"
+    printf "%-20s: %-s\n" "ORACLE_SID"      "${ORACLE_SID}"
+    printf "%-20s: %-s\n" "ORACLE_PDB_SID"  "${ORACLE_PDB_SID}"
+    printf "%-20s: %-s\n" "sqlplus is"   $(type sqlplus | awk '{print $3}' )
     printf "\n"
 }
 #
@@ -161,11 +170,13 @@ exportvar() {
     local  DB=$(echo "${tab[${l_i}]}" | awk -F ":" '{print $1}')
     local  OH=$(echo "${tab[${l_i}]}" | awk -F ":" '{print $2}')
     local SID=$(echo "${tab[${l_i}]}" | awk -F ":" '{print $3}')
+    local PDB=$(echo "${tab[${l_i}]}" | awk -F ":" '{print $4}')
 #
-    export ORACLE_HOME="${OH}"
-    export  ORACLE_SID="${SID}"
-    export ORACLE_BASE=$(${ORACLE_HOME}/bin/orabase)
-    export        PATH="${ORACLE_HOME}/bin:${PATH}"
+    export    ORACLE_HOME="${OH}"
+    export     ORACLE_SID="${SID}"
+    export    ORACLE_BASE=$(${ORACLE_HOME}/bin/orabase)
+    export           PATH="${ORACLE_HOME}/bin:${PATH}"
+    export ORACLE_PDB_SID="${PDB}"
 #
 showenv
 }
@@ -195,8 +206,8 @@ setupenv() {
 # Options -- Long and Short, options needs to be separa
 # Options are comma separated list, options requiring a parameter need to be followed by a ":"
 #
-SHORT="d:,g:,v:,h"
- LONG="db:,grep:,ungrep:,help"
+SHORT="d:,g:,v:,p:,o:,f:,h"
+ LONG="db:,grep:,ungrep:,pdb:,help"
 # Check if the specified options are good
 options=$(getopt -a --longoptions "${LONG}" --options "${SHORT}" -n "$0" -- "$@")
 # If not, show the usage and exit
@@ -212,6 +223,9 @@ while true; do
         -d | --db        )        DB="$2"                  ; shift 2 ;;
         -g | --grep      )      GREP="$2"                  ; shift 2 ;;
         -v | --ungrep    )    UNGREP="$2"                  ; shift 2 ;;
+        -p | --pdb       )       PDB="$2"                  ; shift 2 ;;
+        -o               )       OUT="$2"                  ; shift 2 ;;
+        -f               )        IN="$2"                  ; shift 2 ;;
         -h | --help      ) usage && return 999             ; shift   ;;
         --               ) shift                           ; break   ;;
     esac
@@ -224,39 +238,76 @@ if [[ -n "${DB}" ]]; then
     if [[ "${DB}" != "+"* ]]; then         # Not ASM
         CRSFILTER="${CRSFILTER} AND (NAME = ora.${DB}.db)"
     else                                   # ASM
+              PDB=""                       # ASM has no PDB
         CRSFILTER="${ASMFILTER}"
     fi
 else   # No database specified
-    CRSFILTER="${CRSFILTER}) OR ${ASMFILTER}"
+        CRSFILTER="${CRSFILTER}) OR ${ASMFILTER}"
 fi
 #
 # Do things :)
 #
-if [[ -f "${OLR}" ]]; then
-    export ORACLE_HOME=$(cat "${OLR}" | grep "^crs_home" | awk -F "=" '{print $2}')
-    export ORACLE_BASE=$(${ORACLE_HOME}/bin/orabase)
-    export        PATH="${PATH}:${ORACLE_HOME}/bin"
-else
-    printf "\033[1;31m%s\033[m\n" "$($TS) [ERROR] Cannot find ${OLR} file to set the ASM env; cannot continue." >&2
+if [[ -n "${IN}" ]]; then                   # An input file is specified
+    if [[ ! -f "${IN}" ]]; then             # File does not exist
+        printf "\033[1;31m%s\033[m\n" "$($TS) [ERROR] Cannot find file ${IN} specified with -o option; cannot continue." >&2
+        return 16
+    else
+        cp -f "${IN}" "${TMP}"
+    fi
+else                                        # No input file specified, we get the info ourselves
+    if [[ -f "${OLR}" ]]; then
+        export ORACLE_HOME=$(cat "${OLR}" | grep "^crs_home" | awk -F "=" '{print $2}')
+        export ORACLE_BASE=$(${ORACLE_HOME}/bin/orabase)
+        export        PATH="${PATH}:${ORACLE_HOME}/bin"
+    else
+        printf "\033[1;31m%s\033[m\n" "$($TS) [ERROR] Cannot find ${OLR} file to set the ASM env; cannot continue." >&2
+        return 17
+    fi
+    crsctl stat res -p -w "${CRSFILTER}" >  "${TMP}"
+    crsctl stat res -v -w "${CRSFILTER}" >> "${TMP}"
 fi
-for X in $((crsctl stat res -p -w "${CRSFILTER}"; crsctl stat res -w "${CRSFILTER}") | grep -E "^NAME=|^TYPE=|GEN_USR_ORA_INST_NAME@SERVERNAME|STATE=|^ORACLE_HOME=|^$" | \
-    awk -F "=" -v I_GREP="${GREP}" -v I_UNGREP="${UNGREP}" -v I_HOSTNAME="${HOSTNAME}" -v I_CRS_HOME="${ORACLE_HOME}" ' \
-        { if ($1 == "NAME" && $2 ~ I_UNGREP) { next }
-          if ($1 == "NAME" && $2 ~ I_GREP) {
-               sub("^ora.", "", $2)                                     ;
-               sub(".db$", "", $2)                                      ; # Remove the consumer group
-               sub(/\(.*$/, "", $2)                                     ; # Cleaning up: asm(ora.asmgroup)
-              DB = $2                                                   ;
-              if (tab_db[DB] == DB) {
-                  next                                                  ;
-              } else {
-                  tab_db[DB] = DB                                       ; # List of databases
+if [[ -n "${OUT}" ]]; then         # We save the info into an output file and exit (-o)
+    cp "${TMP}" "${OUT}"
+    printf "\033[1;36m%s\033[m\n" "$($TS) [INFO] Info saved in ${OUT}."
+    rm -f "${TMP}"
+    return 0
+fi
+#for X in $((crsctl stat res -p -w "${CRSFILTER}"; crsctl stat res -w "${CRSFILTER}") | grep -E "^NAME=|^TYPE=|GEN_USR_ORA_INST_NAME@SERVERNAME|STATE=|^ORACLE_HOME=|^$" | \
+for X in $(cat "${TMP}" | grep -E "^NAME=|^TYPE=|GEN_USR_ORA_INST_NAME@SERVERNAME|STATE=|^ORACLE_HOME=|^$" | \
+    awk -F "=" -v I_GREP="${GREP}" -v I_UNGREP="${UNGREP}" -v I_HOSTNAME="${HOSTNAME}" -v I_CRS_HOME="${ORACLE_HOME}" -v I_PDB="${PDB}" ' \
+        BEGIN {
+            split(I_GREP  , tab_grep  , ",")                            ; to grep multiple patterns
+            split(I_UNGREP, tab_ungrep, ",")                            ; to ungrep multiple patterns
+        }
+        { if ($1 == "NAME") {
+              sub(/\(.*$/, "", $2)                                      ; # Cleaning up: asm(ora.asmgroup)
+              sub("^ora.", "", $2)                                      ;
+              l_name = $2                                               ; # Name.type
+              getline                                                   ; # Next line is the TYPE
+              if ($2 == "ora.database.type") {                            # This is a database
+                  sub(".db$", "", l_name)                               ; # Remove the consumer group
+                  for (i=1; i<=length(tab_ungrep); i++) {
+                      if (l_name ~  tab_ungrep[i]) {
+                          next                                          ;
+                      }
+                  }
+                  for (i=1; i<=length(tab_grep); i++) {
+                      if (l_name ~  tab_grep[i]) {
+                          sub(".db$", "", l_name)                       ; # Remove the consumer group
+                          DB = l_name
+                          if (tab_db[DB] == DB) {
+                              next                                      ;
+                          } else {
+                              tab_db[DB] = DB                           ; # List of databases
+                          }
+                      }
+                  }                      
+              } # End if ($2 == "ora.database.type")
+              if ($2 == "ora.asm.type") {                                 # GI does not explicitly give CRS HOME path so I set it here
+                  tab_oh[DB] = I_CRS_HOME                               ; # CRS HOME (OH for ASM)
               }
               while(getline)
               {   
-                  if ($1 == "TYPE" && $2 == "ora.asm.type") {             # GI does not explicitly give CRS HOME path so I set it here
-                      tab_oh[DB] = I_CRS_HOME                           ; # CRS HOME (OH for ASM)
-                  }
                   if ($1 == "ORACLE_HOME") {
                       tab_oh[DB] = $2                                   ; # List of OH
                   }
@@ -268,14 +319,15 @@ for X in $((crsctl stat res -p -w "${CRSFILTER}"; crsctl stat res -w "${CRSFILTE
                       }
                   }
                   if ($0 ~ /^$/){ break; }
-              }
-          }
+              } # End while(getline)
+          } # End if ($1 == "NAME")
         } END {
             for (x in tab_db) {
                 if (tab_sid[x] != "") {
                     printf("%s:", tab_db[x])                            ; # DB
                     printf("%s:", tab_oh[x])                            ; # OH
                     printf("%s:", tab_sid[x])                           ; # SID
+                    printf("%s:", I_PDB)                                ; # PDB
                     printf("\n")                                        ;
                 }
             }
@@ -285,6 +337,9 @@ for X in $((crsctl stat res -p -w "${CRSFILTER}"; crsctl stat res -w "${CRSFILTE
 done
 
 setupenv
+
+rm -f "${TMP}"
+return 0
 
 #************************************************************************#
 #*                     E N D        O F      S O U R C E                *#
