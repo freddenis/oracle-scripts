@@ -9,6 +9,7 @@ set -o pipefail
 #
            ME="oraenv++"                     # For the usage function
            TS="date "+%Y-%m-%d_%H%M%S""      # A timestamp for a nice outut in a logfile
+          TMP=$(mktemp -u)                   # A tempfile 
           OLR="/etc/oracle/olr.loc"          # olr file to set up crs env
      HOSTNAME=$(hostname -s)                 # Local hostname
     CRSFILTER="(TYPE = ora.database.type"    # crsctl stat res command filter (no closing parenthesis)
@@ -19,14 +20,15 @@ set -o pipefail
        COL_OH=20
        COL_ID=3
       COL_SEP=""
-           DB=""                             # -d/--db option
-          PDB=""                             # -p/--pdb option
+   OLD_SILENT="${SILENT}"
+       SILENT="${OPP_SILENT}"                # Silent output with env variable OPP_SILENT="True"
          GREP="."                            # -g/--grep option
        UNGREP="donotgrepme$$"                # -v/--ungrep option
-           IN=""                             # -f option
-          OUT=""                             # -o option
+    unset  DB                                # -d/--db option
+    unset PDB                                # -p/--pdb option
+    unset  IN                                # -f option
+    unset OUT                                # -o option
     unset tab                                # An aray
-          TMP=$(mktemp -u)                   # A tempfile 
 #
 # oraenv++ needs to be sourced (. oraenv++) and not executed (./oraenv++) as it sets environment variable in the current shell
 #
@@ -52,8 +54,8 @@ END
     printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
     cat << END
         . ${ME} <DB_NAME>
-        . ${ME} [-d]   [-p]    [-g]     [-v]       [-h]
-        . ${ME} [--db] [--pdb] [--grep] [--ungrep] [--help]
+        . ${ME} [-d]   [-p]    [-g]     [-v]       [-s] [-S]  [-h]
+        . ${ME} [--db] [--pdb] [--grep] [--ungrep] [--silent] [--help]
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
@@ -71,14 +73,16 @@ END
 
     printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"             ;
     cat << END
-        -d | --db        ) Database to set the environment (this is the DB_NAME registered into the GI/CRS)
-                            to make is easy, this option can also not be specified if grep and ungrep are not used (see examples below)
-                           Note that the database name is key sensitive
-        -p | --pdb       ) PDB to set the ORACLE_PDB_SID variable to; requires DB to be set
-        -g | --grep      ) grep one or multiple comma separated pattern in the database list registered in the GI/CRS
-        -v | --ungrep    ) ungrep (grep -v) one or multiple comma separated a pattern in the database list registered in the GI/CRS
+        -d | --db         ) Database to set the environment (this is the DB_NAME registered into the GI/CRS)
+                             to make is easy, this option can also not be specified if grep and ungrep are not used (see examples below)
+                            Note that the database name is key sensitive, if you are not sure about the database names registered,
+                              just run ${ME} with no option to get a list of what is registered: . ${ME}
+        -p | --pdb        ) PDB to set the ORACLE_PDB_SID variable to; requires DB to be set
+        -g | --grep       ) grep one or multiple comma separated patterns in the database list registered in the GI/CRS
+        -v | --ungrep     ) ungrep (grep -v) one or multiple comma separated patterns in the database list registered in the GI/CRS
+        -s | -S | --silent) Silent output; the same can be achieved by setting the env variable OPP_SILENT="True"
 
-        -h | --help      ) Shows this help
+        -h | --help       ) Shows this help
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "EXAMPLES"            ;
@@ -90,7 +94,7 @@ END
     . ${ME} +ASM1                          # Set the ASM environment
     . ${ME} asm                            # Set the ASM environment (a nice shortcut for the asm instances, just enter "asm")
     . ${ME} --grep PROD --ungrep PS        # All the "PROD" databases not containing "PS"
-    . ${ME} -g PROD,prod -v ab.[1-9],xyz   # Try it out :)
+    . ${ME} -g PROD,prod -v ab.[1-9],xyz   # grep and ungrep also support regexp; try it out :)
 
 END
 }
@@ -153,14 +157,16 @@ makemenu() {
 # Just show the current env
 #
 showenv() {
-    printf "\n"
-    printf "%-20s: %-s\n" "Database"        "${DB}"
-    printf "%-20s: %-s\n" "ORACLE_HOME"     "${ORACLE_HOME}"
-    printf "%-20s: %-s\n" "ORACLE_BASE"     "${ORACLE_BASE}"
-    printf "%-20s: %-s\n" "ORACLE_SID"      "${ORACLE_SID}"
-    printf "%-20s: %-s\n" "ORACLE_PDB_SID"  "${ORACLE_PDB_SID}"
-    printf "%-20s: %-s\n" "sqlplus is"   $(type sqlplus | awk '{print $3}' )
-    printf "\n"
+    if [[ "${SILENT}" != "True" ]]; then
+        printf "\n"
+        printf "%-20s: %-s\n" "Database"        "${DB}"
+        printf "%-20s: %-s\n" "ORACLE_HOME"     "${ORACLE_HOME}"
+        printf "%-20s: %-s\n" "ORACLE_BASE"     "${ORACLE_BASE}"
+        printf "%-20s: %-s\n" "ORACLE_SID"      "${ORACLE_SID}"
+        printf "%-20s: %-s\n" "ORACLE_PDB_SID"  "${ORACLE_PDB_SID}"
+        printf "%-20s: %-s\n" "sqlplus is"   $(type sqlplus | awk '{print $3}' )
+        printf "\n"
+    fi
 }
 #
 # Get an indice as a parameter and export the env variables from the tab array for this indice
@@ -206,8 +212,8 @@ setupenv() {
 # Options -- Long and Short, options needs to be separa
 # Options are comma separated list, options requiring a parameter need to be followed by a ":"
 #
-SHORT="d:,g:,v:,p:,o:,f:,h"
- LONG="db:,grep:,ungrep:,pdb:,help"
+SHORT="d:,g:,v:,p:,o:,f:,s,S,h"
+ LONG="db:,grep:,ungrep:,pdb:,silent,help"
 # Check if the specified options are good
 options=$(getopt -a --longoptions "${LONG}" --options "${SHORT}" -n "$0" -- "$@")
 # If not, show the usage and exit
@@ -220,14 +226,15 @@ eval set -- "${options}"
 # Option management, not the "shift 2" when an option requires a parameter and "shift" when no parameter needed
 while true; do
     case "$1" in
-        -d | --db        )        DB="$2"                  ; shift 2 ;;
-        -g | --grep      )      GREP="$2"                  ; shift 2 ;;
-        -v | --ungrep    )    UNGREP="$2"                  ; shift 2 ;;
-        -p | --pdb       )       PDB="$2"                  ; shift 2 ;;
-        -o               )       OUT="$2"                  ; shift 2 ;;
-        -f               )        IN="$2"                  ; shift 2 ;;
-        -h | --help      ) usage && return 999             ; shift   ;;
-        --               ) shift                           ; break   ;;
+        -d | --db         )         DB="$2"            ; shift 2 ;;
+        -g | --grep       )       GREP="$2"            ; shift 2 ;;
+        -v | --ungrep     )     UNGREP="$2"            ; shift 2 ;;
+        -p | --pdb        )        PDB="$2"            ; shift 2 ;;
+        -s | -S | --silent)     SILENT="True"          ; shift   ;;
+        -o                )        OUT="$2"            ; shift 2 ;;
+        -f                )         IN="$2"            ; shift 2 ;;
+        -h | --help       ) usage && return 999        ; shift   ;;
+        --                ) shift                      ; break   ;;
     esac
 done
 #
@@ -284,7 +291,7 @@ for X in $(cat "${TMP}" | grep -E "^NAME=|^TYPE=|GEN_USR_ORA_INST_NAME@SERVERNAM
               sub("^ora.", "", $2)                                      ;
               l_name = $2                                               ; # Name.type
               getline                                                   ; # Next line is the TYPE
-              if ($2 == "ora.database.type") {                            # This is a database
+              if (($2 == "ora.database.type") || ($2 == "ora.asm.type")){  # This is a database
                   sub(".db$", "", l_name)                               ; # Remove the consumer group
                   for (i=1; i<=length(tab_ungrep); i++) {
                       if (l_name ~  tab_ungrep[i]) {
@@ -294,28 +301,28 @@ for X in $(cat "${TMP}" | grep -E "^NAME=|^TYPE=|GEN_USR_ORA_INST_NAME@SERVERNAM
                   for (i=1; i<=length(tab_grep); i++) {
                       if (l_name ~  tab_grep[i]) {
                           sub(".db$", "", l_name)                       ; # Remove the consumer group
-                          DB = l_name
-                          if (tab_db[DB] == DB) {
+                          if (tab_db[l_name] == l_name) {
                               next                                      ;
                           } else {
-                              tab_db[DB] = DB                           ; # List of databases
+                              tab_db[l_name] = l_name                   ; # List of databases
                           }
                       }
                   }                      
               } # End if ($2 == "ora.database.type")
               if ($2 == "ora.asm.type") {                                 # GI does not explicitly give CRS HOME path so I set it here
-                  tab_oh[DB] = I_CRS_HOME                               ; # CRS HOME (OH for ASM)
+#                  tab_db[l_name] = l_name                               ;
+                  tab_oh[l_name] = I_CRS_HOME                           ; # CRS HOME (OH for ASM)
               }
               while(getline)
               {   
                   if ($1 == "ORACLE_HOME") {
-                      tab_oh[DB] = $2                                   ; # List of OH
+                      tab_oh[l_name] = $2                               ; # List of OH
                   }
                   if ($1 ~ /^GEN_USR_ORA_INST_NAME@SERVERNAME/) {
                       sub("GEN_USR_ORA_INST_NAME@SERVERNAME[(]", "", $1);
                       sub(")", "", $1)                                  ;
                       if ($1 == I_HOSTNAME) {
-                          tab_sid[DB] = $2                              ; # SID
+                          tab_sid[l_name] = $2                          ; # SID
                       }
                   }
                   if ($0 ~ /^$/){ break; }
@@ -339,6 +346,7 @@ done
 setupenv
 
 rm -f "${TMP}"
+SILENT="${OLD_SILENT}"
 return 0
 
 #************************************************************************#
