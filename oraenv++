@@ -195,7 +195,7 @@ setupenv() {
     fi
     if [[ ${#tab[@]} -gt 1 ]]; then     # Many DB/Instances, lets make a menu to choose from
         makemenu
-        printf "\033[1;36m%s\033[m\n" "$($TS) Which environment you want to set up ? (CTRL+C for exit)"
+        printf "\033[1;36m%s\033[m\n" "Which environment you want to set up ? (CTRL+C for exit)"
         read answer
         if ! [[ "${answer}" =~ ^[0-9]+$ ]] || [[ "${answer}" -eq 0 ]] || [[ "${answer}" -gt ${#tab[@]} ]] ; then
             printf "\033[1;31m%s\033[m\n" "$($TS) [ERROR] This does not look like a valid choice, exiting."
