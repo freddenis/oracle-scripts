@@ -41,7 +41,7 @@ fi
 #
          DB=$1
     if [[ "${DB:0:1}" == "-" ]]; then DB=""; fi
-    if [[ $(echo "${DB}" | tr '[:upper:]' '[:lower:]') == "asm" ]]; then DB="+ASM"; PDB=""; fi    # Nice shortcut
+    if [[ $(echo "${DB}" | tr '[:upper:]' '[:lower:]') == "asm" ]]; then DB="+ASM"; PDB=""; fi    # Useful alias
 #
 # Usage function
 #
@@ -60,14 +60,15 @@ END
 
     printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
     cat << END
-    ${ME} is meant to set up your Oracle environment without the limitations of oraenv
+    ${ME} is meant to set up your Oracle environment without the limitations of other tools
     ${ME} is NOT based on oratab but gets the environment information from a GI/Oracle restart
-             so you do not have to hardcode nor maintain oratab
+             so you do not have to hardcode any configuration file nor maintain oratab
     ${ME} is then able to set up the correct SID of a RAC database for example
     If ${ME} finds more than 1 database matching your grep/ungrep combinaison, it will show you a menu to choose from
     If no parameters are given, ${ME} will show you all the databases resgistered in the GI and a menu to choose from
     As ${ME} sets environment variable in a parent shell, it needs to be invocated with "." or "source"
-    oraenv++ does not list all the PDBs per CDB (yet)
+    oraenv++ does not list all the PDBs per CDB (yet) but can setup ORACLE_PDB_SID with the --pdb option
+    As CRS/GI saves the databases names in lowercase regardless of their real case, --db, --grep and --ungrep are non key sensitive
  
 END
 
@@ -75,8 +76,6 @@ END
     cat << END
         -d | --db         ) Database to set the environment (this is the DB_NAME registered into the GI/CRS)
                              to make is easy, this option can also not be specified if grep and ungrep are not used (see examples below)
-                            Note that the database name is key sensitive, if you are not sure about the database names registered,
-                              just run ${ME} with no option to get a list of what is registered: . ${ME}
         -p | --pdb        ) PDB to set the ORACLE_PDB_SID variable to; requires DB to be set
         -g | --grep       ) grep one or multiple comma separated patterns in the database list registered in the GI/CRS
         -v | --ungrep     ) ungrep (grep -v) one or multiple comma separated patterns in the database list registered in the GI/CRS
@@ -89,12 +88,13 @@ END
     cat << END
     . ${ME}                                # Show a menu with all the databases registered in the cluster
     . ${ME} PROD                           # Set the env for the PROD database
+    . ${ME} prod                           # Same as above
     . ${ME} --db PROD                      # Same as above
     . ${ME} PROD --pdb REPORTING           # Set env to PROD CDB and REPORTING CDB
     . ${ME} +ASM1                          # Set the ASM environment
-    . ${ME} asm                            # Set the ASM environment (a nice shortcut for the asm instances, just enter "asm")
+    . ${ME} asm                            # Set the ASM environment (a useful alias for the asm instances, just enter "asm")
     . ${ME} --grep PROD --ungrep PS        # All the "PROD" databases not containing "PS"
-    . ${ME} -g PROD,prod -v ab.[1-9],xyz   # grep and ungrep also support regexp; try it out :)
+    . ${ME} -g PROD,DEV -v ab.[1-9],^xyz   # grep and ungrep also support regexp; try it out :)
 
 END
 }
@@ -113,7 +113,6 @@ print_a_line() {
 #
 makemenu() {
     local l_i
-
     # First, we check the length to adapt the table for a nice output
     for l_i in $(seq 1 ${#tab[@]}); do
          DB=$(echo "${tab[${l_i}]}" | awk -F ":" '{print $1}')
@@ -177,14 +176,14 @@ exportvar() {
     local  OH=$(echo "${tab[${l_i}]}" | awk -F ":" '{print $2}')
     local SID=$(echo "${tab[${l_i}]}" | awk -F ":" '{print $3}')
     local PDB=$(echo "${tab[${l_i}]}" | awk -F ":" '{print $4}')
-#
+
     export    ORACLE_HOME="${OH}"
     export     ORACLE_SID="${SID}"
     export    ORACLE_BASE=$(${ORACLE_HOME}/bin/orabase)
     export           PATH="${ORACLE_HOME}/bin:${PATH}"
     export ORACLE_PDB_SID="${PDB}"
-#
-showenv
+
+    showenv
 }
 #
 # Setup env
@@ -238,17 +237,25 @@ while true; do
     esac
 done
 #
-# Options verification -- important to check that what is needed for the script is correctly provided
+# Options verification
+#
+# CRS has all the databases in lowercase regardless of their real case
+# I do not do that in the getopt to keep it short and neat
+#
+        DB=$(echo "${DB}"     | tr '[:upper:]' '[:lower:]')
+      GREP=$(echo "${GREP}"   | tr '[:upper:]' '[:lower:]')
+    UNGREP=$(echo "${UNGREP}" | tr '[:upper:]' '[:lower:]')
 #
 # A database name is specified, we update the CRS filter to get info of only this DB
+#
 if [[ -n "${DB}" ]]; then
-    if [[ "${DB}" != "+"* ]]; then         # Not ASM
+    if [[ "${DB}" != "+"* ]]; then                          # Not ASM
         CRSFILTER="${CRSFILTER} AND (NAME = ora.${DB}.db)"
-    else                                   # ASM
-              PDB=""                       # ASM has no PDB
+    else                                                    # ASM
+              PDB=""                                        # ASM has no PDB
         CRSFILTER="${ASMFILTER}"
     fi
-else   # No database specified
+else                                                        # No database specified
         CRSFILTER="${CRSFILTER}) OR ${ASMFILTER}"
 fi
 #
@@ -270,8 +277,11 @@ else                                        # No input file specified, we get th
         printf "\033[1;31m%s\033[m\n" "$($TS) [ERROR] Cannot find ${OLR} file to set the ASM env; cannot continue." >&2
         return 17
     fi
+    printf "\033[1;36m%-60s\033[m" "Reading the system configuration . . ."
     crsctl stat res -p -w "${CRSFILTER}" >  "${TMP}"
     crsctl stat res -v -w "${CRSFILTER}" >> "${TMP}"
+    echo -en "\033[2K"
+    tput hpa 0
 fi
 if [[ -n "${OUT}" ]]; then         # We save the info into an output file and exit (-o)
     cp "${TMP}" "${OUT}"
@@ -279,7 +289,6 @@ if [[ -n "${OUT}" ]]; then         # We save the info into an output file and ex
     rm -f "${TMP}"
     return 0
 fi
-#for X in $((crsctl stat res -p -w "${CRSFILTER}"; crsctl stat res -w "${CRSFILTER}") | grep -E "^NAME=|^TYPE=|GEN_USR_ORA_INST_NAME@SERVERNAME|STATE=|^ORACLE_HOME=|^$" | \
 for X in $(cat "${TMP}" | grep -E "^NAME=|^TYPE=|GEN_USR_ORA_INST_NAME@SERVERNAME|STATE=|^ORACLE_HOME=|^$" | \
     awk -F "=" -v I_GREP="${GREP}" -v I_UNGREP="${UNGREP}" -v I_HOSTNAME="${HOSTNAME}" -v I_CRS_HOME="${ORACLE_HOME}" -v I_PDB="${PDB}" ' \
         BEGIN {
@@ -310,7 +319,6 @@ for X in $(cat "${TMP}" | grep -E "^NAME=|^TYPE=|GEN_USR_ORA_INST_NAME@SERVERNAM
                   }                      
               } # End if ($2 == "ora.database.type")
               if ($2 == "ora.asm.type") {                                 # GI does not explicitly give CRS HOME path so I set it here
-#                  tab_db[l_name] = l_name                               ;
                   tab_oh[l_name] = I_CRS_HOME                           ; # CRS HOME (OH for ASM)
               }
               while(getline)
@@ -352,4 +360,3 @@ return 0
 #************************************************************************#
 #*                     E N D        O F      S O U R C E                *#
 #************************************************************************#
-
