@@ -3,6 +3,14 @@
 # oraenv++ is a step forward towards an easy and powerful tool to set up your Oracle environment
 # --help for more information; also please have a look at https://bit.ly/3GHJMFv
 #
+# The current script version is 20211108
+#
+# History :
+#
+# 20211108 - Fred Denis - Fixed a bug with Oracle restart, removed crsctl -v which is not needed
+#                         OPP_HOSTNAME for when I debug with external files
+# 20211103 - Fred Denis - Initial release
+#
 set -o pipefail
 #
 # Variables
@@ -11,7 +19,11 @@ set -o pipefail
            TS="date "+%Y-%m-%d_%H%M%S""      # A timestamp for a nice outut in a logfile
           TMP=$(mktemp -u)                   # A tempfile 
           OLR="/etc/oracle/olr.loc"          # olr file to set up crs env
+if [[ -z "${OPP_HOSTNAME}" ]]; then          # For debug mainly
      HOSTNAME=$(hostname -s)                 # Local hostname
+else
+     HOSTNAME="${OPP_HOSTNAME}"
+fi
     CRSFILTER="(TYPE = ora.database.type"    # crsctl stat res command filter (no closing parenthesis)
     ASMFILTER="(TYPE = ora.asm.type)"        # crsctl stat res command filter for ASM
            nb=0                              # A counter
@@ -163,7 +175,7 @@ showenv() {
         printf "%-20s: %-s\n" "ORACLE_BASE"     "${ORACLE_BASE}"
         printf "%-20s: %-s\n" "ORACLE_SID"      "${ORACLE_SID}"
         printf "%-20s: %-s\n" "ORACLE_PDB_SID"  "${ORACLE_PDB_SID}"
-        printf "%-20s: %-s\n" "sqlplus is"   $(type sqlplus | awk '{print $3}' )
+        printf "%-20s: %-s\n" "sqlplus is"      $(type sqlplus 2>/dev/null | awk '{print $3}')
         printf "\n"
     fi
 }
@@ -179,7 +191,7 @@ exportvar() {
 
     export    ORACLE_HOME="${OH}"
     export     ORACLE_SID="${SID}"
-    export    ORACLE_BASE=$(${ORACLE_HOME}/bin/orabase)
+    export    ORACLE_BASE=$(${ORACLE_HOME}/bin/orabase > /dev/null 2>&1)
     export           PATH="${ORACLE_HOME}/bin:${PATH}"
     export ORACLE_PDB_SID="${PDB}"
 
@@ -267,6 +279,7 @@ if [[ -n "${IN}" ]]; then                   # An input file is specified
         return 16
     else
         cp -f "${IN}" "${TMP}"
+#        cat "${TMP}"                        # Useful when I debug with an input file
     fi
 else                                        # No input file specified, we get the info ourselves
     if [[ -f "${OLR}" ]]; then
@@ -278,8 +291,7 @@ else                                        # No input file specified, we get th
         return 17
     fi
     printf "\033[1;36m%-60s\033[m" "Reading the system configuration . . ."
-    crsctl stat res -p -w "${CRSFILTER}" >  "${TMP}"
-    crsctl stat res -v -w "${CRSFILTER}" >> "${TMP}"
+    crsctl stat res -p -w "${CRSFILTER}" | grep -E "^NAME=|^TYPE=|GEN_USR_ORA_INST_NAME|STATE=|^ORACLE_HOME=|^$" >  "${TMP}"
     echo -en "\033[2K"
     tput hpa 0
 fi
@@ -289,7 +301,7 @@ if [[ -n "${OUT}" ]]; then         # We save the info into an output file and ex
     rm -f "${TMP}"
     return 0
 fi
-for X in $(cat "${TMP}" | grep -E "^NAME=|^TYPE=|GEN_USR_ORA_INST_NAME@SERVERNAME|STATE=|^ORACLE_HOME=|^$" | \
+for X in $(cat "${TMP}" | \
     awk -F "=" -v I_GREP="${GREP}" -v I_UNGREP="${UNGREP}" -v I_HOSTNAME="${HOSTNAME}" -v I_CRS_HOME="${ORACLE_HOME}" -v I_PDB="${PDB}" ' \
         BEGIN {
             split(I_GREP  , tab_grep  , ",")                            ; to grep multiple patterns
@@ -326,14 +338,27 @@ for X in $(cat "${TMP}" | grep -E "^NAME=|^TYPE=|GEN_USR_ORA_INST_NAME@SERVERNAM
                   if ($1 == "ORACLE_HOME") {
                       tab_oh[l_name] = $2                               ; # List of OH
                   }
-                  if ($1 ~ /^GEN_USR_ORA_INST_NAME@SERVERNAME/) {
+                  if ($1 == "GEN_USR_ORA_INST_NAME") {
+                      sid_restart = $2                                  ; # In case it is Oracle Restart (SINGLE database_type)
+                  }
+                  if ($1 ~ /^GEN_USR_ORA_INST_NAME@SERVERNAME/) {         # RAC and RACOneNode database_type only
+                      sid_restart  = ""                                 ;
                       sub("GEN_USR_ORA_INST_NAME@SERVERNAME[(]", "", $1);
                       sub(")", "", $1)                                  ;
                       if ($1 == I_HOSTNAME) {
-                          tab_sid[l_name] = $2                          ; # SID
+                          sid_hostname = $2                             ; # SID for the host
                       }
                   }
-                  if ($0 ~ /^$/){ break; }
+                  if ($0 ~ /^$/){ 
+                      if (sid_hostname != "") {
+                          tab_sid[l_name] = sid_hostname                ; # RAC and RACOneNode
+                      } else {
+                          tab_sid[l_name] = sid_restart                 ; # Oracle Restart only
+                      }
+                      sid_hostname = ""                                 ;
+                      sid_restart  = ""                                 ;
+                      break                                             ;
+                  }
               } # End while(getline)
           } # End if ($1 == "NAME")
         } END {
