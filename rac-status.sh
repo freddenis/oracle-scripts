@@ -8,10 +8,11 @@
 # Please have a look at http://bit.ly/2MFkzDw  for some details and screenshots
 # The latest version of the script can be downloaded here : http://bit.ly/2XEXa6j
 #
-# The current script version is 20210912
+# The current script version is 20211108
 #
 # History :
 #
+# 20211108 - Fred Denis - Fast-start failover status shortened
 # 20210912 - Fred Denis - Implement new GI 21c PDB status; also -p option to show/hide PDBs, default is we show the PDBs
 #                         STATE_DETAILS does not seem to be implemented (yet ?) for PDBs so the only info we have
 #                           is Online/Offline, we do not know if PDBs are READ WRITE or READ ONLY -- SEED not here either
@@ -922,6 +923,7 @@ function set_color_status(i_db, i_node, i_status, i_target) {
                 if ($0 == "Instance Shutdown")    {  status_details[DB,SERVER] = "Shutdown"       ;       } else
                 if ($0 ~  "Readonly")             {  status_details[DB,SERVER] = "Readonly"       ;       } else
                 if ($0 ~  "Abnormal Termination") {  status_details[DB,SERVER] = "Abnorm Term"    ;       } else
+                if ($0 ~  "Fast-start failover")  {  status_details[DB,SERVER] = "FSFailover"     ;       } else
                 if ($0 ~  /Mount/)                {  status_details[DB,SERVER] = "Mounted"        ;       } else
                 if ($0 ~  /running from old/)     {  status_details[DB,SERVER] = "Open from old OH";      } else
                                                   {  if ($0 != "") {status_details[DB,SERVER] = $0};      }
