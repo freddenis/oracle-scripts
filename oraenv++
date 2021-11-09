@@ -3,10 +3,11 @@
 # oraenv++ is a step forward towards an easy and powerful tool to set up your Oracle environment
 # --help for more information; also please have a look at https://bit.ly/3GHJMFv
 #
-# The current script version is 20211108
+# The current script version is 20211109
 #
 # History :
 #
+# 20211109 - Fred Denis - Use -attr which speeds up crsctl (and then oraenv++) in a significant way
 # 20211108 - Fred Denis - Fixed a bug with Oracle restart, removed crsctl -v which is not needed
 #                         OPP_HOSTNAME for when I debug with external files
 # 20211103 - Fred Denis - Initial release
@@ -291,7 +292,9 @@ else                                        # No input file specified, we get th
         return 17
     fi
     printf "\033[1;36m%-60s\033[m" "Reading the system configuration . . ."
-    crsctl stat res -p -w "${CRSFILTER}" | grep -E "^NAME=|^TYPE=|GEN_USR_ORA_INST_NAME|STATE=|^ORACLE_HOME=|^$" >  "${TMP}"
+    # Generate the GEN_USR_ORA_INST_NAME@SERVERNAME(servername) for all the nodes for the -attr option
+    GENATSERVERNAME=$(for N in $(olsnodes); do printf "GEN_USR_ORA_INST_NAME@SERVERNAME(%s)," "${N}"; done)
+    crsctl stat res -p -w "${CRSFILTER}" -attr "NAME,TYPE,GEN_USR_ORA_INST_NAME,STATE,ORACLE_HOME,${GENATSERVERNAME}" >  "${TMP}"
     echo -en "\033[2K"
     tput hpa 0
 fi
