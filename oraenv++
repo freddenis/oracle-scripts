@@ -294,7 +294,7 @@ else                                        # No input file specified, we get th
     printf "\033[1;36m%-60s\033[m" "Reading the system configuration . . ."
     # Generate the GEN_USR_ORA_INST_NAME@SERVERNAME(servername) for all the nodes for the -attr option
     GENATSERVERNAME=$(for N in $(olsnodes); do printf "GEN_USR_ORA_INST_NAME@SERVERNAME(%s)," "${N}"; done)
-    crsctl stat res -p -w "${CRSFILTER}" -attr "NAME,TYPE,GEN_USR_ORA_INST_NAME,STATE,ORACLE_HOME,${GENATSERVERNAME}" >  "${TMP}"
+    crsctl stat res -p -w "${CRSFILTER}" -attr "NAME,TYPE,GEN_USR_ORA_INST_NAME,ORACLE_HOME,${GENATSERVERNAME}" >  "${TMP}"
     echo -en "\033[2K"
     tput hpa 0
 fi
