@@ -8,10 +8,11 @@
 # Please have a look at http://bit.ly/2MFkzDw  for some details and screenshots
 # The latest version of the script can be downloaded here : http://bit.ly/2XEXa6j
 #
-# The current script version is 20211109
+# The current script version is 20211110
 #
 # History :
 #
+# 20211110 - Fred Denis - Use of attributes and -attr option for crsctl which is significantly fater (x10 on systems with 100th resources in the cluster)
 # 20211109 - Fred Denis - Fast-start failover status shortened, tolower the status when checking to avoid case issues
 # 20210912 - Fred Denis - Implement new GI 21c PDB status; also -p option to show/hide PDBs, default is we show the PDBs
 #                         STATE_DETAILS does not seem to be implemented (yet ?) for PDBs so the only info we have
@@ -447,31 +448,40 @@ if [[ -z "$FILE" ]]; then               # This is not needed when using an input
          DBCRSFILTER="TYPE = ora.database.type"
         PDBCRSFILTER="TYPE = ora.pdb.type"
     fi
+
+    # Use of attributes with the -attr option which is significantly faster
+         GENATSERVER=$(for N in $(olsnodes); do printf "GEN_USR_ORA_INST_NAME@SERVERNAME(%s)," "${N}"; done)        # For DBs
+     ENABLEDATSERVER=$(for N in $(olsnodes); do printf "ENABLED@SERVERNAME(%s)," "${N}"; done)                      # For PDBs and services
+             DBATTRP="NAME,TYPE,ACL,ORACLE_HOME,DATABASE_TYPE,ROLE,ENABLED,GEN_USR_ORA_INST_NAME,${GENATSERVER}"    # DB        crsctl -p
+             DBATTRV="NAME,TYPE,LAST_SERVER,STATE,TARGET,LAST_RESTART,LAST_STATE_CHANGE,STATE_DETAILS"              # DB        crsctl -v
+            PDBATTRP="NAME,TYPE,ACL,PDB_NAME,ENABLED,${ENABLEDATSERVER}"                                            # PDB       crsctl -p
+            PDBATTRV="NAME,TYPE,LAST_SERVER,STATE,TARGET,LAST_RESTART,LAST_STATE_CHANGE,STATE_DETAILS"              # PDB       crsctl -v
+            LSNATTRP="NAME,TYPE,ACL,ENABLED,ENDPOINTS,${ENABLEDATSERVER}"                                           # Listeners crsctl -p
+            LSNATTRV="NAME,TYPE,LAST_SERVER,STATE,TARGET,LAST_RESTART,LAST_STATE_CHANGE"                            # Listeners crsctl -v
+            SVCATTRP="NAME,TYPE,ACL,ENABLED,ROLE,PLUGGABLE_DATABASE,${ENABLEDATSERVER}"                             # Services  crsctl -p
+            SVCATTRV="NAME,TYPE,LAST_SERVER,STATE,TARGET,LAST_RESTART,LAST_STATE_CHANGE"                            # Services  crsctl -v
+           TECHATTRP="NAME,TYPE,ACL,ENABLED,VOLUME_DEVICE,USR_ORA_VIP,${ENABLEDATSERVER}"                           # Tech      crsctl -p
+           TECHATTRV="NAME,TYPE,LAST_SERVER,STATE,TARGET,LAST_RESTART,LAST_STATE_CHANGE"                            # Tech      crsctl -v
+
     if [[ "${SHOW_DB}" == "YES" ]]; then
-        crsctl stat res -p -w "${DBCRSFILTER}"                  >> "${TMP}"
-        crsctl stat res -v -w "${DBCRSFILTER}"                  >> "${TMP}"
+        crsctl stat res -p -w "${DBCRSFILTER}"          -attr "${DBATTRP}"  | grep -v "^CRS-" >> "${TMP}"
+        crsctl stat res -v -w "${DBCRSFILTER}"          -attr "${DBATTRV}"  | grep -v "^CRS-" >> "${TMP}"
     fi
     if [[ "${SHOW_PDB}" == "YES" ]]; then
-        crsctl stat res -p -w "${PDBCRSFILTER}"                 >> "${TMP}"
-        crsctl stat res -v -w "${PDBCRSFILTER}"                 >> "${TMP}"
+        crsctl stat res -p -w "${PDBCRSFILTER}"         -attr "${PDBATTRP}" | grep -v "^CRS-" >> "${TMP}"
+        crsctl stat res -v -w "${PDBCRSFILTER}"         -attr "${PDBATTRV}" | grep -v "^CRS-" >> "${TMP}"
     fi
     if [[ "${SHOW_LSNR}" == "YES" ]]; then
-        crsctl stat res -v -w "TYPE = ora.listener.type"        >> "${TMP}"
-        crsctl stat res -p -w "TYPE = ora.listener.type"        >> "${TMP}"
-        crsctl stat res -v -w "TYPE = ora.scan_listener.type"   >> "${TMP}"
-        crsctl stat res -p -w "TYPE = ora.scan_listener.type"   >> "${TMP}"
-        crsctl stat res -v -w "TYPE = ora.leaf_listener.type"   >> "${TMP}"
-        crsctl stat res -p -w "TYPE = ora.leaf_listener.type"   >> "${TMP}"
-        crsctl stat res -v -w "TYPE = ora.asm_listener.type"    >> "${TMP}"
-        crsctl stat res -p -w "TYPE = ora.asm_listener.type"    >> "${TMP}"
+         crsctl stat res -v -w "TYPE co listener"       -attr "${LSNATTRV}" | grep -v "^CRS-" >> "${TMP}"
+         crsctl stat res -p -w "TYPE co listener"       -attr "${LSNATTRP}" | grep -v "^CRS-" >> "${TMP}"
     fi
     if [[ "${SHOW_SVC}" == "YES" ]]; then
-        crsctl stat res -v -w "TYPE = ora.service.type"         >> "${TMP}"
-        crsctl stat res -p -w "TYPE = ora.service.type"         >> "${TMP}"
+        crsctl stat res -v -w "TYPE = ora.service.type" -attr "${SVCATTRV}" | grep -v "^CRS-" >> "${TMP}"
+        crsctl stat res -p -w "TYPE = ora.service.type" -attr "${SVCATTRP}" | grep -v "^CRS-" >> "${TMP}"
     fi
     if [[ "${SHOW_TECH}" == "YES" ]]; then
-        crsctl stat res -v -w "((TYPE != ora.database.type) AND (TYPE != ora.listener.type) AND (TYPE != ora.scan_listener.type) AND (TYPE != ora.service.type) AND (TYPE != ora.leaf_listener.type) AND (TYPE != ora.asm_listener.type))" >> "${TMP}"
-        crsctl stat res -p -w "((TYPE != ora.database.type) AND (TYPE != ora.listener.type) AND (TYPE != ora.scan_listener.type) AND (TYPE != ora.service.type) AND (TYPE != ora.leaf_listener.type) AND (TYPE != ora.asm_listener.type))" >> "${TMP}"
+        crsctl stat res -v -w "((TYPE != ora.database.type) AND (TYPE != ora.listener.type) AND (TYPE != ora.scan_listener.type) AND (TYPE != ora.service.type) AND (TYPE != ora.leaf_listener.type) AND (TYPE != ora.asm_listener.type))" -attr "${TECHATTRV}" | grep -v "^CRS-" >> "${TMP}"
+        crsctl stat res -p -w "((TYPE != ora.database.type) AND (TYPE != ora.listener.type) AND (TYPE != ora.scan_listener.type) AND (TYPE != ora.service.type) AND (TYPE != ora.leaf_listener.type) AND (TYPE != ora.asm_listener.type))" -attr "${TECHATTRP}" | grep -v "^CRS-" >> "${TMP}"
     fi
 
     # Easiest way to manage the different versions of crsctl outputs
@@ -572,15 +582,20 @@ function in_color(str, color) {
     return sprintf(COLOR_BEGIN color "%s" COLOR_END, str)                                           ;
 }
 #
-# Get a date in format MM/DD/YYYY HH24:MI:SS and return the rounded number hours difference between this date and the current date
+# Get a date in format MM/DD/YYYY HH24:MI:SS or epoch sec and return the rounded number hours difference between this date and the current date
 #
 function diff_hours(a_date) {
-    if ((a_date == "NEVER ") || (a_date == " ")) {
+    sub(/ *$/, "", a_date)                                                                          ;
+    if ((a_date == "NEVER") || (a_date == "") || (a_date == 0)) {
         return 999999999999                                                                         ; 
     } else {
-        split(a_date, temp, /[\/ :]/)                                                               ;
-        return sprintf("%d", (systime()-mktime(temp[3]" "temp[1]" "temp[2]" "temp[4]" "temp[5]" "temp[6]))/(60*60)) ;
-        delete temp                                                                                 ;
+        if (a_date ~ /^[0-9]+$/) {                        # This is an epoch sec
+            return sprintf("%d", ((systime()-a_date)/(60*60)))                                      ;
+        } else {                                          # This is a date in format MM/DD/YYYY HH24:MI:SS
+            split(a_date, temp, /[\/ :]/)                                                           ;
+            return sprintf("%d", (systime()-mktime(temp[3]" "temp[1]" "temp[2]" "temp[4]" "temp[5]" "temp[6]))/(60*60)) ;
+            delete temp                                                                             ;
+        }
     }
 }
 #
@@ -639,25 +654,25 @@ function print_a_line(size) {
 # Set colors depending on the recently restarted date and dbstatus and dbtarget
 #
 function set_color_status(i_db, i_node, i_status, i_target) {
-	if ((started[i_db,i_node]+0 < DIFF_HOURS+0) && (started[i_db,i_node])) {
-		    COL_OPEN=WITH_BACK                                                              ;
-		COL_READONLY=WITH_BACK                                                              ;
-		    COL_SHUT=WITH_BACK                                                              ;
-		   COL_OTHER=WITH_BACK                                                              ;
-	    RECENT_RESTARTED=1                                                                      ;
-	} else  {
-		    COL_OPEN=GREEN                                                                  ;
-		COL_READONLY=WHITE                                                                  ;
-		    COL_SHUT=YELLOW                                                                 ;
-		   COL_OTHER=RED                                                                    ;
-	}
-	if (i_status != i_target) {
-		    COL_OPEN=WITH_BACK2                                                             ;
-		COL_READONLY=WITH_BACK2                                                             ;
-		    COL_SHUT=WITH_BACK2                                                             ;
-		   COL_OTHER=WITH_BACK2                                                             ;
-		STATUS_ISSUE=1                                                                      ;
-	}
+    if ((started[i_db,i_node]+0 < DIFF_HOURS+0) && (started[i_db,i_node])) {
+            COL_OPEN=WITH_BACK                                                              ;
+        COL_READONLY=WITH_BACK                                                              ;
+            COL_SHUT=WITH_BACK                                                              ;
+           COL_OTHER=WITH_BACK                                                              ;
+        RECENT_RESTARTED=1                                                                      ;
+    } else  {
+            COL_OPEN=GREEN                                                                  ;
+        COL_READONLY=WHITE                                                                  ;
+            COL_SHUT=YELLOW                                                                 ;
+           COL_OTHER=RED                                                                    ;
+    }
+    if (i_status != i_target) {
+            COL_OPEN=WITH_BACK2                                                             ;
+        COL_READONLY=WITH_BACK2                                                             ;
+            COL_SHUT=WITH_BACK2                                                             ;
+           COL_OTHER=WITH_BACK2                                                             ;
+        STATUS_ISSUE=1                                                                      ;
+    }
 }
 { # Fill 2 tables with the OH and the version from "crsctl stat res -p -w "TYPE = ora.database.type""
     if ($1 == "NAME") {
@@ -920,13 +935,13 @@ function set_color_status(i_db, i_node, i_status, i_target) {
                 sub("STATE_DETAILS=", "", $0)           ;
                 sub(",HOME=.*$", "", $0)                ;       # Manage the 12cR2 new feature, check 20170606 for more details
                 sub("),.*$", ")", $0)                   ;       # To make clear multi status like "Mounted (Closed),Readonly,Open Initiated"
-                if (tolower($0) == "instance shutdown")    {  status_details[DB,SERVER] = "Shutdown"       ;       } else
-                if (tolower($0) ~  "readonly")             {  status_details[DB,SERVER] = "Readonly"       ;       } else
-                if (tolower($0) ~  "abnormal termination") {  status_details[DB,SERVER] = "Abnorm Term"    ;       } else
-                if (tolower($0) ~  "fast-start failover")  {  status_details[DB,SERVER] = "FastFailover"   ;       } else
-                if (tolower($0) ~  "mount")                {  status_details[DB,SERVER] = "Mounted"        ;       } else
-                if (tolower($0) ~  "running from old")     {  status_details[DB,SERVER] = "Open from old OH";      } else
-                                                           {  if ($0 != "") {status_details[DB,SERVER] = $0};      }
+                if (tolower($0) ~ "instance shutdown")    {  status_details[DB,SERVER] = "Shutdown"        ;      } else
+                if (tolower($0) ~ "readonly")             {  status_details[DB,SERVER] = "Readonly"        ;      } else
+                if (tolower($0) ~ "abnormal termination") {  status_details[DB,SERVER] = "Abnorm Term"     ;      } else
+                if (tolower($0) ~ "fast-start failover")  {  status_details[DB,SERVER] = "FastFailover"    ;      } else
+                if (tolower($0) ~ "mount")                {  status_details[DB,SERVER] = "Mounted"         ;      } else
+                if (tolower($0) ~ "running from old")     {  status_details[DB,SERVER] = "Open from old OH";      } else
+                                                          {  if ($0 != "") {status_details[DB,SERVER] = $0};      }
                 if ((length(status_details[DB,SERVER]) > COL_NODE) && (type != "TECH")) {
                     COL_NODE = length(status_details[DB,SERVER]) + COL_NODE_OFFSET  ;
                 }
