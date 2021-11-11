@@ -1,25 +1,29 @@
 #!/bin/bash
-# Fred Denis -- Nov 2017 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
+# Fred Denis -- Nov 2017 -- fred.denis3@gmail.com -- http://unknowndba.blogspot.com
+# exa_versions.sh - show a nice summary of the versions of each component of an Exadata stack (DB servers, Cells and Switches) (https://bit.ly/38XfPAx)
+# Copyright (C) 2021 Fred Denis
 #
-# An Exadata version summary (https://unknowndba.blogspot.com/2018/04/exa-versionssh-exadata-components.html):
-# -- has to be run as root
-# -- the server where this script is started should have the root ssh  keys deployed on all the other servers (DB Nodes, Cells and IB Swicthes)
-# -- see the usage fonction and/or use the -h option for a complete description
-# -- For Cells and DB servers (I found no equivalent for the IB swicthes), I also check the status of the image
-#    from the imageinfo command as it can be "failure" even if the good version is shown;
-#    I then use a piece of awk to format the "imageinfo -ver -status" output like this :
-#      node1:12.2.1.1.3.171017:success
-#      node2:12.2.1.1.3.171017:failure    <= a failure status when the good version shown
-#      node3:12.2.1.1.3.171017:success
-#      node4:12.2.1.1.3.171017:success
-#    If a DB servers or cell has a status = failure returned by the imageinfo command, the host will appear
-#    in red and a note about this will be shown at the end of the report
-# If you run X8M+, as there is no way to have a dynamic list of the components (https://bit.ly/38gtrGP), we have
-# to rely on hardcoded list (see the X8M_* values for the default and the -C -D -R parameter to specify your own lists)
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 #
-# The current version of the script is 20211018
+# More info and git repo: https://bit.ly/38XfPAx -- https://github.com/freddenis/oracle-scripts
 #
+# The current script version is 20211111
+#
+# History :
+#
+# 20211111 - Fred Denis - GPLv3 licence
 # 20211018 - Fred Denis - oraenv not needed here so I removed it; cosmetic
 # 20200715 - Fred Denis - Manage the ROCE switches which come with X8M+
 #                         Keep in mind that you can deploy the SSH keys to the ROCE switches using /opt/oracle.SupportTools/RoCE/setup_switch_ssh_equiv.sh
@@ -39,9 +43,9 @@ NB_PER_LINE=$(bc <<< "`tput cols`/22")          # Number of element to print per
                                                 #       -- default adapts to the size of the screen (thanks to tput)
                                                 #       -- can be changed at script execution with the -n option
 # From X8M, we have no way of dynamycally know the nodes so we have to rely on hardcoded lists
- X8M_DBS_GROUP=~/dbs_group
-X8M_CELL_GROUP=~/cell_group
-X8M_ROCE_GROUP=~/roce_group
+ X8M_DBS_GROUP="${HOME}/dbs_group"
+X8M_CELL_GROUP="${HOME}/cell_group"
+X8M_ROCE_GROUP="${HOME}/roce_group"
      ROCE_USER="ciscoexa"
 #
 # Check if ibhosts works (if not, we are on X8M+)
@@ -58,38 +62,37 @@ fi
 usage() {
 printf "\n\033[1;37m%-8s\033[m\n" "NAME"                        ;
 cat << END
-        exa_versions.sh - Show a nice summary of the versions of each component of an Exadata stack
-                          (DB servers, Cells and InfiniBand Switches)
+    exa_versions.sh - show a nice summary of the versions of each component of an Exadata stack (DB servers, Cells and Switches) (https://bit.ly/38XfPAx)
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"                    ;
 cat << END
-        $0 [-d] [-c] [-i] [-n] [-C] [-D] [-R] [-I] [-h]
+    $0 [-d] [-c] [-i] [-n] [-C] [-D] [-R] [-I] [-h]
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"                 ;
 cat << END
-        $0 needs to be executed as root and the ssh keys to each Exadata component have to be deployed
-        With no option $0 will show the versions of all the Exadata components (DB servers, Cells and IB)
-
-        $0 relies on the ibhosts ad the ibswitches commands to find the list of nodes to look at, not on any static [dbs|cell|ib]_group file
+    $0 needs to be executed as root and the ssh keys to each Exadata component have to be deployed
+    With no option $0 will show the versions of all the Exadata components (DB servers, Cells and IB)
+    If a DB servers or cell has a status = failure returned by the imageinfo command, the host will appear
+      in red and a note about this will be shown at the end of the report
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"                     ;
 cat << END
-        -d      Show the Database servers versions
-        -c      Show the Cells (storage servers) versions
-        -i      Show the Switches versions (IB if < X8M, ROCE if X8M+)
-        -r      Show the Switches versions (IB if < X8M, ROCE if X8M+)
+    -d    Show the Database servers versions
+    -c    Show the Cells (storage servers) versions
+    -i    Show the Switches versions (IB if < X8M, ROCE if X8M+)
+    -r    Show the Switches versions (IB if < X8M, ROCE if X8M+)
 
-        -C      A specific cell_group file
-        -D      A specific dbs_group file
-        -R      A specific roce_group file
-        -I      A specific ib_group file
+    -C    A specific cell_group file
+    -D    A specific dbs_group file
+    -R    A specific roce_group file
+    -I    A specific ib_group file
 
-        -n      Number of nodes to show per line (default adapts the output to the current screen size)
+    -n    Number of nodes to show per line (default adapts the output to the current screen size)
 
-        -h      Show this help
+    -h    Shows this help
 
 END
 exit 123
@@ -186,7 +189,7 @@ fi
           else
               # dcli does not seem to work with the roce switches
               for S in $(cat ${IB_GROUP} | sort); do
-                  ssh -q ${ROCE_USER}@${S} show version | grep "System version" | awk -v SWITCH="${S}" '{print "ib:", SWITCH":", $NF}'
+                  ssh -q ${ROCE_USER}@${S} show version | grep "NXOS: version" | awk -v SWITCH="${S}" '{print "ib:", SWITCH":", $NF}'
              done
           fi
       fi
