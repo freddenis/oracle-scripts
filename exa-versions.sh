@@ -1,6 +1,6 @@
 #!/bin/bash
 # Fred Denis -- Nov 2017 -- fred.denis3@gmail.com -- http://unknowndba.blogspot.com
-# exa_versions.sh - show a nice summary of the versions of each component of an Exadata stack (DB servers, Cells and Switches) (https://bit.ly/38XfPAx)
+# exa-versions.sh - show a nice summary of the versions of each component of an Exadata stack (DB servers, Cells and Switches) (https://bit.ly/38XfPAx)
 # Copyright (C) 2021 Fred Denis
 #
 # This program is free software: you can redistribute it and/or modify
@@ -62,7 +62,7 @@ fi
 usage() {
 printf "\n\033[1;37m%-8s\033[m\n" "NAME"                        ;
 cat << END
-    exa_versions.sh - show a nice summary of the versions of each component of an Exadata stack (DB servers, Cells and Switches) (https://bit.ly/38XfPAx)
+    exa-versions.sh - show a nice summary of the versions of each component of an Exadata stack (DB servers, Cells and Switches) (https://bit.ly/38XfPAx)
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"                    ;
