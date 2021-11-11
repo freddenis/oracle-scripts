@@ -1,9 +1,23 @@
 #!/bin/bash
-# Fred Denis -- Jun 2016 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
+# Fred Denis -- June 2016 -- fred.denis3@gmail.com -- http://unknowndba.blogspot.com
+# asmdu.sh - Shows a clear and nice summary of the ASM diskgroups used and free space (https://bit.ly/3c1pvfQ)
+# Copyright (C) 2021 Fred Denis
 #
-# This scripts shows a clear and colored status of the ASM used and free space
-# Please have a look at the usage function or $0 -h for the available options and their description
-# More information and screenshots : https://unknowndba.blogspot.ca/2018/03/asmdush-far-better-du-for-asmcmd.html
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+#
+# More info and git repo: https://bit.ly/3c1pvfQ -- https://github.com/freddenis/oracle-scripts
 #
 # A note on the --nocp option
 # Note that the --nocp asmcmd option (it disables the connection pooling) has been originaly implemented
@@ -63,7 +77,7 @@ show_version() {
 usage() {
 printf "\n\033[1;37m%-8s\033[m\n" "NAME"                ;
 cat << END
-    asmdu.sh - Shows a nice summary of the ASM diskgroups sizes
+    asmdu.sh - Shows a clear and nice summary of the ASM diskgroups used and free space (https://bit.ly/3c1pvfQ)
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
