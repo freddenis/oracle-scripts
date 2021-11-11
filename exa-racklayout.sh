@@ -1,13 +1,29 @@
 #!/bin/bash
-# Fred Denis -- Jan 2019 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
+# Fred Denis -- Jan 2019 -- fred.denis3@gmail.com -- http://unknowndba.blogspot.com
+# exa-racklayout.sh - shows an Exadata Rack Layout based on the databasemachine.xml file (https://goo.gl/wv2z5m)
+# Copyright (C) 2021 Fred Denis
 #
-# Show what's on an Exadata based on the /opt/oracle.SupportTools/onecommand/databasemachine.xml file
-# The output shows each Exadata component, their IP, ILOM and ILOM IP on the form of an Exadata Rack layout
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-# Please have a look at https://goo.gl/wv2z5m for more information on this script
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-# The current version of the script is 20190222
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
+#
+# More info and git repo: https://goo.gl/wv2z5m -- https://github.com/freddenis/oracle-scripts
+#
+# The current script version is 20211111
+#
+# History :
+#
+# 20211111 - Fred Denis - GPLv3 licence
 # 20190222 - Fred Denis - Option -s to not show the empty U slots
 #			  Option -f to specify a non default databasemachine.xml file
 # 20190128 - Fred Denis - Added PDUs
@@ -15,41 +31,36 @@
 # 20190125 - Fred Denis - Moved Blue to Lightblue and Red to Lightred to have a more pastel output
 # 20190124 - Fred Denis - Initial Release
 #
-
 #
 # Variables
 #
 SHOW_EMPTY_U="YES"              # Set SHOW_EMPTY_U="NO" here to always not show the empty U by default
           IN=""			# If a file is specified with the -f option
-
-
 #
 # Function usage
 #
-usage()
-{
+usage() {
 printf "\033[1;37m%-8s\033[m\n" "NAME"                ;
 cat << END
-        `basename $0` - Show an Exadata Rack Layout based on the databasemachine.xml file
+    `basename $0` - shows an Exadata Rack Layout based on the databasemachine.xml file (https://goo.gl/wv2z5m)
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
 cat << END
-        $0 [-f] [-s] [-h]
+    $0 [-f] [-s] [-h]
 END
 
 printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"             ;
 cat << END
-	-f	Specify a non default databasemachine.xml file
-			$0 -f /tmp/mydatabasemachine.xml
-        -s      Show a short form of the Rack Layout by hiding the empty U slots
-                You can set SHOW_EMPTY_U="NO" on top of the script to always show the short form
-        -h      Show this help
+    -f	Specify a non default databasemachine.xml file
+	    $0 -f /tmp/mydatabasemachine.xml
+    -s  Show a short form of the Rack Layout by hiding the empty U slots
+        You can set SHOW_EMPTY_U="NO" on top of the script to always show the short form
+    -h  Show this help
 END
 printf "\n"
 exit 123
 }
-
 #
 # Options management
 #
@@ -65,23 +76,19 @@ done
 #
 # The databasemachine.xml file we base our report on
 #
-if [[ -z "${IN}" ]]
-then
+if [[ -z "${IN}" ]]; then
 	DBMACHINE=/opt/oracle.SupportTools/onecommand/databasemachine.xml
 else
 	DBMACHINE=${IN}
 fi
-
-if [ ! -f ${DBMACHINE} ] || [ ! -r ${DBMACHINE} ]
-then
+if [ ! -f "${DBMACHINE}" ] || [ ! -r "${DBMACHINE}" ]; then
         cat << !
         The ${DBMACHINE} cannot be found or is not readable, cannot continue.
 !
         exit 123
 fi
 printf "\n"
-
-awk -v SHOW_EMPTY_U="$SHOW_EMPTY_U" 'BEGIN\
+awk -v SHOW_EMPTY_U="${SHOW_EMPTY_U}" 'BEGIN\
         {       FS="<|>"                                                                ;
                 # some colors
              COLOR_BEGIN =       "\033[1;"                                              ;
