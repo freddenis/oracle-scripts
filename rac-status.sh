@@ -19,10 +19,11 @@
 #
 # More info and git repo: https://bit.ly/2MFkzDw -- https://github.com/freddenis/oracle-scripts
 #
-# The current script version is 20211110
+# The current script version is 20211111
 #
 # History :
 #
+# 20211111 - Fred Denis - GPLv3 licence
 # 20211110 - Fred Denis - Use of attributes and -attr option for crsctl which is significantly fater (x10 on systems with 100th resources in the cluster)
 # 20211109 - Fred Denis - Fast-start failover status shortened, tolower the status when checking to avoid case issues
 # 20210912 - Fred Denis - Implement new GI 21c PDB status; also -p option to show/hide PDBs, default is we show the PDBs
