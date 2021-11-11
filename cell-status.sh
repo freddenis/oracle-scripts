@@ -1,13 +1,29 @@
 #!/bin/bash
-# Fred Denis -- May 2019 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
+# Fred Denis -- May 2019 -- fred.denis3@gmail.com -- http://unknowndba.blogspot.com
+# cell-status.sh - an overview of your Exadata cell and grid disks (http://bit.ly/2VxJIUH)
+# Copyright (C) 2021 Fred Denis
 #
-# Shows a status of the cell disks and grid disks across all the nodes of an Exadata, see usage function (option -h) for more information
-# More details on this scrit: https://unknowndba.blogspot.com/2019/05/cell-status-sh-overview-exadata-cells.html
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-# The current script version is 20211019
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+#
+# More info and git repo: http://bit.ly/2VxJIUH -- https://github.com/freddenis/oracle-scripts
+#
+# The current script version is 20211111
 #
 # History :
 #
+# 20211111 - Fred Denis - GPLv3 licence
 # 20211019 - Fred Denis - Code cleaning, set a default cell_group which is $HOME/cell_group as it is mainly
 #                           what everybody uses so it makes sense not to have to specify it at each execution
 # 20200914 - Fred Denis - Passing a cell_group file now works correctly
@@ -38,38 +54,38 @@ usage()
 {
 printf "\n\033[1;37m%-8s\033[m\n" "NAME"                ;
 cat << END
-       $(basename $0) shows a status of the Cell disks and the Grid disks on all the cells of an Exadata
+    cell-status.sh - an overview of your Exadata cell and grid disks (http://bit.ly/2VxJIUH)
 END
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
 cat << END
-        $0 [-v] [-u] [-c] [-o] [-f] [-n] [-h]
+    $0 [-v] [-u] [-c] [-o] [-f] [-n] [-h]
 END
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
 cat << END
-        - $(basename $0) shows a status of the Cell disks and the Grid disks on all the cells of an Exadata
-        - It has be be executed by a user with SSH equivalence on the cell servers
-            - If $(basename $0) is executed as root, then $USER is used to connect to the cells
-            - If $(basename $0) is executed as a non root user, then $NONROOTUSER is used to connect to the cells
-            - You can change this behavior by forcing the use of a specific user with the -u option
-        - About the cells $(basename $0) reports about:
-            - If $(basename $0) is executed as root:
-                The default cell_group file "${CELL_GROUP}" file is used
-                If "${CELL_GROUP}" does not exist:
-                  - on < X8M it uses ibhosts to build the list of cells to connect to
-                  - On >= X8M, it fails as there is no ibhosts so a hardcoded cell_group file has to be specified (-c option)
-            - If $(basename $0) is executed as a non root user, it uses the databasemachine.xml file to build the list of cells to connect to
+    $(basename $0) shows a status of the Cell disks and the Grid disks of all the cells of an Exadata
+    It has be be executed by a user with SSH equivalence on the cell servers
+        - If $(basename $0) is executed as root, then $USER is used to connect to the cells
+        - If $(basename $0) is executed as a non root user, then $NONROOTUSER is used to connect to the cells
+        - You can change this behavior by forcing the use of a specific user with the -u option
+    About the cells $(basename $0) reports about:
+        - If $(basename $0) is executed as root:
+            The default cell_group file "${CELL_GROUP}" file is used
+            If "${CELL_GROUP}" does not exist:
+                - on < X8M it uses ibhosts to build the list of cells to connect to
+                - on >= X8M, it fails as there is no ibhosts so a hardcoded cell_group file has to be specified (-c option)
+        - If $(basename $0) is executed as a non root user, it uses the databasemachine.xml file to build the list of cells to connect to
 END
 printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"             ;
 cat << END
-        -v      Shows the details of the bad disks (with error or bad status)
-        -u      User to connect to the cells (if the default does not suit you)
-        -c -C   Specify a file which contains the cell list to connect to (aka cell_group), default is: "${CELL_GROUP}"
+    -v      Shows the details of the bad disks (with error or bad status)
+    -u      User to connect to the cells (if the default does not suit you)
+    -c -C   Specify a file which contains the cell list to connect to (aka cell_group), default is: "${CELL_GROUP}"
 
-        -o      Save the output of the dcli commands in a file ($(basename $0) -o outputfile.log)
-        -f      Use a file generated by the -o option as input ($(basename $0) -f outputfile.log)
-        -n      Number of diskgroups to show per line (if not specified, $(basename $0) adapts it to the terminal size)
+    -o      Save the output of the dcli commands in a file ($(basename $0) -o outputfile.log)
+    -f      Use a file generated by the -o option as input ($(basename $0) -f outputfile.log)
+    -n      Number of diskgroups to show per line (if not specified, $(basename $0) adapts it to the terminal size)
 
-        -h      Shows this help
+    -h      Shows this help
 
 END
 exit 123
