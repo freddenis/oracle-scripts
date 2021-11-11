@@ -1,7 +1,30 @@
 #!/bin/bash
-# Fred Denis -- fred.denis3@gmail.com -- May 21st 2021
+# Fred Denis -- May 2021 -- fred.denis3@gmail.com -- http://unknowndba.blogspot.com
+# list-ohpatches.sh - how nice tables of the installed and/or missing patches for some GI/DB Oracle Homes (https://bit.ly/3oID4Gs)
+# Copyright (C) 2021 Fred Denis
 #
-# Show nice tables of the installed and/or missing patches for some GI/DB Oracle Homes
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+#
+# More info and git repo: https://bit.ly/3oID4Gs -- https://github.com/freddenis/oracle-scripts
+#
+# The current script version is 20211111
+#
+# History :
+#
+# 20211111 - Fred Denis - GPLv3 licence
+# 20210524 - Fred Denis - Initial Release
 #
 set -o pipefail
 #
@@ -41,50 +64,50 @@ trap sig_cleanup INT TERM QUIT
 usage() {
     printf "\n\033[1;37m%-8s\033[m\n" "NAME"                ;
     cat << END
-        $(basename $0) - Show nice tables of the installed and/or missing patches for some GI/DB Oracle Homes
+    $(basename $0) - Show nice tables of the installed and/or missing patches for some GI/DB Oracle Homes (https://bit.ly/3oID4Gs)
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
     cat << END
-        $0 [-g] [-c] [-G] [-v] [-s] [-u] [-h]
+    $0 [-g] [-c] [-G] [-v] [-s] [-u] [-h]
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
     cat << END
-        $(basename $0) Based on oratab, show nice tables of the installed and/or missing patches for some GI/DB Oracle Homes
-                       You can then quickly find a missing patch across a RAC system
-        $(basename $0) will by default check all the nodes of a cluster (based on olsnodes) which requires ASM to be running
-                       and oraenv to be working with the ASM aslias defined in oratab; If you have no ASM alias in oratab,
-                       you may suffer from https://unknowndba.blogspot.com/2019/01/lost-entries-in-oratab-after-gi-122.html
-                       You can specify a comma separated list of host or a file containing one host per line 
-        $(basename $0) by default checks all the homes defined in oratab, you can use --grep/--home and --ungrep/--ignore to limit your home selection (see examples below)
-        $(basename $0) relies on opatch lspatches which must run as oracle user (and not root); if the script is started as root,
-                       the opatch lspatches commands will be run after su - ${ORACLE} (see -u | --oracleuser for more on this)
+    $(basename $0) Based on oratab, show nice tables of the installed and/or missing patches for some GI/DB Oracle Homes
+                   You can then quickly find a missing patch across a RAC system
+    $(basename $0) will by default check all the nodes of a cluster (based on olsnodes) which requires ASM to be running
+                   and oraenv to be working with the ASM aslias defined in oratab; If you have no ASM alias in oratab,
+                   you may suffer from https://unknowndba.blogspot.com/2019/01/lost-entries-in-oratab-after-gi-122.html
+                   You can specify a comma separated list of host or a file containing one host per line 
+    $(basename $0) by default checks all the homes defined in oratab, you can use --grep/--home and --ungrep/--ignore to limit your home selection (see examples below)
+    $(basename $0) relies on opatch lspatches which must run as oracle user (and not root); if the script is started as root,
+                   the opatch lspatches commands will be run after su - ${ORACLE} (see -u | --oracleuser for more on this)
          
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"             ;
     cat << END
-        -g | --groupfile            ) A group file containing a list of hosts
-        -c | --commalist  | --hosts ) A comma separated list of hosts
-        -G | --grep | --oh | --home ) Pattern to grep from /etc/oratab 
-        -v | --ungrep | --ignore    ) Pattern to grep -v (ignore) from /etc/oratab 
-        -s | --showhomes | --show   ) Just show the homes from oratab resolving the grep/ungrep combinations
-        -u | --oracleuser           ) User to use to run opatch lspatches if the script is started as root, default is ${ORACLE}
-        -h | --help                 ) Shows this help
+    -g | --groupfile            ) A group file containing a list of hosts
+    -c | --commalist  | --hosts ) A comma separated list of hosts
+    -G | --grep | --oh | --home ) Pattern to grep from /etc/oratab 
+    -v | --ungrep | --ignore    ) Pattern to grep -v (ignore) from /etc/oratab 
+    -s | --showhomes | --show   ) Just show the homes from oratab resolving the grep/ungrep combinations
+    -u | --oracleuser           ) User to use to run opatch lspatches if the script is started as root, default is ${ORACLE}
+    -h | --help                 ) Shows this help
 
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "EXAMPLES"            ;
     cat << END
-       $0                                                       # Analyze and show all the homes of nodes of a cluster
-       $0 --show                                                # Show the homes from oratab (only show, dont do anything else)
-       $0 --grep grid                                           # Analyze the grid home
-       $0 --grep db --ungrep 12                                 # Only the DB homes but not the 12 ones
-       $0 --grep db --ungrep 12 --groupfile ~/dbs_group         # Same as above on the hosts contained in the ~/dbs_group file
-       $0 --home db --ignore 12 --hosts exa01,exa06             # Same as above but only on hosts exa02 and exa06
-       $0 --home db --ignore 12 --hosts exa01,exa06 -u oracle2  # Same as above but started as root; will then su - oracle2 automatically
-
+    $0                                                       # Analyze and show all the homes of nodes of a cluster
+    $0 --show                                                # Show the homes from oratab (only show, dont do anything else)
+    $0 --grep grid                                           # Analyze the grid home
+    $0 --grep db --ungrep 12                                 # Only the DB homes but not the 12 ones
+    $0 --grep db --ungrep 12 --groupfile ~/dbs_group         # Same as above on the hosts contained in the ~/dbs_group file
+    $0 --home db --ignore 12 --hosts exa01,exa06             # Same as above but only on hosts exa02 and exa06
+    $0 --home db --ignore 12 --hosts exa01,exa06 -u oracle2  # Same as above but started as root; will then su - oracle2 automatically
+ 
 END
 exit 999
 }
