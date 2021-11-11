@@ -1,6 +1,6 @@
 #!/bin/bash
 # Fred Denis -- October 28th 2021 -- fred.denis3@gmail.com -- http://unknowndba.blogspot.com
-# oraenv++: a step forward towards an easy and powerful tool to set up your Oracle environment
+# oraenv++ - a step forward towards an easy and powerful tool to set up your Oracle environment (https://bit.ly/3GHJMFv)
 # Copyright (C) 2021 Fred Denis
 #
 # This program is free software: you can redistribute it and/or modify
@@ -19,10 +19,11 @@
 #
 # More info and git repo: https://bit.ly/3GHJMFv -- https://github.com/freddenis/oracle-scripts
 #
-# The current script version is 20211109
+# The current script version is 20211111
 #
 # History :
 #
+# 20211111 - Fred Denis - GPLv3 licence
 # 20211109 - Fred Denis - Use -attr which speeds up crsctl (and then oraenv++) in a significant way
 # 20211108 - Fred Denis - Fixed a bug with Oracle restart, removed crsctl -v which is not needed
 #                         OPP_HOSTNAME for when I debug with external files
@@ -77,14 +78,14 @@ fi
 usage() {
     printf "\n\033[1;37m%-8s\033[m\n" "NAME"                ;
     cat << END
-    ${ME} is a step forward towards an easy and powerful tool to set up your Oracle environment (https://bit.ly/3GHJMFv)
+    ${ME} - a step forward towards an easy and powerful tool to set up your Oracle environment (https://bit.ly/3GHJMFv)
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
     cat << END
-        . ${ME} <DB_NAME>
-        . ${ME} [-d]   [-p]    [-g]     [-v]       [-s] [-S]  [-h]
-        . ${ME} [--db] [--pdb] [--grep] [--ungrep] [--silent] [--help]
+    . ${ME} <DB_NAME>
+    . ${ME} [-d]   [-p]    [-g]     [-v]       [-s] [-S]  [-h]
+    . ${ME} [--db] [--pdb] [--grep] [--ungrep] [--silent] [--help]
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
@@ -103,14 +104,14 @@ END
 
     printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"             ;
     cat << END
-        -d | --db         ) Database to set the environment (this is the DB_NAME registered into the GI/CRS)
-                             to make is easy, this option can also not be specified if grep and ungrep are not used (see examples below)
-        -p | --pdb        ) PDB to set the ORACLE_PDB_SID variable to; requires DB to be set
-        -g | --grep       ) grep one or multiple comma separated patterns in the database list registered in the GI/CRS
-        -v | --ungrep     ) ungrep (grep -v) one or multiple comma separated patterns in the database list registered in the GI/CRS
-        -s | -S | --silent) Silent output; the same can be achieved by setting the env variable OPP_SILENT="True"
+    -d | --db         ) Database to set the environment (this is the DB_NAME registered into the GI/CRS)
+                        to make is easy, this option can also not be specified if grep and ungrep are not used (see examples below)
+    -p | --pdb        ) PDB to set the ORACLE_PDB_SID variable to; requires DB to be set
+    -g | --grep       ) grep one or multiple comma separated patterns in the database list registered in the GI/CRS
+    -v | --ungrep     ) ungrep (grep -v) one or multiple comma separated patterns in the database list registered in the GI/CRS
+    -s | -S | --silent) Silent output; the same can be achieved by setting the env variable OPP_SILENT="True"
 
-        -h | --help       ) Shows this help
+    -h | --help       ) Shows this help
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "EXAMPLES"            ;
