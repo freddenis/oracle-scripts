@@ -1,12 +1,23 @@
 #!/bin/bash
-# Fred Denis -- Jan 2016 -- http://unknowndba.blogspot.com -- fred.denis3@gmail.com
+# Fred Denis -- Jan 2016 -- fred.denis3@gmail.com -- http://unknowndba.blogspot.com
+# rac-status.sh: an overview of your Oracle RAC / GI 11g, 12c, 18c ,19c, 21c+ resources in a glimpse 
+# Copyright (C) 2021 Fred Denis
 #
-# Quickly shows a status of all running instances accross a 11g, 12c, 18c+ cluster
-# The script just needs to have a working oraenv, if rac-status.sh hangs, you may suffer from http://bit.ly/2IODPJo (alternatively ,see the -e option)
-# Ultimately, feel free to contact me
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-# Please have a look at http://bit.ly/2MFkzDw  for some details and screenshots
-# The latest version of the script can be downloaded here : http://bit.ly/2XEXa6j
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+#
+# More info and git repo: https://bit.ly/2MFkzDw -- https://github.com/freddenis/oracle-scripts
 #
 # The current script version is 20211110
 #
@@ -192,7 +203,7 @@ show_version() {
 usage() {
     printf "\n\033[1;37m%-8s\033[m\n" "NAME"                ;
     cat << END
-        `basename $0` - A nice overview of databases, listeners, services and tech resources running across a GI 12c+
+        `basename $0` - A nice overview of databases, listeners, services and tech resources running across an Oracle GI 12c+ (https://bit.ly/2MFkzDw)
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
