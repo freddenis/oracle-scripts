@@ -253,12 +253,10 @@ fi
                 # Print the node names
                 for (i=a+1; i<=a+NB_PER_LINE; i++) {
                     COLOR=WHITE                                            ;
-                    if (type != "ib") {
-                        if (db_status[i] != "success") {COLOR=RED; FAILURES=1} ;
-                        if (length(db_node[i]) > 0) {
-                            printf("%s", center(db_node[i],COL_SIZE,COLOR))    ;
-                            nb_printed++                                       ;
-                        }
+                    if ((db_status[i] != "success") && (type != "ib")) {COLOR=RED; FAILURES=1} ;
+                    if (length(db_node[i]) > 0) {
+                        printf("%s", center(db_node[i],COL_SIZE,COLOR))    ;
+                        nb_printed++                                       ;
                     }
                 }
 
