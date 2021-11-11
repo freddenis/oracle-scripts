@@ -27,8 +27,9 @@
 # sh: -c: line 1: syntax error: unexpected end of file
 #
 #
-# The current version of the script is 20211018
+# The current version of the script is 20211111
 #
+# 20211111 - Fred Denis - GPLv3 licence
 # 20211018 - Fred Denis - Cosmetic, indentation, protect and quote, $() instead of ``
 #                         Use of olr.loc instead of oraenv if possible
 # 20190906 - Fred Denis - A new -V option to show the version of the script
