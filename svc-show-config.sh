@@ -1,13 +1,29 @@
 #!/bin/bash
-# Fred Denis -- Feb 16th 2021
-# Show nice tables with the databases services configuration
-#  - Service name
-#  - preferred instances
-#  - Available instances
-#  - Failback (Yes or No)
-#  - Role (Primary, Standby)
+# Fred Denis -- Feb 2021 -- fred.denis3@gmail.com -- http://unknowndba.blogspot.com
+# svc-show-config.sh - show nice tables with the databases services configuration, can also relocate services to preferred instances (https://bit.ly/307P7F8)
+# Copyright (C) 2021 Fred Denis
 #
-# History:
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+#
+# More info and git repo: https://bit.ly/307P7F8 -- https://github.com/freddenis/oracle-scripts
+#
+# The current script version is 20211111
+#
+# History :
+#
+# 20211111 - Fred Denis - GPLv3 licence, speed crsctl up using -attr
 # 20211019 - Fred Denis - Use OLR instead of oraenv
 # 20210901 - Fred Denis - Well placed services now appear in GREEN
 #                         We do not generate the commands for offline services as we assume there is a good reason
@@ -34,47 +50,47 @@ HIDE_TABLE="False"                     # Hide the services tables (only used by 
 usage() {
     printf "\n\033[1;37m%-8s\033[m\n" "NAME"                ;
     cat << END
-        $(basename $0) - Show nice tables with the databases services configuration:
-            Service name, Preferred instances, Available instances, Failback (Yes or No), Role (Primary, Standby)
+    svc-show-config.sh - show nice tables with the databases services configuration, can also relocate services to preferred instances (https://bit.ly/307P7F8)
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
     cat << END
-        $0 [-d]   [-g]     [-G]       [-p]         [-P]             [-f]      [-r]   [-b]        [-R]         [-h]
-        $0 [--db] [--grep] [--ungrep] [--showcode] [--showcodeonly] [--force] [--do] [--badonly] [--relocate] [--help]
+    $0 [-d]   [-g]     [-G]       [-p]         [-P]             [-f]      [-r]   [-b]        [-R]         [-h]
+    $0 [--db] [--grep] [--ungrep] [--showcode] [--showcodeonly] [--force] [--do] [--badonly] [--relocate] [--help]
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"            ;
     cat << END
-        $(basename $0):
-        -  Shows nice tables with the databases services configuration:
-               Service name, Preferred instances, Available instances, Failback (Yes or No), Role (Primary, Standby)
-        - Based on the databases registered in CRS
-        - Works as root or oracle user
-        - May not work with databases under different owners
+    $(basename $0):
+    Shows nice tables with the databases services configuration:
+    Service name, Preferred instances, Available instances, Failback (Yes or No), Role (Primary, Standby)
+    - Based on the databases registered in CRS
+    - Works as root or oracle user
+    - May not work with databases under different owners
+    - Can also reolocate to the preferred instances (be aware that this is a force relocate by default, if you want a non force service relocation, you should check the failback yes feature: https://bit.ly/3bg9z8D)
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"            ;
     cat << END
-        -g | --grep                        ) a (no key sensitive) string to grep in the DB name and ORACLE_HOME                (optional)
-        -G | --ungrep                      ) a (no key sensitive) string to ungrep (grep -v) in the DB name and ORACLE_HOME    (optional)
-        -d | --db                          ) a (no key sensitive) database name taken from CRS                                 (optional)
-        -p | --showcode     | --topref     )   also shows the commands to run to restart the services on the preferred instances (optional)
-        -P | --showcodeonly | --toprefonly ) only shows the commands to run to restart the services on the preferred instances (optional)
-        -f | --force                       ) use -f option to stop service (kill the currently connected sessions)             (optional)
-        -b | --badonly                     ) Show only the badly configured services, default is ${BADONLY}                    (optional)
-        -r | --do                          ) do the stop on available / start on preferred instances, default is ${DO}         (optional)
-        -R | --relocate                    ) Relocate the services (shortcut for --badonly --toprefonly --force --do)
+    -g | --grep                        ) a (no key sensitive) string to grep in the DB name and ORACLE_HOME                (optional)
+    -G | --ungrep                      ) a (no key sensitive) string to ungrep (grep -v) in the DB name and ORACLE_HOME    (optional)
+    -d | --db                          ) a (no key sensitive) database name taken from CRS                                 (optional)
+    -p | --showcode     | --topref     ) also shows the commands to run to restart the services on the preferred instances (optional)
+    -P | --showcodeonly | --toprefonly ) only shows the commands to run to restart the services on the preferred instances (optional)
+    -f | --force                       ) use -f option to stop service (kill the currently connected sessions)             (optional)
+    -b | --badonly                     ) Show only the badly configured services, default is ${BADONLY}                    (optional)
+    -r | --do                          ) do the stop on available / start on preferred instances, default is ${DO}         (optional)
+    -R | --relocate                    ) Relocate the services (shortcut for --badonly --toprefonly --force --do)
 
-        -h | --help                        ) shows this help
+    -h | --help                        ) shows this help
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "EXAMPLES"            ;
     cat << END
-        $0                  # Services config of all the databases from /etc/oratab
-        $0 --db ABCD        # Show services config of the ABCD database
-        $0 --grep 19        # Show services config of what contains 19 in /etc/oratab
-        $0 -g dbhome_1      # Show services config of what contains dbhome_1 in /etc/oratab
+    $0                  # Services config of all the databases from /etc/oratab
+    $0 --db ABCD        # Show services config of the ABCD database
+    $0 --grep 19        # Show services config of what contains 19 in /etc/oratab
+    $0 -g dbhome_1      # Show services config of what contains dbhome_1 in /etc/oratab
 
 END
 exit 999
@@ -83,7 +99,7 @@ exit 999
 # Options
 #
 SHORT="g:,G:,d:,p,P,f,r,b,R,h"
-LONG="grep:,ungrep:,db:,topref,toprefonly,force,do,badonly,relocate,showcode,showcodeonly,help"
+ LONG="grep:,ungrep:,db:,topref,toprefonly,force,do,badonly,relocate,showcode,showcodeonly,help"
 #
 options=$(getopt -a --longoptions "${LONG}" --options "${SHORT}" -n "$0" -- "$@")
 #
@@ -126,14 +142,13 @@ if ! type crsctl > /dev/null 2>&1; then
     printf "\033[1;31m%s\033[m" "$($TS) [ERROR] crsctl not found;  please check that ASM is correct in /etc/oratab; cannot continue."
     exit 456
 fi
-for X in $(crsctl stat res -p -w "TYPE = ora.database.type" | grep -E '^(NAME=|ORACLE_HOME=)' | awk -F "=" '{split($2,db,"."); getline; print db[2]":"$2}' | sort | uniq | grep -i "${GREP}" | grep -iv "${UNGREP}" | grep -i "${DB}:"); do
+for X in $(crsctl stat res -p -w "TYPE = ora.database.type" -attr "NAME,ORACLE_HOME" | awk -F "=" '{split($2,db,"."); getline; print db[2]":"$2}' | sort | uniq | grep -i "${GREP}" | grep -iv "${UNGREP}" | grep -i "${DB}:"); do
     DB=$(echo ${X} | awk -F ":" '{print $1}')
     OH=$(echo ${X} | awk -F ":" '{print $2}')
     SRVCTL="${OH}/bin/srvctl"
     if [[ "${HIDE_TABLE}" == "False" ]]; then
         printf "\n\033[1;36m%s\033[m\n" "$($TS) [INFO] Database: ${DB} -- ${OH}"
     fi
-#    (srvctl config service -d "${DB}"; srvctl status service -d "${DB}" | sed s'/ /:/g') \
     (echo "srvctl:${DB}:${SRVCTL}"; export ORACLE_HOME=${OH}; ${SRVCTL} config service -d "${DB}"; ${SRVCTL} status service -d "${DB}" | sed s'/ /:/g') \
         | awk -F ":" -v topref="${TOPREF}" -v hide="${HIDE_TABLE}" -v badonly="${BADONLY}"\
                      -v  force="${FORCE}" 'BEGIN {  # some colors
@@ -299,6 +314,5 @@ if [[ "${DO}" == "True" ]]; then
     fi
 fi
 rm -f "{TEMP}"
-#echo $TEMP
 done
 
