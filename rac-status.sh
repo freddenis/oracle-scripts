@@ -1,6 +1,6 @@
 #!/bin/bash
 # Fred Denis -- Jan 2016 -- fred.denis3@gmail.com -- http://unknowndba.blogspot.com
-# rac-status.sh: an overview of your Oracle RAC / GI 11g, 12c, 18c ,19c, 21c+ resources in a glimpse 
+# rac-status.sh - an overview of your Oracle RAC / GI 11g, 12c, 18c ,19c, 21c+ resources in a glimpse 
 # Copyright (C) 2021 Fred Denis
 #
 # This program is free software: you can redistribute it and/or modify
@@ -203,94 +203,94 @@ show_version() {
 usage() {
     printf "\n\033[1;37m%-8s\033[m\n" "NAME"                ;
     cat << END
-        `basename $0` - A nice overview of databases, listeners, services and tech resources running across an Oracle GI 12c+ (https://bit.ly/2MFkzDw)
+    rac-status.sh - an overview of your Oracle RAC / GI 11g, 12c, 18c ,19c, 21c+ resources in a glimpse (https://bit.ly/2MFkzDw)
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
     cat << END
-        $0 [-a] [-n] [-d] [-p] [-l] [-s] [-t] [-g] [-v] [-D] [-S] [-c] [-o] [-f] [-e] [-L] [-r] [-u] [-k] [-K] [-w] [-h]
+    $0 [-a] [-n] [-d] [-p] [-l] [-s] [-t] [-g] [-v] [-D] [-S] [-c] [-o] [-f] [-e] [-L] [-r] [-u] [-k] [-K] [-w] [-h]
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"         ;
     cat << END
-        `basename $0` needs to be executed with a user allowed to query GI using crsctl; oraenv also has to be working
-        `basename $0` will show what is running or not running accross all the nodes of a GI 12c :
-                - The databases instances (and the ORACLE_HOME they are running against)
-                - The type of database : Primary, Standby, RAC One node, Single
-                - The listeners (SCAN Listener and regular listeners)
-                - The services
-        With no option, `basename $0` will show what is defined by the variables :
-                - SHOW_DB       # To show the databases instances
-                - SHOW_PDB      # To show the PDBs (only if your GI is >= 21c)
-                - SHOW_LSNR     # To show the listeners
-                - SHOW_SVC      # To show the services
-                - SHOW_TECH     # To show the tech stuff (DGs, ONS, etc ...)
-                These variables can be modified in the script itself or you can use command line option to revert their value (see below)
+    `basename $0` needs to be executed with a user allowed to query GI using crsctl; oraenv also has to be working
+    `basename $0` will show what is running or not running accross all the nodes of a GI 12c :
+        - The databases instances (and the ORACLE_HOME they are running against)
+        - The type of database : Primary, Standby, RAC One node, Single
+        - The listeners (SCAN Listener and regular listeners)
+        - The services
+    With no option, `basename $0` will show what is defined by the variables :
+        - SHOW_DB       # To show the databases instances
+        - SHOW_PDB      # To show the PDBs (only if your GI is >= 21c)
+        - SHOW_LSNR     # To show the listeners
+        - SHOW_SVC      # To show the services
+        - SHOW_TECH     # To show the tech stuff (DGs, ONS, etc ...)
+        These variables can be modified in the script itself or you can use command line option to revert their value (see below)
 
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "OPTIONS"             ;
     cat << END
-        -a        Show everything regardless of the default behavior defined with SHOW_DB, SHOW_LSNR, SHOW_SVC and SHOW_TECH
-        -n        Show nothing  regardless of the default behavior defined with SHOW_DB, SHOW_LSNR, SHOW_SVC and SHOW_TECH
-        -a and -n are handy to erase the defaults values:
-                        $ ./rac-status.sh -n -d                         # Show the databases output only
-                        $ ./rac-status.sh -a -s                         # Show everything but the services (then the listeners and the databases)
+    -a    Show everything regardless of the default behavior defined with SHOW_DB, SHOW_LSNR, SHOW_SVC and SHOW_TECH
+    -n    Show nothing    regardless of the default behavior defined with SHOW_DB, SHOW_LSNR, SHOW_SVC and SHOW_TECH
+    -a and -n are handy to erase the defaults values:
+          $ ./rac-status.sh -n -d                         # Show the databases output only
+          $ ./rac-status.sh -a -s                         # Show everything but the services (then the listeners and the databases)
 
-        -d        Revert the behavior defined by SHOW_DB  ; if SHOW_DB   is set to YES to show the databases by default, then the -d option will hide the databases
-        -p        Revert the behavior defined by SHOW_PDB ; if SHOW_PDB  is set to YES to show the databases by default, then the -p option will hide the PDBs
-        -l        Revert the behavior defined by SHOW_LSNR; if SHOW_LSNR is set to YES to show the listeners by default, then the -l option will hide the listeners
-        -s        Revert the behavior defined by SHOW_SVC ; if SHOW_SVC  is set to YES to show the services  by default, then the -s option will hide the services
-        -t        Revert the behavior defined by SHOW_TECH; if SHOW_TECH is set to YES to show the tech resources  by default, then the -t option will hide the tech resources
+    -d    Revert the behavior defined by SHOW_DB  ; if SHOW_DB   is set to YES to show the databases by default, then the -d option will hide the databases
+    -p    Revert the behavior defined by SHOW_PDB ; if SHOW_PDB  is set to YES to show the databases by default, then the -p option will hide the PDBs
+    -l    Revert the behavior defined by SHOW_LSNR; if SHOW_LSNR is set to YES to show the listeners by default, then the -l option will hide the listeners
+    -s    Revert the behavior defined by SHOW_SVC ; if SHOW_SVC  is set to YES to show the services  by default, then the -s option will hide the services
+    -t    Revert the behavior defined by SHOW_TECH; if SHOW_TECH is set to YES to show the tech resources  by default, then the -t option will hide the tech resources
 
-        -g        Act as a grep command to grep a pattern from the output (key sensitive)
-        -v        Act as "grep -v" to ungrep from the output
-        -g and -v examples :
-                        $ ./rac-status.sh -g Open                       # Show only the lines with "Open" on it
-                        $ ./rac-status.sh -g Open                       # Show only the lines with "Open" on it
-                        $ ./rac-status.sh -g "Open|Online"              # Show only the lines with "Open" or "Online" on it
-                        $ ./rac-status.sh -g "Open|Online" -v 12        # Show only the lines with "Open" or "Online" on it but no those containing 12
+    -g    Act as a grep command to grep a pattern from the output (key sensitive)
+    -v    Act as "grep -v" to ungrep from the output
+    -g and -v examples :
+          $ ./rac-status.sh -g Open                       # Show only the lines with "Open" on it
+          $ ./rac-status.sh -g Open                       # Show only the lines with "Open" on it
+          $ ./rac-status.sh -g "Open|Online"              # Show only the lines with "Open" or "Online" on it
+          $ ./rac-status.sh -g "Open|Online" -v 12        # Show only the lines with "Open" or "Online" on it but no those containing 12
 
-        -D        Comma separated list of databases (key sensitive) to show -- only the services related to these DBs will be shown:
-                        $ ./rac-status.sh -D prod                       # Show only the "prod" database
-                        $ ./rac-status.sh -D prod1,prod2,prod3          # Show only the prod1, prod2 and prod3 databases
+    -D    Comma separated list of databases (key sensitive) to show -- only the services related to these DBs will be shown:
+          $ ./rac-status.sh -D prod                       # Show only the "prod" database
+          $ ./rac-status.sh -D prod1,prod2,prod3          # Show only the prod1, prod2 and prod3 databases
 
-        -S        Comma separated list of services (key sensitive) to show -- default is we show all the services:
-                        $ ./rac-status.sh -D prod -S svc1,svc4          # Show only the svc1 and svc4 services
+    -S    Comma separated list of services (key sensitive) to show -- default is we show all the services:
+          $ ./rac-status.sh -D prod -S svc1,svc4          # Show only the svc1 and svc4 services
 
-        -c        Column to sort by, please have a look at "Sort the database output" in http://bit.ly/2MFkzDw for more details on this -c option
+    -c    Column to sort by, please have a look at "Sort the database output" in http://bit.ly/2MFkzDw for more details on this -c option
 
-        -o        Specify a file to save the crsctl commands output
-                       $ ./rac-status.sh -o /tmp/rac-status_output.log
-        -f        A file to use as input file (one generated by the -o option for example)
-                       $ ./rac-status.sh -f /tmp/rac-status_output.log
+    -o    Specify a file to save the crsctl commands output
+          $ ./rac-status.sh -o /tmp/rac-status_output.log
+    -f    A file to use as input file (one generated by the -o option for example)
+          $ ./rac-status.sh -f /tmp/rac-status_output.log
 
-        -e        Do not use oraenv to set the ASM environment but relies on the current environment
-                  Set USE_ORAENV="NO" on top of the script to have a permanent -e option
+    -e    Do not use olr.loc to set the ASM environment but relies on the current environment
+          Set USE_ORAENV="NO" on top of the script to have a permanent -e option
 
-        -L        Do not try to shorten the host names, show the entire host names
+    -L    Do not try to shorten the host names, show the entire host names
 
-        -r        Reverse the colors (useful for clear terminal backgrounds)
+    -r    Reverse the colors (useful for clear terminal backgrounds)
 
-        -u        Shows the Uncolored output (no colors); set WITH_COLORS="NO" on top of the script to have it permanently
+    -u    Shows the Uncolored output (no colors); set WITH_COLORS="NO" on top of the script to have it permanently
 
-        -k        Shows the ADVM devices on the same line as the ACFS FS (handy to remount some FS), default is ${ADVM_DEV}
-        -K        Do not show the ACFS FS nor the ADVM devices, default is ${HIDE_DEV}
+    -k    Shows the ADVM devices on the same line as the ACFS FS (handy to remount some FS), default is ${ADVM_DEV}
+    -K    Do not show the ACFS FS nor the ADVM devices, default is ${HIDE_DEV}
 
-        -w        Shows a yellow background when a resource has been restarted less than the number of hours in parameter (default is ${DIFF_HOURS})
-                    h for hours (default) d for day, w for week, m for month and y for year can be used to specify the delay:
-                        $ ./rac-status.sh -w 24         # 24 hours
-                        $ ./rac-status.sh -w 24h        # 24 hours
-                        $ ./rac-status.sh -w 2d         # 2 days
-                        $ ./rac-status.sh -w 3m         # 3 months
-        -V        Shows the version of the script
-        -h        Shows this help
+    -w    Shows a yellow background when a resource has been restarted less than the number of hours in parameter (default is ${DIFF_HOURS})
+              h for hours (default) d for day, w for week, m for month and y for year can be used to specify the delay:
+              $ ./rac-status.sh -w 24         # 24 hours
+              $ ./rac-status.sh -w 24h        # 24 hours
+              $ ./rac-status.sh -w 2d         # 2 days
+              $ ./rac-status.sh -w 3m         # 3 months
+    -V        Shows the version of the script
+    -h        Shows this help
 
-        Note : the options are cumulative and can be combined with a "the last one wins" behavior :
-                $ $0 -a -l              # Show everything but the listeners (-a will force show everything then -l will hide the listeners)
-                $ $0 -n -d              # Show only the databases           (-n will force hide everything then -d with show the databases)
+    Note: the options are cumulative and can be combined with a "the last one wins" behavior :
+          $ $0 -a -l              # Show everything but the listeners (-a will force show everything then -l will hide the listeners)
+          $ $0 -n -d              # Show only the databases           (-n will force hide everything then -d with show the databases)
 
-                Experiment and enjoy  !
+    Experiment and enjoy  !
 
 END
 exit 123
