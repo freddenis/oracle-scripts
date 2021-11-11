@@ -23,7 +23,7 @@
 #
 # History :
 #
-# 20211111 - Fred Denis - GPLv3 licence
+# 20211111 - Fred Denis - GPLv3 licence, ib/roce have no status so cannot be shown in red
 # 20211018 - Fred Denis - oraenv not needed here so I removed it; cosmetic
 # 20200715 - Fred Denis - Manage the ROCE switches which come with X8M+
 #                         Keep in mind that you can deploy the SSH keys to the ROCE switches using /opt/oracle.SupportTools/RoCE/setup_switch_ssh_equiv.sh
@@ -253,10 +253,12 @@ fi
                 # Print the node names
                 for (i=a+1; i<=a+NB_PER_LINE; i++) {
                     COLOR=WHITE                                            ;
-                    if (db_status[i] != "success") {COLOR=RED; FAILURES=1} ;
-                    if (length(db_node[i]) > 0) {
-                        printf("%s", center(db_node[i],COL_SIZE,COLOR))    ;
-                        nb_printed++                                       ;
+                    if (type != "ib") {
+                        if (db_status[i] != "success") {COLOR=RED; FAILURES=1} ;
+                        if (length(db_node[i]) > 0) {
+                            printf("%s", center(db_node[i],COL_SIZE,COLOR))    ;
+                            nb_printed++                                       ;
+                        }
                     }
                 }
 
