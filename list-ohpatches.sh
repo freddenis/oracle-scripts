@@ -1,6 +1,6 @@
 #!/bin/bash
 # Fred Denis -- May 2021 -- fred.denis3@gmail.com -- http://unknowndba.blogspot.com
-# list-ohpatches.sh - how nice tables of the installed and/or missing patches for some GI/DB Oracle Homes (https://bit.ly/3oID4Gs)
+# list-ohpatches.sh - show nice tables of the installed and/or missing patches for some GI/DB Oracle Homes (https://bit.ly/3oID4Gs)
 # Copyright (C) 2021 Fred Denis
 #
 # This program is free software: you can redistribute it and/or modify
@@ -64,7 +64,7 @@ trap sig_cleanup INT TERM QUIT
 usage() {
     printf "\n\033[1;37m%-8s\033[m\n" "NAME"                ;
     cat << END
-    $(basename $0) - Show nice tables of the installed and/or missing patches for some GI/DB Oracle Homes (https://bit.ly/3oID4Gs)
+    $(basename $0) - show nice tables of the installed and/or missing patches for some GI/DB Oracle Homes (https://bit.ly/3oID4Gs)
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
