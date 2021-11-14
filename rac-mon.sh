@@ -125,7 +125,7 @@ fi
 if [[ ! -f "${REFERENCE}" ]]; then                                            # No reference file, we cannot continue
     if [[ "${AUTO_CREATE_REF}" == "Yes" ]]; then                         # Reference file does not exist, we create it
         printf "\t%s" "No reference file found at $REFERENCE, creating it . . ."
-        "${RACSTATUS}" "${OPTIONS}" > "${REFERENCE}"
+        ${RACSTATUS} ${OPTIONS} > "${REFERENCE}"
         if [ $? -eq 0 ]; then
             printf "\t\033[1;32m%-8s\033[m\n" "OK"          ;
         else
@@ -145,7 +145,7 @@ fi
 #
 # Check the current status of the cluster
 #
-"${RACSTATUS}" "${OPTIONS}" > "${TMP}"
+${RACSTATUS} ${OPTIONS} > "${TMP}"
 if [ $? -ne 0 ]; then
     cat << !
     There was an error executing ${RACSTATUS}, please try executing it manually first and reach out to the author if it doesn't work.
