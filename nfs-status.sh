@@ -1,6 +1,30 @@
 #!/bin/bash
 # Fred Denis -- May 31st 2021
-# List NFS status (healthy, hung, not mounted, in fstab or not)
+# nfs-status.sh - list NFS status (healthy, hung, not mounted, in fstab or not)
+# Copyright (C) 2021 Fred Denis
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+#
+# More info and git repo: https://github.com/freddenis/oracle-scripts
+#
+# The current script version is 20211111
+#
+# History :
+#
+# 20211111 - Fred Denis - GPLv3 licence
+# 20210531 - Fred Denis - Initial release
 #
 set -o pipefail
 #
@@ -56,7 +80,7 @@ print_a_line() {
 usage() {
     printf "\n\033[1;37m%-8s\033[m\n" "NAME"                ;
     cat << END
-        $(basename $0) - Show a status of the NFS (hung, healthy, not mounted, not in fstab, etc ...)
+        $(basename $0) - show a status of the NFS (hung, healthy, not mounted, not in fstab, etc ...)
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
