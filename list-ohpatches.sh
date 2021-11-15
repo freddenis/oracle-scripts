@@ -19,10 +19,13 @@
 #
 # More info and git repo: https://bit.ly/3oID4Gs -- https://github.com/freddenis/oracle-scripts
 #
-# The current script version is 20211111
+# The current script version is 20211115
 #
 # History :
 #
+# 20211115 - Fred Denis - A nice checkmark (or an "ok" if your terminal is not utf8) when a patch is installed to replace the green x
+#                         Short options only for AIX as AIX getopt does not support long options (. . .)
+#                         Short options can also be forced with export SHORT_OPTIONS="True"
 # 20211111 - Fred Denis - GPLv3 licence
 # 20210524 - Fred Denis - Initial Release
 #
@@ -35,6 +38,12 @@ set -o pipefail
  UNGREP="nothing_to_ungrep_unless_v_option_is_used$$"       # What we don't grep (grep -v)  -- default is nothing
    COLS=$(tput cols)                                        # Size of the screen
  ORACLE="oracle"                                            # User to run opatch lspatches if script ran as root
+# If UTF8, we show a nice checkmark when a patch is here, if not, a simple "ok"
+if [[ $(locale charmap) == "UTF-8" ]]; then
+    CHECKMARK="True"
+else
+    CHECKMARK="False"
+fi
 #
 # Cleanup on exit -- this will be executed on normal exit as well as if the script is killed
 # The place to cleanup things / send emails whatever happens to the script
@@ -83,6 +92,7 @@ END
     $(basename $0) by default checks all the homes defined in oratab, you can use --grep/--home and --ungrep/--ignore to limit your home selection (see examples below)
     $(basename $0) relies on opatch lspatches which must run as oracle user (and not root); if the script is started as root,
                    the opatch lspatches commands will be run after su - ${ORACLE} (see -u | --oracleuser for more on this)
+    If your system does not support long options, you can force short options using export SHORT_OPTIONS="True"
          
 END
 
@@ -112,34 +122,6 @@ END
 exit 999
 }
 #
-# Options -- Long and Short, options needs to be separa
-# Options are comma separated list, options requiring a parameter need to be followed by a ":"
-#
-SHORT="g:,c:,g:,v:,u:,sh"
- LONG="groupfile:,commalist:,hosts:,grep:,oh:,home:,ungrep:,ignore:,oracleuser:,showhomes,help"
-# Check if the specified options are good
-options=$(getopt -a --longoptions "${LONG}" --options "${SHORT}" -n "$0" -- "$@")
-# If not, show the usage and exit
-if [[ $? -ne 0 ]]; then
-    printf "\033[1;31m%s\033[m\n" "$($TS) [ERROR] Invalid options provided: $*; use -h for help; cannot continue." >&2
-    exit 864
-fi
-#
-eval set -- "${options}"
-# Option management, not the "shift 2" when an option requires a parameter and "shift" when no parameter needed
-while true; do
-    case "$1" in
-        -g | --groupfile           )      GROUP="$2"        ; shift 2 ;;
-        -c | --commalist | --hosts )      HOSTS="$2"        ; shift 2 ;;
-        -G | --grep | --oh | --home)       GREP="$2"        ; shift 2 ;;
-        -v | --ungrep | --ignore   )     UNGREP="$2"        ; shift 2 ;;
-        -u | --oracleuser          )     ORACLE="$2"        ; shift 2 ;;
-        -s | --showhomes           ) SHOW_HOMES="True"      ; shift   ;;
-        -h | --help                ) usage                  ; shift   ;;
-        --                         ) shift                  ; break   ;;
-    esac
-done
-#
 # Different OS support
 #
 OS=$(uname)
@@ -155,10 +137,51 @@ case ${OS} in
                        AWK=`which awk`                          ;;
         AIX)
                     ORATAB=/etc/oratab
-                       AWK=`which awk`                          ;;
+                       AWK=`which awk`                          
+             SHORT_OPTIONS="True"                               ;;
         *)          echo "Unsupported OS, cannot continue."
                     exit 666                                    ;;
 esac
+#
+# Options -- long and short, short only for AIX as AIX getopt does not support long options (. . .)
+#
+if [[ "${SHORT_OPTIONS}" != "True" ]]; then
+    SHORT="g:,c:,g:,v:,u:,sh"
+     LONG="groupfile:,commalist:,hosts:,grep:,oh:,home:,ungrep:,ignore:,oracleuser:,showhomes,help"
+    # Check if the specified options are good
+    options=$(getopt -a --longoptions "${LONG}" --options "${SHORT}" -n "$0" -- "$@")
+    # If not, show the usage and exit
+    if [[ $? -ne 0 ]]; then
+        printf "\033[1;31m%s\033[m\n" "$($TS) [ERROR] Invalid options provided: $*; use -h for help; cannot continue." >&2
+        exit 864
+    fi
+    eval set -- "${options}"
+    while true; do
+        case "$1" in
+            -g | --groupfile           )      GROUP="$2"        ; shift 2 ;;
+            -c | --commalist | --hosts )      HOSTS="$2"        ; shift 2 ;;
+            -G | --grep | --oh | --home)       GREP="$2"        ; shift 2 ;;
+            -v | --ungrep | --ignore   )     UNGREP="$2"        ; shift 2 ;;
+            -u | --oracleuser          )     ORACLE="$2"        ; shift 2 ;;
+            -s | --showhomes           ) SHOW_HOMES="True"      ; shift   ;;
+            -h | --help                ) usage                  ; shift   ;;
+            --                         ) shift                  ; break   ;;
+        esac
+    done
+else                 # Short options for AIX as AIX getopt does not support long options (. . .)
+    while getopts "g:,c:,G:,v:,u:,sh" OPT; do
+        case ${OPT} in
+            g)                                GROUP="${OPTARG}"           ;;
+            c)                                HOSTS="${OPTARG}"           ;;
+            G)                                 GREP="${OPTARG}"           ;;
+            v)                               UNGREP="${OPTARG}"           ;;
+            u)                               ORACLE="${OPTARG}"           ;;
+            s)                           SHOW_HOMES="True"                ;;
+            h)                           usage                            ;;
+            \?)        echo "Invalid option: -${OPTARG}" >&2; usage       ;;
+        esac
+    done
+fi
 #
 # Options verifications
 #
@@ -219,7 +242,7 @@ END
                 ssh -q "${HOST}" "${OH}/OPatch/opatch lspatches" | grep "^[1-9]" | sort | awk -v H="${HOST}" -F ";" '{print H";"$1";"$2}' | sed 's/(.*)//g' >> "${TEMP}"
             fi
         done
-        "${AWK}" -v hosts="${HOSTS}" -v cols="${COLS}" -v tempfile="${TEMP2}" \
+        "${AWK}" -v hosts="${HOSTS}" -v cols="${COLS}" -v tempfile="${TEMP2}" -v CHECKMARK="${CHECKMARK}" \
         'BEGIN {          FS =       ";"                    ;
                     # some colors
                  COLOR_BEGIN =       "\033[1;"              ;
@@ -230,9 +253,12 @@ END
                         BLUE =       "34m"                  ;
                         TEAL =       "36m"                  ;
                        WHITE =       "37m"                  ;
-
                      MISSING =       "Missing"              ; # Patch is missing
-                        HERE =       "x"                    ; # Patch is installed
+                    if (CHECKMARK == "True") {                # Patch is installed
+                        HERE = "\xE2\x9C\x94"               ;
+                    } else {
+                        HERE = "ok"                         ;
+                    }
 
                     # Default columns size
                     COL_NODE =        8                     ;
