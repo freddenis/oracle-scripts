@@ -85,13 +85,14 @@ END
 
     printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"            ;
     cat << END
-        $0 <options [-s] [-h]
+        $0 <options [-s]     [-m]      [-u]       [-f]      [-h]
+        $0 <options [--show] [--mount] [--umount] [--fstab] [--help]
 END
 
     printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"            ;
     cat << END
         $(basename $0) - Show a status of the NFS (hung / healthy)
-        Also show if a NFS defined in ${FSTAB} is not mounted and  if a mounted NFS is in ${FSTAB} or not
+        Also show if a NFS defined in ${FSTAB} is not mounted and if a mounted NFS is in ${FSTAB} or not
         In case of non root users using this script and being unable to read ${FSTAB}, a "n/a" will be printed in the status column
         /etc/fstab is used and /etc/vfstab for Solaris; please use -f/--fstab to use a fstab at another location
 END
