@@ -19,10 +19,11 @@
 #
 # More info and git repo: https://github.com/freddenis/oracle-scripts
 #
-# The current script version is 20211111
+# The current script version is 20211117
 #
 # History :
 #
+# 20211117 - Fred Denis - Fixed the tput error when the script is executed on many hosts with dcli for example
 # 20211111 - Fred Denis - GPLv3 licence
 # 20210531 - Fred Denis - Initial release
 #
@@ -47,7 +48,6 @@ set -o pipefail
     GREEN=32
      BLUE=34
 [[ $(id -u) == "0" ]] && IAMROOT="True" || IAMROOT="False"
-IAMROOT="123"
 # If UTF8, we show a nice checkmark when NFS is in fstab, if not we just write "yes/no"
 if [[ $(locale charmap) == "UTF-8" ]]; then
     CHECKMARK="\xE2\x9C\x94"
@@ -65,6 +65,8 @@ FSTAB="/etc/fstab"
 if [[ $(uname) == "SunOS" ]]; then
     FSTAB="/etc/vfstab"
 fi
+# To avoid a bad error when the script is executed on many hosts with dcli for example
+if [[ -z "${TERM}" || "${TERM}" == "dumb" ]]; then export TERM="xterm"; fi
 #
 # Just print a "-" line
 #
