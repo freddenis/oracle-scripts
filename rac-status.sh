@@ -19,10 +19,13 @@
 #
 # More info and git repo: https://bit.ly/2MFkzDw -- https://github.com/freddenis/oracle-scripts
 #
-# The current script version is 20211111
+# The current script version is 20220121
 #
 # History :
 #
+# 20220121 - Fred Denis - We use USR_ORA_OPEN_MODE and no more STATE and TARGET for the databases
+#                          first of all this is more accurate and also fix a bug with the standbys as they always have STATE=INTERMEDIATE
+#                          this applies to CDBs only, it does not seem to work same for the PDBs (yet ?)
 # 20211111 - Fred Denis - GPLv3 licence
 # 20211110 - Fred Denis - Use of attributes and -attr option for crsctl which is significantly fater (x10 on systems with 100th resources in the cluster)
 # 20211109 - Fred Denis - Fast-start failover status shortened, tolower the status when checking to avoid case issues
@@ -462,18 +465,18 @@ if [[ -z "$FILE" ]]; then               # This is not needed when using an input
     fi
 
     # Use of attributes with the -attr option which is significantly faster
-         GENATSERVER=$(for N in $(olsnodes); do printf "GEN_USR_ORA_INST_NAME@SERVERNAME(%s)," "${N}"; done)        # For DBs
-     ENABLEDATSERVER=$(for N in $(olsnodes); do printf "ENABLED@SERVERNAME(%s)," "${N}"; done)                      # For PDBs and services
-             DBATTRP="NAME,TYPE,ACL,ORACLE_HOME,DATABASE_TYPE,ROLE,ENABLED,GEN_USR_ORA_INST_NAME,${GENATSERVER}"    # DB        crsctl -p
-             DBATTRV="NAME,TYPE,LAST_SERVER,STATE,TARGET,LAST_RESTART,LAST_STATE_CHANGE,STATE_DETAILS"              # DB        crsctl -v
-            PDBATTRP="NAME,TYPE,ACL,PDB_NAME,ENABLED,${ENABLEDATSERVER}"                                            # PDB       crsctl -p
-            PDBATTRV="NAME,TYPE,LAST_SERVER,STATE,TARGET,LAST_RESTART,LAST_STATE_CHANGE,STATE_DETAILS"              # PDB       crsctl -v
-            LSNATTRP="NAME,TYPE,ACL,ENABLED,ENDPOINTS,${ENABLEDATSERVER}"                                           # Listeners crsctl -p
-            LSNATTRV="NAME,TYPE,LAST_SERVER,STATE,TARGET,LAST_RESTART,LAST_STATE_CHANGE"                            # Listeners crsctl -v
-            SVCATTRP="NAME,TYPE,ACL,ENABLED,ROLE,PLUGGABLE_DATABASE,${ENABLEDATSERVER}"                             # Services  crsctl -p
-            SVCATTRV="NAME,TYPE,LAST_SERVER,STATE,TARGET,LAST_RESTART,LAST_STATE_CHANGE"                            # Services  crsctl -v
-           TECHATTRP="NAME,TYPE,ACL,ENABLED,VOLUME_DEVICE,USR_ORA_VIP,${ENABLEDATSERVER}"                           # Tech      crsctl -p
-           TECHATTRV="NAME,TYPE,LAST_SERVER,STATE,TARGET,LAST_RESTART,LAST_STATE_CHANGE"                            # Tech      crsctl -v
+         GENATSERVER=$(for N in $(olsnodes); do printf "GEN_USR_ORA_INST_NAME@SERVERNAME(%s)," "${N}"; done)             # For DBs
+     ENABLEDATSERVER=$(for N in $(olsnodes); do printf "ENABLED@SERVERNAME(%s)," "${N}"; done)                           # For PDBs and services
+             DBATTRP="NAME,TYPE,ACL,ORACLE_HOME,DATABASE_TYPE,ROLE,ENABLED,GEN_USR_ORA_INST_NAME,${GENATSERVER}"         # DB        crsctl -p
+             DBATTRV="NAME,TYPE,LAST_SERVER,STATE,TARGET,USR_ORA_OPEN_MODE,LAST_RESTART,LAST_STATE_CHANGE,STATE_DETAILS" # DB        crsctl -v
+            PDBATTRP="NAME,TYPE,ACL,PDB_NAME,ENABLED,${ENABLEDATSERVER}"                                                 # PDB       crsctl -p
+            PDBATTRV="NAME,TYPE,LAST_SERVER,STATE,TARGET,LAST_RESTART,LAST_STATE_CHANGE,STATE_DETAILS"                   # PDB       crsctl -v
+            LSNATTRP="NAME,TYPE,ACL,ENABLED,ENDPOINTS,${ENABLEDATSERVER}"                                                # Listeners crsctl -p
+            LSNATTRV="NAME,TYPE,LAST_SERVER,STATE,TARGET,LAST_RESTART,LAST_STATE_CHANGE"                                 # Listeners crsctl -v
+            SVCATTRP="NAME,TYPE,ACL,ENABLED,ROLE,PLUGGABLE_DATABASE,${ENABLEDATSERVER}"                                  # Services  crsctl -p
+            SVCATTRV="NAME,TYPE,LAST_SERVER,STATE,TARGET,LAST_RESTART,LAST_STATE_CHANGE"                                 # Services  crsctl -v
+           TECHATTRP="NAME,TYPE,ACL,ENABLED,VOLUME_DEVICE,USR_ORA_VIP,${ENABLEDATSERVER}"                                # Tech      crsctl -p
+           TECHATTRV="NAME,TYPE,LAST_SERVER,STATE,TARGET,LAST_RESTART,LAST_STATE_CHANGE"                                 # Tech      crsctl -v
 
     if [[ "${SHOW_DB}" == "YES" ]]; then
         crsctl stat res -p -w "${DBCRSFILTER}"          -attr "${DBATTRP}"  | grep -v "^CRS-" >> "${TMP}"
@@ -666,17 +669,11 @@ function print_a_line(size) {
 # Set colors depending on the recently restarted date and dbstatus and dbtarget
 #
 function set_color_status(i_db, i_node, i_status, i_target) {
-    if ((started[i_db,i_node]+0 < DIFF_HOURS+0) && (started[i_db,i_node])) {
-            COL_OPEN=WITH_BACK                                                              ;
-        COL_READONLY=WITH_BACK                                                              ;
-            COL_SHUT=WITH_BACK                                                              ;
-           COL_OTHER=WITH_BACK                                                              ;
-        RECENT_RESTARTED=1                                                                      ;
-    } else  {
+    if (i_status == i_target) {
             COL_OPEN=GREEN                                                                  ;
         COL_READONLY=WHITE                                                                  ;
             COL_SHUT=YELLOW                                                                 ;
-           COL_OTHER=RED                                                                    ;
+           COL_OTHER=WHITE                                                                  ;
     }
     if (i_status != i_target) {
             COL_OPEN=WITH_BACK2                                                             ;
@@ -684,6 +681,13 @@ function set_color_status(i_db, i_node, i_status, i_target) {
             COL_SHUT=WITH_BACK2                                                             ;
            COL_OTHER=WITH_BACK2                                                             ;
         STATUS_ISSUE=1                                                                      ;
+    }
+    if ((started[i_db,i_node]+0 < DIFF_HOURS+0) && (started[i_db,i_node])) {
+            COL_OPEN=WITH_BACK                                                              ;
+        COL_READONLY=WITH_BACK                                                              ;
+            COL_SHUT=WITH_BACK                                                              ;
+           COL_OTHER=WITH_BACK                                                              ;
+        RECENT_RESTARTED=1                                                                  ;
     }
 }
 { # Fill 2 tables with the OH and the version from "crsctl stat res -p -w "TYPE = ora.database.type""
@@ -932,6 +936,11 @@ function set_color_status(i_db, i_node, i_status, i_target) {
                 if (length(status[DB,SERVER]) > COL_NODE) { COL_NODE = length(status[DB,SERVER]) + COL_NODE_OFFSET;}
             }
             if ($1 == "TARGET")             {       target[DB,SERVER]=$2                    ;}
+            # We use USR_ORA_OPEN_MODE instead of STATE and TARGET for the databases
+            if ($1 == "USR_ORA_OPEN_MODE")  {    if (tolower($2) ~ "mount")     {target[DB,SERVER]="Mounted"  ;}
+                                                 if (tolower($2) ~ "read only") {target[DB,SERVER]="Readonly" ;}
+                                                 if (tolower($2) ~ "open")      {target[DB,SERVER]="Open"     ;}
+                                            }
             if (($1 == "LAST_RESTART") || ($1 == "LAST_STATE_CHANGE")) {
                 if (type == "PDB") { l_index = DBPDB} else { l_index = DB }
                 if (started[l_index,SERVER] > diff_hours($2" "$3) || started[l_index,SERVER] == "") {started[l_index,SERVER]=diff_hours($2" "$3);}
@@ -1269,7 +1278,8 @@ END {       #
 
             for (i = 1; i <= n; i++) {                                                    # For each node
                 l_node   = nodes[i]                                                     ; # More readable
-                dbstatus =           status[l_db,l_node]                                ;
+                #dbstatus =           status[l_db,l_node]                               ; # We use USR_ORA_OPEN_MODE and no more STATE and TARGET for the databases
+                dbstatus =   status_details[l_db,l_node]                                ;
                 dbtarget =           target[l_db,l_node]                                ;
                 dbdetail =   status_details[l_db,l_node]                                ;
                 set_color_status(l_db, l_node, dbstatus, dbtarget)                      ;
