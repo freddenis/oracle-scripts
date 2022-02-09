@@ -23,6 +23,8 @@
 #
 # History :
 #
+# 20220209 - Fred Denis - Fixed a bug due to awk non math context with DIFF_HOURS which was badly showing services
+#                           recently restarted -- Thanks Steve for bringing this bug to my attention
 # 20220121 - Fred Denis - We use USR_ORA_OPEN_MODE and no more STATE and TARGET for the databases
 #                          first of all this is more accurate and also fix a bug with the standbys as they always have STATE=INTERMEDIATE
 #                          this applies to CDBs only, it does not seem to work same for the PDBs (yet ?)
@@ -1194,7 +1196,7 @@ END {       #
                 dbstatus =           status[svc_sorted[j],nodes[i]]                     ;
                 dbtarget =           target[svc_sorted[j],nodes[i]]                     ;
                 dbdetail =   status_details[svc_sorted[j],nodes[i]]                     ;
-                if ((started[svc_sorted[j],nodes[i]] < DIFF_HOURS) && (started[svc_sorted[j],nodes[i]])) {
+                if ((started[svc_sorted[j],nodes[i]]+0 < DIFF_HOURS+0) && (started[svc_sorted[j],nodes[i]])) {
                           COL_ONLINE=WITH_BACK                                          ;
                            COL_OTHER=WITH_BACK                                          ;
                     RECENT_RESTARTED=1                                                  ;
