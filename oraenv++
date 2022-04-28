@@ -19,10 +19,11 @@
 #
 # More info and git repo: https://bit.ly/3GHJMFv -- https://github.com/freddenis/oracle-scripts
 #
-# The current script version is 20211111
+# The current script version is 20220428
 #
 # History :
 #
+# 20220428 - Fred Denis - Small bug fixzed with orabase
 # 20211111 - Fred Denis - GPLv3 licence
 # 20211109 - Fred Denis - Use -attr which speeds up crsctl (and then oraenv++) in a significant way
 # 20211108 - Fred Denis - Fixed a bug with Oracle restart, removed crsctl -v which is not needed
@@ -209,7 +210,7 @@ exportvar() {
 
     export    ORACLE_HOME="${OH}"
     export     ORACLE_SID="${SID}"
-    export    ORACLE_BASE=$(${ORACLE_HOME}/bin/orabase > /dev/null 2>&1)
+    export    ORACLE_BASE=$(${ORACLE_HOME}/bin/orabase)
     export           PATH="${ORACLE_HOME}/bin:${PATH}"
     export ORACLE_PDB_SID="${PDB}"
 
