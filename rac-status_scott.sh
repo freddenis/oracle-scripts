@@ -578,7 +578,7 @@ COLOR_STANDBY =       BLUE                   ;
          COL_NODE = 0                        ;
   COL_NODE_OFFSET = col_node_offset * 2      ;       # Defined on top the script, have a look for explanations on this
            COL_DB = 12                       ;
-          COL_VER = 15                       ;
+          COL_VER = 18                       ;
          COL_TYPE = 14                       ;
            COL_OH = 24                       ;       # to print the ORACLE_HOMEs
           COL_PDB = COL_TYPE-1               ;       # PDB right of the services
@@ -1439,7 +1439,7 @@ if [[ -n "${SORT_BY}" ]]; then                                                  
         SORT_NODE=${SORT_COL}
          SORT_COL="c"
     fi
-    if [[ "${SORT_ORDER}" != "r" ]]; then                     i                            # Sort order can only be "r" for reverse or "" for normal
+    if [[ "${SORT_ORDER}" != "r" ]]; then                                                  # Sort order can only be "r" for reverse or "" for normal
          SORT_ORDER=""
     else SORT_ORDER="r"
     fi
