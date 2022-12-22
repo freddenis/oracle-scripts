@@ -19,10 +19,13 @@
 #
 # More info and git repo: https://bit.ly/2MFkzDw -- https://github.com/freddenis/oracle-scripts
 #
-# The current script version is 20220121
+# The current script version is 20221222
 #
 # History :
 #
+# 20221222 - Fred Denis - -C option to allow a custom cluster name
+#                         Remove a leftover i which was preventing sorting
+#                         Fixed a bug which was impacting the databases which had the clustername in their name
 # 20220209 - Fred Denis - Fixed a bug due to awk non math context with DIFF_HOURS which was badly showing services
 #                           recently restarted -- Thanks Steve for bringing this bug to my attention
 # 20220121 - Fred Denis - We use USR_ORA_OPEN_MODE and no more STATE and TARGET for the databases
@@ -162,7 +165,8 @@ COL_NODE_OFFSET=99
 #
 # Different OS support
 #
-OS=`uname`
+OS=$(uname)
+if [[ "${OS}" =~ "CYGWIN" ]]; then OS="Linux"; fi
 case ${OS} in
     SunOS)
         ORATAB="/var/opt/oracle/oratab"                 ;
@@ -304,7 +308,7 @@ exit 123
 #
 # Options
 #
-while getopts "andpslLhg:v:o:f:eruw:c:tkKVD:S:" OPT; do
+while getopts "andpslLhg:v:o:f:eruw:c:tkKVD:S:C:" OPT; do
     case ${OPT} in
     a)         SHOW_DB="YES"; SHOW_LSNR="YES"; SHOW_SVC="YES"; SHOW_TECH="YES"; SHOW_PDB="YES"      ;;
     n)         SHOW_DB="NO" ; SHOW_LSNR="NO" ; SHOW_SVC="NO" ; SHOW_TECH="NO" ; SHOW_PDB="NO"       ;;
@@ -327,6 +331,7 @@ while getopts "andpslLhg:v:o:f:eruw:c:tkKVD:S:" OPT; do
     u)    WITH_COLORS="NO"                                                                          ;;
     k)       ADVM_DEV="True"                                                                        ;;
     K)       HIDE_DEV="True"                                                                        ;;
+    C)      P_CLUSTER="${OPTARG}"; P_CLUSTER_L="${P_CLUSTER,,}"                                     ;;
     V)      show_version; exit 567                                                                  ;;
     h)         usage                                                                                ;;
     \?)        echo "Invalid option: -${OPTARG}" >&2; usage                                         ;;
@@ -401,13 +406,19 @@ if [[ -z "$FILE" ]]; then               # This is not needed when using an input
     fi
     #
     # List of the nodes of the cluster
-    # Try to find if there is "db" in the hostname, if yes we can delete the common "<clustername>" pattern from the hosts for visibility
+    # Try to find if there is "db" or a custom cluster name (option -C) in the hostname
+    # If yes we can delete the common "<clustername>" pattern from the hosts for visibility
     #
     SHORT_NAMES="NO"
-    if [[ $(olsnodes | head -1 | sed s'/,.*$//g' | tr '[:upper:]' '[:lower:]') == *"db"* && "${LONG_NAMES}" == "NO" ]]; then
-               NODES=$(olsnodes | sed s'/^.*db/db/g' | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}')
-        CLUSTER_NAME=$(olsnodes | head -1 | sed s'/db.*$//g')
-         SHORT_NAMES="YES"
+    if [[ ($(olsnodes | head -1 | sed s'/,.*$//g' | tr '[:upper:]' '[:lower:]') == *"db"* || $(olsnodes | head -1 | sed s'/,.*$//g' | tr '[:upper:]' '[:lower:]') == *"${P_CLUSTER_L}"*) && "${LONG_NAMES}" == "NO" ]]; then
+        if [[ -n "${P_CLUSTER}" ]]; then       # We have a custom cluster name
+                   NODES=$(olsnodes | sed s"/^.*${P_CLUSTER}//g" | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}')
+            CLUSTER_NAME="${P_CLUSTER}"
+        else
+                   NODES=$(olsnodes | sed s'/^.*db/db/g' | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}')
+            CLUSTER_NAME=$(olsnodes | head -1 | sed s'/db.*$//g')
+        fi
+        SHORT_NAMES="YES"
     else
                NODES=$(olsnodes | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}')
         CLUSTER_NAME=$(olsnodes -c)
@@ -506,7 +517,8 @@ if [[ -z "$FILE" ]]; then               # This is not needed when using an input
     cp "${TMP2}" "${TMP}"
 
     if [[ "${SHORT_NAMES}" == "YES" ]]; then
-        "${SED}" -i "s/$CLUSTER_NAME//" "${TMP}"
+#        "${SED}" -i "s/$CLUSTER_NAME//" "${TMP}"
+        "${SED}" -i "/^NAME=/! s/${CLUSTER_NAME}//g" "${TMP}"
     fi
     NB_NODES=$(olsnodes | wc -l)
 else            # If we use an input file
@@ -1430,7 +1442,7 @@ if [[ -n "${SORT_BY}" ]]; then                                                  
         SORT_NODE=${SORT_COL}
          SORT_COL="c"
     fi
-    if [[ "${SORT_ORDER}" != "r" ]]; then                     i                            # Sort order can only be "r" for reverse or "" for normal
+    if [[ "${SORT_ORDER}" != "r" ]]; then                                                  # Sort order can only be "r" for reverse or "" for normal
          SORT_ORDER=""
     else SORT_ORDER="r"
     fi
