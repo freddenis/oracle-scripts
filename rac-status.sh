@@ -19,11 +19,15 @@
 #
 # More info and git repo: https://bit.ly/2MFkzDw -- https://github.com/freddenis/oracle-scripts
 #
-# The current script version is 20221222
+# The current script version is 20230131
 #
 # History :
 #
-# 20221222 - Fred Denis - -C option to allow a custom cluster name
+# 20230131 - Fred Denis - Automatically use the part of the nodenames before any "db" pattern to shorten the hostnames and no more the cluster name
+#                         Indeed, let's say you have a cluster named "crs19" and your nodenames are "dbproddb01, dbproddb02, etc.."; shortening using
+#                          the cluster name was not working, it now does and "dbproddb01" becomes "db01" for more clarity and a less wide table
+#                         If your hosts do not have a "db" pattern in their names, use the -C option to shorten them differently
+# 20221222 - Fred Denis - -C option to provide a string to shorten the hostnames (when the default shortening method does not suit you)
 #                         Remove a leftover i which was preventing sorting
 #                         Fixed a bug which was impacting the databases which had the clustername in their name
 # 20220209 - Fred Denis - Fixed a bug due to awk non math context with DIFF_HOURS which was badly showing services
@@ -293,6 +297,11 @@ END
               $ ./rac-status.sh -w 24h        # 24 hours
               $ ./rac-status.sh -w 2d         # 2 days
               $ ./rac-status.sh -w 3m         # 3 months
+
+    -C    Use the string provided to -C to shorten the hostnames if the default shortening method does not suit you. By default, we remove everything before
+           a "db" pattern in the hostnames (dbproddb01 becomes db01); if your hosts do not contain "db" in their names, use -C to shorten as you wish.
+           As an example, if your hosts are named oracleprod01, oracleprod02, etc... using -C oracle would shorten the names to prod01, prod02, etc...
+
     -V        Shows the version of the script
     -h        Shows this help
 
@@ -416,7 +425,10 @@ if [[ -z "$FILE" ]]; then               # This is not needed when using an input
             CLUSTER_NAME="${P_CLUSTER}"
         else
                    NODES=$(olsnodes | sed s'/^.*db/db/g' | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}')
-            CLUSTER_NAME=$(olsnodes | head -1 | sed s'/db.*$//g')
+#            CLUSTER_NAME=$(olsnodes | head -1 | sed s'/db.*$//g')
+            # Actually we need the first part of the node name which maybe different than the cluster name; cluster can be "crs19" and nodes "dbproddb01, dbproddb02, etc..."
+            # We then need "dbprod" here to shorten the names and not "crs19:
+            CLUSTER_NAME=$(olsnodes | head -1 | rev | sed -E 's/.*bd(.)/\1/' | rev)
         fi
         SHORT_NAMES="YES"
     else
