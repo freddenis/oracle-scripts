@@ -423,22 +423,22 @@ if [[ -z "$FILE" ]]; then               # This is not needed when using an input
         if [[ -n "${P_CLUSTER}" ]]; then       # We have a custom cluster name
                    NODES=$(olsnodes | sed s"/^.*${P_CLUSTER}//g" | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}')
             CLUSTER_NAME="${P_CLUSTER}"
-            echo "==> 1$CLUSTER_NAME"
+            #echo "==> 1$CLUSTER_NAME"
         else
                    NODES=$(olsnodes | sed s'/^.*db/db/g' | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}')
 #            CLUSTER_NAME=$(olsnodes | head -1 | sed s'/db.*$//g')
             # Actually we need the first part of the node name which maybe different than the cluster name; cluster can be "crs19" and nodes "dbproddb01, dbproddb02, etc..."
             # We then need "dbprod" here to shorten the names and not "crs19:
             CLUSTER_NAME=$(olsnodes | head -1 | rev | sed -E 's/.*bd(.)/\1/' | rev)
-            echo "==> 2$CLUSTER_NAME"
+            #echo "==> 2$CLUSTER_NAME"
         fi
         SHORT_NAMES="YES"
     else
                NODES=$(olsnodes | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}')
         CLUSTER_NAME=$(olsnodes -c)
-        echo "==> 3$CLUSTER_NAME"
+        #echo "==> 3$CLUSTER_NAME"
     fi
-    echo "==> 4$CLUSTER_NAME"
+    #echo "==> 4$CLUSTER_NAME"
     if [[ "${CLUSTER_NAME}" != *"db"* ]]; then
         SHORT_NAMES="NO"
     fi
