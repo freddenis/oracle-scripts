@@ -439,6 +439,9 @@ if [[ -z "$FILE" ]]; then               # This is not needed when using an input
         echo "==> 3$CLUSTER_NAME"
     fi
     echo "==> 4$CLUSTER_NAME"
+    if [[ "${CLUSTER_NAME}" != *"db"* ]]; then
+        SHORT_NAMES="NO"
+    fi
     NAME_OF_THE_CLUSTER=$(olsnodes -c)
     # if oracle restart, olsnodes is here but returns nothing, we then set the NODES with the current hostname
     if [[ -z "${NODES}" ]]; then
