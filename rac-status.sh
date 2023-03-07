@@ -19,14 +19,14 @@
 #
 # More info and git repo: https://bit.ly/2MFkzDw -- https://github.com/freddenis/oracle-scripts
 #
-# The current script version is 20230131
+# The current script version is 20230307
 #
 # History :
 #
-# 20230131 - Fred Denis - Automatically use the part of the nodenames before any "db" pattern to shorten the hostnames and no more the cluster name
+# 20230307 - Fred Denis - Automatically use the part of the nodenames before any "db" pattern to shorten the hostnames and no more the cluster name
 #                         Indeed, let's say you have a cluster named "crs19" and your nodenames are "dbproddb01, dbproddb02, etc.."; shortening using
-#                          the cluster name was not working, it now does and "dbproddb01" becomes "db01" for more clarity and a less wide table
 #                         If your hosts do not have a "db" pattern in their names, use the -C option to shorten them differently
+#                         More info in the FAQ: https://bit.ly/34lcFZo
 # 20221222 - Fred Denis - -C option to provide a string to shorten the hostnames (when the default shortening method does not suit you)
 #                         Remove a leftover i which was preventing sorting
 #                         Fixed a bug which was impacting the databases which had the clustername in their name
@@ -434,6 +434,9 @@ if [[ -z "$FILE" ]]; then               # This is not needed when using an input
     else
                NODES=$(olsnodes | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}')
         CLUSTER_NAME=$(olsnodes -c)
+    fi
+    if [[ "${CLUSTER_NAME}" != *"db"* ]]; then
+        SHORT_NAMES="NO"
     fi
     NAME_OF_THE_CLUSTER=$(olsnodes -c)
     # if oracle restart, olsnodes is here but returns nothing, we then set the NODES with the current hostname
