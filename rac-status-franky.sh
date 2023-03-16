@@ -425,8 +425,8 @@ if [[ -z "$FILE" ]]; then               # This is not needed when using an input
             CLUSTER_NAME="${P_CLUSTER}"
             echo "1=>"$CLUSTER_NAME
         else
-                   NODES=$(olsnodes | sed s'/^.*db/db/g' | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}')
-#            CLUSTER_NAME=$(olsnodes | head -1 | sed s'/db.*$//g')
+            NODES=$(olsnodes | sed s'/^.*db/db/g' | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}')
+#           CLUSTER_NAME=$(olsnodes | head -1 | sed s'/db.*$//g')
             # Actually we need the first part of the node name which maybe different than the cluster name; cluster can be "crs19" and nodes "dbproddb01, dbproddb02, etc..."
             # We then need "dbprod" here to shorten the names and not "crs19:
             CLUSTER_NAME=$(olsnodes | head -1 | rev | sed -E 's/.*bd(.)/\1/' | rev)
@@ -438,9 +438,9 @@ if [[ -z "$FILE" ]]; then               # This is not needed when using an input
         CLUSTER_NAME=$(olsnodes -c)
         echo "3=>"$CLUSTER_NAME
     fi
-    if [[ "${CLUSTER_NAME}" != *"db"* ]]; then
-        SHORT_NAMES="NO"
-    fi
+    #if [[ "${CLUSTER_NAME}" != *"db"* ]]; then
+    #    SHORT_NAMES="NO"
+    #fi
     echo "4=>"$CLUSTER_NAME":"$SHORT_NAMES
     NAME_OF_THE_CLUSTER=$(olsnodes -c)
     # if oracle restart, olsnodes is here but returns nothing, we then set the NODES with the current hostname
