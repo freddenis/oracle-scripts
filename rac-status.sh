@@ -435,9 +435,9 @@ if [[ -z "$FILE" ]]; then               # This is not needed when using an input
                NODES=$(olsnodes | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}')
         CLUSTER_NAME=$(olsnodes -c)
     fi
-    if [[ "${CLUSTER_NAME}" != *"db"* ]]; then
-        SHORT_NAMES="NO"
-    fi
+#    if [[ "${CLUSTER_NAME}" != *"db"* ]]; then
+#        SHORT_NAMES="NO"
+#    fi
     NAME_OF_THE_CLUSTER=$(olsnodes -c)
     # if oracle restart, olsnodes is here but returns nothing, we then set the NODES with the current hostname
     if [[ -z "${NODES}" ]]; then
