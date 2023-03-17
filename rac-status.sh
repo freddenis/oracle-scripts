@@ -19,10 +19,11 @@
 #
 # More info and git repo: https://bit.ly/2MFkzDw -- https://github.com/freddenis/oracle-scripts
 #
-# The current script version is 20230307
+# The current script version is 20230317
 #
 # History :
 #
+# 20230317 - Fred Denis - Fixed a bug with clusyer name noty like db, thsi was a bad leftover sorry
 # 20230307 - Fred Denis - Automatically use the part of the nodenames before any "db" pattern to shorten the hostnames and no more the cluster name
 #                         Indeed, let's say you have a cluster named "crs19" and your nodenames are "dbproddb01, dbproddb02, etc.."; shortening using
 #                         If your hosts do not have a "db" pattern in their names, use the -C option to shorten them differently
