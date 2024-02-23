@@ -19,11 +19,12 @@
 #
 # More info and git repo: https://bit.ly/2MFkzDw -- https://github.com/freddenis/oracle-scripts
 #
-# The current script version is 20230317
+# The current script version is 20240220
 #
 # History :
 #
-# 20230317 - Fred Denis - Fixed a bug with clusyer name noty like db, thsi was a bad leftover sorry
+# 20240220 - Fred Denis - Fixed a bug with the default LONG_NAMES; you can also now only show the services (-ns); code is tested GI 23c
+# 20230317 - Fred Denis - Fixed a bug with cluster name not like db, this was a bad leftover sorry
 # 20230307 - Fred Denis - Automatically use the part of the nodenames before any "db" pattern to shorten the hostnames and no more the cluster name
 #                         Indeed, let's say you have a cluster named "crs19" and your nodenames are "dbproddb01, dbproddb02, etc.."; shortening using
 #                         If your hosts do not have a "db" pattern in their names, use the -C option to shorten them differently
@@ -160,6 +161,9 @@ SHOW_LSNR="YES"                 # Listeners
  SHOW_SVC="NO"
 SHOW_TECH="YES"                 # Tech (DGs, ONS, etc ...)
 SHOW_TECH="NO"
+# Collect the databases information: not same as SHOW_DB as services need to collect DB info
+# but not necessarily show the databases  information (-ns for example)
+COLL_DB="YES"
 #
 # Number of spaces between the status and the "|" of the column - this applies before and after the status
 # A value of 2 would print 2 spaces before and after the status and like |  Open  |
@@ -320,11 +324,11 @@ exit 123
 #
 while getopts "andpslLhg:v:o:f:eruw:c:tkKVD:S:C:" OPT; do
     case ${OPT} in
-    a)         SHOW_DB="YES"; SHOW_LSNR="YES"; SHOW_SVC="YES"; SHOW_TECH="YES"; SHOW_PDB="YES"      ;;
-    n)         SHOW_DB="NO" ; SHOW_LSNR="NO" ; SHOW_SVC="NO" ; SHOW_TECH="NO" ; SHOW_PDB="NO"       ;;
-    d)         if [[ "${SHOW_DB}"   == "YES" ]]; then   SHOW_DB="NO"; else   SHOW_DB="YES"; fi      ;;
+    a)         SHOW_DB="YES"; SHOW_LSNR="YES"; SHOW_SVC="YES"; SHOW_TECH="YES"; SHOW_PDB="YES"; COLL_DB="YES"     ;;
+    n)         SHOW_DB="NO" ; SHOW_LSNR="NO" ; SHOW_SVC="NO" ; SHOW_TECH="NO" ; SHOW_PDB="NO" ; COLL_DB="NO"      ;;
+    d)         if [[ "${SHOW_DB}"   == "YES" ]]; then   SHOW_DB="NO"; else   SHOW_DB="YES"; fi                    ;;
     p)         if [[ "${SHOW_PDB}"  == "YES" ]]; then  SHOW_PDB="NO"; else  SHOW_PDB="YES"; fi      ;;
-    s)         if [[ "${SHOW_SVC}"  == "YES" ]]; then  SHOW_SVC="NO"; else  SHOW_SVC="YES"; fi      ;;
+    s)         if [[ "${SHOW_SVC}"  == "YES" ]]; then  SHOW_SVC="NO"; else  SHOW_SVC="YES"; COLL_DB="YES"; fi     ;;
     l)         if [[ "${SHOW_LSNR}" == "YES" ]]; then SHOW_LSNR="NO"; else SHOW_LSNR="YES"; fi      ;;
     t)         if [[ "${SHOW_TECH}" == "YES" ]]; then SHOW_TECH="NO"; else SHOW_TECH="YES"; fi      ;;
     D)         LISTDB="${OPTARG}"                                                                   ;;
@@ -341,12 +345,22 @@ while getopts "andpslLhg:v:o:f:eruw:c:tkKVD:S:C:" OPT; do
     u)    WITH_COLORS="NO"                                                                          ;;
     k)       ADVM_DEV="True"                                                                        ;;
     K)       HIDE_DEV="True"                                                                        ;;
-    C)      P_CLUSTER="${OPTARG}"; P_CLUSTER_L="${P_CLUSTER,,}"                                     ;;
+    C)      P_CLUSTER="${OPTARG}"                                                                   ;;
     V)      show_version; exit 567                                                                  ;;
     h)         usage                                                                                ;;
     \?)        echo "Invalid option: -${OPTARG}" >&2; usage                                         ;;
     esac
 done
+#
+# If cluster is empty, we set a random value for it not to be able to find it in the hostnames
+# not to mess up the LONG_NAMES=NO
+#
+if [[ -z "${P_CLUSTER}" ]]; then
+     P_CLUSTER=$$
+else
+    LONG_NAMES="NO"                                         # If -C specified, we do not want long names
+fi
+P_CLUSTER_L="${P_CLUSTER,,}"
 #
 # Manage the diff hours depending on the unit in the -w option
 #
@@ -436,9 +450,6 @@ if [[ -z "$FILE" ]]; then               # This is not needed when using an input
                NODES=$(olsnodes | ${AWK} '{if (NR<2){txt=$0} else{txt=txt","$0}} END {print txt}')
         CLUSTER_NAME=$(olsnodes -c)
     fi
-#    if [[ "${CLUSTER_NAME}" != *"db"* ]]; then
-#        SHORT_NAMES="NO"
-#    fi
     NAME_OF_THE_CLUSTER=$(olsnodes -c)
     # if oracle restart, olsnodes is here but returns nothing, we then set the NODES with the current hostname
     if [[ -z "${NODES}" ]]; then
@@ -507,7 +518,7 @@ if [[ -z "$FILE" ]]; then               # This is not needed when using an input
            TECHATTRP="NAME,TYPE,ACL,ENABLED,VOLUME_DEVICE,USR_ORA_VIP,${ENABLEDATSERVER}"                                # Tech      crsctl -p
            TECHATTRV="NAME,TYPE,LAST_SERVER,STATE,TARGET,LAST_RESTART,LAST_STATE_CHANGE"                                 # Tech      crsctl -v
 
-    if [[ "${SHOW_DB}" == "YES" ]]; then
+    if [[ "${SHOW_DB}" == "YES" || "${COLL_DB}" == "YES" ]]; then
         crsctl stat res -p -w "${DBCRSFILTER}"          -attr "${DBATTRP}"  | grep -v "^CRS-" >> "${TMP}"
         crsctl stat res -v -w "${DBCRSFILTER}"          -attr "${DBATTRV}"  | grep -v "^CRS-" >> "${TMP}"
     fi
