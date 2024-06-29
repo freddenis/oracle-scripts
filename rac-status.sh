@@ -19,10 +19,13 @@
 #
 # More info and git repo: https://bit.ly/2MFkzDw -- https://github.com/freddenis/oracle-scripts
 #
-# The current script version is 20240220
+# The current script version is 20240629
 #
 # History :
 #
+# 20240629 - Fred Denis - It seems that sometimes a section like for a listener contains more than one LAST_RESTART and LAST_STATE_CHANGE information
+#                         like a kind of history. This is not documented and I cannot really test for now so not easy to say but I fixed the issue
+#                         just relying on the first appearing LAST_RESTART and LAST_STATE_CHANGE which is the most recent and what we want
 # 20240220 - Fred Denis - Fixed a bug with the default LONG_NAMES; you can also now only show the services (-ns); code is tested GI 23c
 # 20230317 - Fred Denis - Fixed a bug with cluster name not like db, this was a bad leftover sorry
 # 20230307 - Fred Denis - Automatically use the part of the nodenames before any "db" pattern to shorten the hostnames and no more the cluster name
@@ -973,10 +976,10 @@ function set_color_status(i_db, i_node, i_status, i_target) {
         while (getline) {
             if ($1 == "LAST_SERVER")        {       SERVER = $2                             ;}
             if ($1 == "STATE")              {       gsub(" on .*$", "", $2)                 ;
-                status[DB,SERVER] = $2                  ;
+                if (status[DB,SERVER] == ""){       status[DB,SERVER] = $2                  ; }
                 if (length(status[DB,SERVER]) > COL_NODE) { COL_NODE = length(status[DB,SERVER]) + COL_NODE_OFFSET;}
             }
-            if ($1 == "TARGET")             {       target[DB,SERVER]=$2                    ;}
+	    if ($1 == "TARGET")             {       if (target[DB,SERVER]=="") {target[DB,SERVER]=$2;}}
             # We use USR_ORA_OPEN_MODE instead of STATE and TARGET for the databases
             if ($1 == "USR_ORA_OPEN_MODE")  {    if (tolower($2) ~ "mount")     {target[DB,SERVER]="Mounted"  ;}
                                                  if (tolower($2) ~ "read only") {target[DB,SERVER]="Readonly" ;}
