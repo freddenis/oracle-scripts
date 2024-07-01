@@ -23,9 +23,9 @@
 #
 # History :
 #
-# 20240629 - Fred Denis - It seems that sometimes a section like for a listener contains more than one LAST_RESTART and LAST_STATE_CHANGE information
-#                         like a kind of history. This is not documented and I cannot really test for now so not easy to say but I fixed the issue
-#                         just relying on the first appearing LAST_RESTART and LAST_STATE_CHANGE which is the most recent and what we want
+# 20240629 - Fred Denis - It seems that sometimes a crsctl stat res -v command returns info about a resource more than once and with different information
+#                         like STATE=ONLINE and then STATE=OFFLINE. I then now just relies on the first information which seems to be the correct one
+#                         More details on https://unknowndba.blogspot.com/2022/01/rac-statussh-whats-new.html date June 29th 2024
 # 20240220 - Fred Denis - Fixed a bug with the default LONG_NAMES; you can also now only show the services (-ns); code is tested GI 23c
 # 20230317 - Fred Denis - Fixed a bug with cluster name not like db, this was a bad leftover sorry
 # 20230307 - Fred Denis - Automatically use the part of the nodenames before any "db" pattern to shorten the hostnames and no more the cluster name
