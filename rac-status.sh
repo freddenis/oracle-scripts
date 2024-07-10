@@ -23,8 +23,7 @@
 #
 # History :
 #
-# 20240629 - Fred Denis - It seems that sometimes a crsctl stat res -v command returns info about a resource more than once and with different information
-#                         like STATE=ONLINE and then STATE=OFFLINE. I then now just relies on the first information which seems to be the correct one
+# 20240629 - Fred Denis - Adapt to 2 node Flex clusters; indeed, a Flex cluster will always have 3 ASM instances and one will remains offline forever as there is only 2 nodes
 #                         More details on https://unknowndba.blogspot.com/2022/01/rac-statussh-whats-new.html date June 29th 2024
 # 20240220 - Fred Denis - Fixed a bug with the default LONG_NAMES; you can also now only show the services (-ns); code is tested GI 23c
 # 20230317 - Fred Denis - Fixed a bug with cluster name not like db, this was a bad leftover sorry
