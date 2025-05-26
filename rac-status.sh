@@ -19,10 +19,13 @@
 #
 # More info and git repo: https://bit.ly/2MFkzDw -- https://github.com/freddenis/oracle-scripts
 #
-# The current script version is 20240629
+# The current script version is 20250526
 #
 # History :
 #
+# 20250526 - Fred Denis - GI 23.8 (patch 37689703, April 2025) seems to have introduced the fact that NLS_LANG now impacts the output of crsctl which 
+#                         was creating a display issue of the status of the cluster for the users not using english as default language.
+#                         Also because my regexp managing this was bad. It is now fixed with a better regexp. Thanks Yoann for reporting this!
 # 20240629 - Fred Denis - Adapt to 2 node Flex clusters; indeed, a Flex cluster will always have 3 ASM instances and one will remains offline forever as there is only 2 nodes
 #                         More details on https://unknowndba.blogspot.com/2022/01/rac-statussh-whats-new.html date June 29th 2024
 # 20240220 - Fred Denis - Fixed a bug with the default LONG_NAMES; you can also now only show the services (-ns); code is tested GI 23c
@@ -475,7 +478,7 @@ if [[ -z "$FILE" ]]; then               # This is not needed when using an input
     #
     # Check the status of the cluster to show an alert if it is not NORMAL
     #
-    CLUSTER_STATUS=$(crsctl query crs activeversion -f > /dev/null && (crsctl query crs activeversion -f | sed  s'/^.*The cluster upgrade state is \[//' | sed s'/\].*$//') || echo "")
+    CLUSTER_STATUS=$(crsctl query crs activeversion -f > /dev/null && (crsctl query crs activeversion -f | grep -o '\[[^]]*\]' | sed -n '2p' | tr -d '[]') || echo "")
     if [[ "${WITH_COLORS}" == "YES" ]]; then
         if [[ "${CLUSTER_STATUS}" == "NORMAL" ]]; then
             COLOR_FOR_CLUSTER="\e[1;"${GREEN}
