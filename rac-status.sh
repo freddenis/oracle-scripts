@@ -23,7 +23,7 @@
 #
 # History :
 #
-# 20250526 - Fred Denis - GI 23.8 (patch 37689703, April 2025) seems to have introduced the fact that NLS_LANG now impacts the output of crsctl which 
+# 20250526 - Fred Denis - GI 23.8 (patch 37689703, April 2025) seems to have introduced the fact that NLS_LANG now impacts the output of crsctl which
 #                         was creating a display issue of the status of the cluster for the users not using english as default language.
 #                         Also because my regexp managing this was bad. It is now fixed with a better regexp. Thanks Yoann for reporting this!
 # 20240629 - Fred Denis - Adapt to 2 node Flex clusters; indeed, a Flex cluster will always have 3 ASM instances and one will remains offline forever as there is only 2 nodes
