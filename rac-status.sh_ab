@@ -472,7 +472,7 @@ if [[ -z "$FILE" ]]; then               # This is not needed when using an input
     # Show the Exadata model if possible (if this cluster is an Exadata)
     #
     if [[ -f "${DBMACHINE}" ]] && [[ -r "${DBMACHINE}" ]]; then
-        MODEL=$(grep -i MACHINETYPES ${DBMACHINE} | sed -e s':</*MACHINETYPES>::g' -e s'/^ *//' -e s'/ *$//')
+        MODEL=$(grep -i MACHINETYPES ${DBMACHINE} | sed 's/\r$//' | sed -e s':</*MACHINETYPES>::g' -e s'/^ *//' -e s'/ *$//')
         printf "%s"${COLOR_FOR_CLUSTER}"%s${END_COLOR_FOR_CLUSTER}" " is a " "$MODEL"
     fi
     #
