@@ -181,7 +181,6 @@ DEF_USE_ORA_OPEN_MODE="True"                                                # If
        SORT_BY="${ENV_SORT_BY:-$DEF_SORT_BY}"
       ADVM_DEV="${ENV_ADVM_DEV:-$DEF_ADVM_DEV}"         ;   ADVM_DEV="${ADVM_DEV,,}"; ADVM_DEV="${ADVM_DEV^}";   # Ensure only first letter upper case (True or False)
       HIDE_DEV="${ENV_HIDE_DEV:-$DEF_HIDE_DEV}"         ;   HIDE_DEV="${HIDE_DEV,,}"; HIDE_DEV="${HIDE_DEV^}";
-USE_ORA_OPEN_MODE="${ENV_USE_ORA_OPEN_MODE:-$DEF_USE_ORA_OPEN_MODE}"; USE_ORA_OPEN_MODE="${USE_ORA_OPEN_MODE,,}"; USE_ORA_OPEN_MODE="${USE_ORA_OPEN_MODE^}"
 #
 # Variables
 #
@@ -190,7 +189,13 @@ USE_ORA_OPEN_MODE="${ENV_USE_ORA_OPEN_MODE:-$DEF_USE_ORA_OPEN_MODE}"; USE_ORA_OP
       WHITE="37m"                                                         # White color code
        TEAL="36m"                                                         # Teal color code
       GREEN="32m"                                                         # Green color code
-    REDBACK="41m"                                                         # Nothing related to the spider, just a red background :)
+    REDBACK="41m"                                                         # Nothing related to the spider, just a red background :) 
+if [ "$(tput colors)" -ge 256 ]; then                                     # Better colors if you have a 256 color terminal
+    WITH_BACK="38;5;16;48;5;229m"                                         # Black on pastel yellow background
+else
+    WITH_BACK="37;43m"                                                    # White on yellow background
+fi
+    WITH_BACK="37;43m"                                                    # White on yellow background
 # Collect the databases information: not same as SHOW_DB as services need to collect DB info
 # but not necessarily show the databases  information (-ns for example)
 COLL_DB="YES"
@@ -607,7 +612,7 @@ fi
          -v          SHOW_SVC="${SHOW_SVC}"          \
          -v         SHOW_LSNR="${SHOW_LSNR}"         \
          -v         SHOW_TECH="${SHOW_TECH}"         \
-         -v USE_ORA_OPEN_MODE="${USE_ORA_OPEN_MODE}" \
+         -v         WITH_BACK="${WITH_BACK}"         \
 'BEGIN\
 { FS = "="                                   ;
    n = split(NODES, nodes, ",")              ;       # Make a table with the nodes of the cluster
@@ -621,7 +626,6 @@ fi
        PURPLE =       "35m"                  ;
          TEAL =       "36m"                  ;
         WHITE =       "37m"                  ;
-    WITH_BACK =       "43m"                  ;       # Yellow background
    WITH_BACK2 =       "44m"                  ;       # Blue background
    WITH_BACK2 =       "41m"                  ;       # Red background
 COLOR_PRIMARY =       WHITE                  ;
@@ -650,6 +654,7 @@ COLOR_STANDBY =       BLUE                   ;
      STATUS_ISSUE = 0                        ;       # To show a legend if we found an issue with the status
  SERVICE_DISABLED = 0                        ;       # To show a legend of a service is disabled
           COL_SEP = "|"                      ;       # Column separator
+  ABNORMAL_STATUS = "Abnorm|Open from old OH|FastFailover"; # Status to highlight
 
   nbsvcshow = split(LISTSVC, temp, ",")      ;       # Array of services to show, if none, we show everything
   for (i=0;i<=nbsvcshow; i++){ svcshow[temp[i]]=temp[i]; }  # An associative array for easy search with for in
@@ -713,7 +718,7 @@ function print_legend_recent_restarted() {
 function print_legend_status_issue() {
     if (STATUS_ISSUE == 1) {
         printf(COLOR_BEGIN WITH_BACK2 "%-3s" COLOR_END, " ")                                        ;
-        printf(COLOR_BEGIN WHITE " %-s\n " COLOR_END, ": STATUS and TARGET are different")          ;
+        printf(COLOR_BEGIN WHITE " %-s\n " COLOR_END, ": STATUS != TARGET; also highlight potential issues");
     }
 }
 #
@@ -741,25 +746,26 @@ function print_a_line(size) {
 # Set colors depending on the recently restarted date and dbstatus and dbtarget
 #
 function set_color_status(i_db, i_node, i_status, i_target) {
+    COL_ABNORMAL=WITH_BACK2                                                                         ;
     if (i_status == i_target) {
-            COL_OPEN=GREEN                                                                  ;
-        COL_READONLY=WHITE                                                                  ;
-            COL_SHUT=YELLOW                                                                 ;
-           COL_OTHER=WHITE                                                                  ;
+            COL_OPEN=GREEN                                                                          ;
+        COL_READONLY=WHITE                                                                          ;
+            COL_SHUT=YELLOW                                                                         ;
+           COL_OTHER=WHITE                                                                          ;
     }
     if (i_status != i_target) {
-            COL_OPEN=WITH_BACK2                                                             ;
-        COL_READONLY=WITH_BACK2                                                             ;
-            COL_SHUT=WITH_BACK2                                                             ;
-           COL_OTHER=WITH_BACK2                                                             ;
-        STATUS_ISSUE=1                                                                      ;
+            COL_OPEN=WITH_BACK2                                                                     ;
+        COL_READONLY=WITH_BACK2                                                                     ;
+            COL_SHUT=WITH_BACK2                                                                     ;
+           COL_OTHER=WITH_BACK2                                                                     ;
+        STATUS_ISSUE=1                                                                              ;
     }
     if ((started[i_db,i_node]+0 < DIFF_HOURS+0) && (started[i_db,i_node])) {
-            COL_OPEN=WITH_BACK                                                              ;
-        COL_READONLY=WITH_BACK                                                              ;
-            COL_SHUT=WITH_BACK                                                              ;
-           COL_OTHER=WITH_BACK                                                              ;
-        RECENT_RESTARTED=1                                                                  ;
+            COL_OPEN=WITH_BACK                                                                      ;
+        COL_READONLY=WITH_BACK                                                                      ;
+            COL_SHUT=WITH_BACK                                                                      ;
+           COL_OTHER=WITH_BACK                                                                      ;
+        RECENT_RESTARTED=1                                                                          ;
     }
 }
 { # Fill 2 tables with the OH and the version from "crsctl stat res -p -w "TYPE = ora.database.type""
@@ -852,7 +858,7 @@ function set_color_status(i_db, i_node, i_status, i_target) {
                 }
                 if ($1 == "GEN_USR_ORA_INST_NAME") {
                     instance = $2                                                                   ;
-                    is_enabled[DB,instance] = enabled                                             ;
+                    is_enabled[DB,instance] = enabled                                               ;
                     while (getline) {
                         if (($1 ~ /^GEN_USR_ORA_INST_NAME@SERVERNAME/) && ($2 == instance)) {
                             sub("GEN_USR_ORA_INST_NAME@SERVERNAME[(]", "", $1)                      ;
@@ -911,6 +917,7 @@ function set_color_status(i_db, i_node, i_status, i_target) {
         }       # End if (type == "PDB")
 
         if (type == "SERVICE") {
+            nb_node=1
             while(getline) {
                 if ($1 == "ENABLED") {                                                                 # Service is enabled (1) or disabled (0)
                     for (i=1; i<=n; i++) {                                                             # n = number of nodes
@@ -964,11 +971,11 @@ function set_color_status(i_db, i_node, i_status, i_target) {
         }    # End if (type == LISTENER)
 
         if (type == "TECH") {
+                nb_node=1
             while (getline) {
                  if ($1 == "ENABLED") {
-                     for (i=1; i<=n; i++) {                                                            # n = number of nodes
-                         is_enabled[DB,nodes[i]]= $2                                                 ;
-                     }
+                     is_enabled[DB,nodes[nb_node]]= $2                                               ;
+                     nb_node++                                                                       ;
                      while(getline) {
                          if ($1 ~ /ENABLED@SERVERNAME/ ) {
                              sub("ENABLED@SERVERNAME[(]", "", $1)                                    ;
@@ -1007,13 +1014,12 @@ function set_color_status(i_db, i_node, i_status, i_target) {
                 if (status[DB,SERVER] == ""){       status[DB,SERVER] = $2                  ; }
                 if (length(status[DB,SERVER]) > COL_NODE) { COL_NODE = length(status[DB,SERVER]) + COL_NODE_OFFSET;}
             }
-	    if ($1 == "TARGET")             {       if (target[DB,SERVER]=="") {target[DB,SERVER]=$2;}}
-            # We use USR_ORA_OPEN_MODE instead of STATE and TARGET for the databases
-	    if (USE_ORA_OPEN_MODE == "True") {
-              if ($1 == "USR_ORA_OPEN_MODE") {   if (tolower($2) ~ "mount")     {target[DB,SERVER]="Mounted"  ;}
-                                                 if (tolower($2) ~ "read only") {target[DB,SERVER]="Readonly" ;}
-                                                 if (tolower($2) ~ "open")      {target[DB,SERVER]="Open"     ;}
-                                            }
+	    #if ($1 == "TARGET" && role[DB] == "PRIMARY"){ if (target[DB,SERVER]=="") {target[DB,SERVER]=$2;}}
+	    if ($1 == "TARGET"){ if (target[DB,SERVER]=="") {target[DB,SERVER]=$2;}}
+            if ($1 == "USR_ORA_OPEN_MODE" && role[DB] != "PRIMARY") {
+                if (tolower($2) ~ "mount")     {target[DB,SERVER]="Mounted"  ;}
+                if (tolower($2) ~ "read only") {target[DB,SERVER]="Readonly" ;}
+                if (tolower($2) ~ "open")      {target[DB,SERVER]="Open"     ;}
             }
             if (($1 == "LAST_RESTART") || ($1 == "LAST_STATE_CHANGE")) {
                 if (type == "PDB") { l_index = DBPDB} else { l_index = DB }
@@ -1352,10 +1358,10 @@ END {       #
 
             for (i = 1; i <= n; i++) {                                                    # For each node
                 l_node   = nodes[i]                                                     ; # More readable
-                if (USE_ORA_OPEN_MODE == "True") {
+                if (role[l_db] == "PRIMARY") {                                            # Primary
+                    dbstatus =           status[l_db,l_node]                            ; 
+                } else  {                                                                 # Standby
                     dbstatus =   status_details[l_db,l_node]                            ;
-                } else  {
-                    dbstatus =           status[l_db,l_node]                            ; # We use USR_ORA_OPEN_MODE and no more STATE and TARGET for the databases
                 }
                 dbtarget =           target[l_db,l_node]                                ;
                 dbdetail =   status_details[l_db,l_node]                                ;
@@ -1367,22 +1373,18 @@ END {       #
                     if (length(dbdetail) < COL_DB+4) {
                         left--                                                          ;
                     }
-                    if (dbdetail == "") {
-                        printf("%s", center(DISABLED, COL_NODE, RED, COL_SEP ))         ;
-                    } else if (dbdetail == "Open") {
-                        printf("%"left"s%s %s%"right"s", "", in_color(nice_case(dbdetail), COL_ONLINE),   in_color(DISABLED, RED), COL_SEP);
-                    } else if (dbdetail ~  /Readonly/) {
-                        printf("%"left"s%s %s%"right"s", "", in_color(nice_case(dbdetail), COL_READONLY), in_color(DISABLED, RED), COL_SEP);
-                    } else if (dbdetail ~  /Shut/) {
-                        printf("%"left"s%s %s%"right"s", "", in_color(nice_case(dbdetail), COL_SHUT),     in_color(DISABLED, RED), COL_SEP);
-                    } else {
-                        printf("%"left"s%s %s%"right"s", "", in_color(nice_case(dbdetail), COL_OTHER),    in_color(DISABLED, RED), COL_SEP);
-                    }
+                    if (dbdetail == "")             { printf("%s", center(DISABLED, COL_NODE, RED, COL_SEP ))                                                            ; } else
+                    if (dbdetail == "Open")         { printf("%"left"s%s %s%"right"s", "", in_color(nice_case(dbdetail), COL_ONLINE),   in_color(DISABLED, RED), COL_SEP); } else
+                    if (dbdetail ~  /Readonly/)     { printf("%"left"s%s %s%"right"s", "", in_color(nice_case(dbdetail), COL_READONLY), in_color(DISABLED, RED), COL_SEP); } else
+                    if (dbdetail ~  /Shut/)         { printf("%"left"s%s %s%"right"s", "", in_color(nice_case(dbdetail), COL_SHUT),     in_color(DISABLED, RED), COL_SEP); } else
+                    if (dbdetail ~ abnornmal_status){ printf("%"left"s%s %s%"right"s", "", in_color(nice_case(dbdetail), COL_ABNORMAL), in_color(DISABLED, RED), COL_SEP); } else
+			                            { printf("%"left"s%s %s%"right"s", "", in_color(nice_case(dbdetail), COL_OTHER),    in_color(DISABLED, RED), COL_SEP); }
                 } else {
                     if (dbdetail == "")             {printf("%s", center(UNKNOWN,             COL_NODE, COL_DEFAULT, COL_SEP ))  ;}      else
                     if (dbdetail == "Open")         {printf("%s", center(nice_case(dbdetail), COL_NODE, COL_OPEN,    COL_SEP ))  ;}      else
                     if (dbdetail ~  /Readonly/)     {printf("%s", center(nice_case(dbdetail), COL_NODE, COL_READONLY,COL_SEP ))  ;}      else
                     if (dbdetail ~  /Shut/)         {printf("%s", center(nice_case(dbdetail), COL_NODE, COL_SHUT,    COL_SEP ))  ;}      else
+                    if (dbdetail ~ ABNORMAL_STATUS) {printf("%s", center(nice_case(dbdetail), COL_NODE, COL_ABNORMAL,COL_SEP ))  ;}      else
                                                     {printf("%s", center(nice_case(dbdetail), COL_NODE, COL_OTHER,   COL_SEP ))  ;}
                 }
             } # End for each node
