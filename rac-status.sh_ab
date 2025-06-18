@@ -161,6 +161,7 @@ DEF_DIFF_HOURS="24"                                                         # Nb
   DEF_ADVM_DEV="False"                                                      # Show ADVM devices next to ACFS FS
   DEF_HIDE_DEV="False"                                                      # Hide ACFS FS and ADVM devices
 DEF_USE_ORA_OPEN_MODE="True"                                                # If we use USE_ORA_OPEN_MODE or STATE and TARGET to color the background of an instance
+ DEF_WITH_BACK="37;43m"                                                     # Yellow background color when a resource has been restarted recently
 #
 # ENV_ variables (from the config file or the command line) take precedence over the default values
 #
@@ -181,6 +182,7 @@ DEF_USE_ORA_OPEN_MODE="True"                                                # If
        SORT_BY="${ENV_SORT_BY:-$DEF_SORT_BY}"
       ADVM_DEV="${ENV_ADVM_DEV:-$DEF_ADVM_DEV}"         ;   ADVM_DEV="${ADVM_DEV,,}"; ADVM_DEV="${ADVM_DEV^}";   # Ensure only first letter upper case (True or False)
       HIDE_DEV="${ENV_HIDE_DEV:-$DEF_HIDE_DEV}"         ;   HIDE_DEV="${HIDE_DEV,,}"; HIDE_DEV="${HIDE_DEV^}";
+     WITH_BACK="${ENV_YELLOW_BACK:-$DEF_WITH_BACK}"
 #
 # Variables
 #
@@ -190,12 +192,6 @@ DEF_USE_ORA_OPEN_MODE="True"                                                # If
        TEAL="36m"                                                         # Teal color code
       GREEN="32m"                                                         # Green color code
     REDBACK="41m"                                                         # Nothing related to the spider, just a red background :) 
-if [ "$(tput colors)" -ge 256 ]; then                                     # Better colors if you have a 256 color terminal
-    WITH_BACK="38;5;16;48;5;229m"                                         # Black on pastel yellow background
-else
-    WITH_BACK="37;43m"                                                    # White on yellow background
-fi
-    WITH_BACK="37;43m"                                                    # White on yellow background
 # Collect the databases information: not same as SHOW_DB as services need to collect DB info
 # but not necessarily show the databases  information (-ns for example)
 COLL_DB="YES"
