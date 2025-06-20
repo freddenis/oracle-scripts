@@ -1002,21 +1002,29 @@ function set_color_status(i_db, i_node, i_status, i_target) {
         NB = 0      ;       # Number of instances we went through
         SERVER = $2     ;
         if (length(SERVER) > COL_NODE) {
-            COL_NODE = length(SERVER) + COL_NODE_OFFSET                                              ;
+            COL_NODE = length(SERVER) + COL_NODE_OFFSET                                     ;
         }
         while (getline) {
             if ($1 == "LAST_SERVER")        {       SERVER = $2                             ;}
             if ($1 == "STATE")              {       gsub(" on .*$", "", $2)                 ;
-                if (status[DB,SERVER] == ""){       status[DB,SERVER] = $2                  ; }
+                if (status[DB,SERVER] == ""){       status[DB,SERVER] = $2                  ;}
                 if (length(status[DB,SERVER]) > COL_NODE) { COL_NODE = length(status[DB,SERVER]) + COL_NODE_OFFSET;}
             }
-	    #if ($1 == "TARGET" && role[DB] == "PRIMARY"){ if (target[DB,SERVER]=="") {target[DB,SERVER]=$2;}}
-	    if ($1 == "TARGET"){ if (target[DB,SERVER]=="") {target[DB,SERVER]=$2;}}
-            if ($1 == "USR_ORA_OPEN_MODE" && role[DB] != "PRIMARY") {
-                if (tolower($2) ~ "mount")     {target[DB,SERVER]="Mounted"  ;}
-                if (tolower($2) ~ "read only") {target[DB,SERVER]="Readonly" ;}
-                if (tolower($2) ~ "open")      {target[DB,SERVER]="Open"     ;}
-            }
+	    if ($1 == "TARGET"){
+                if (target[DB,SERVER]=="")  {       target[DB,SERVER]=$2                    ;}
+                if (role[DB] != "PRIMARY")  {
+                    # Standbys are very often in INTERMEDIATE state which is a transient status, this way we ignore it
+                    if (status[DB,SERVER] == "INTERMEDIATE") {
+                        status[DB,SERVER] = target[DB,SERVER]                               ;
+                    }
+                }
+             }
+# This is the target default open mode for the cluster to start an instance -- irrelevant for us
+#            if ($1 == "USR_ORA_OPEN_MODE" && role[DB] != "PRIMARY") {
+#                if (tolower($2) ~ "mount")     {target[DB,SERVER]="Mounted"  ;}
+#                if (tolower($2) ~ "read only") {target[DB,SERVER]="Readonly" ;}
+#                if (tolower($2) ~ "open")      {target[DB,SERVER]="Open"     ;}
+#            }
             if (($1 == "LAST_RESTART") || ($1 == "LAST_STATE_CHANGE")) {
                 if (type == "PDB") { l_index = DBPDB} else { l_index = DB }
                 if (started[l_index,SERVER] > diff_hours($2" "$3) || started[l_index,SERVER] == "") {started[l_index,SERVER]=diff_hours($2" "$3);}
@@ -1354,11 +1362,7 @@ END {       #
 
             for (i = 1; i <= n; i++) {                                                    # For each node
                 l_node   = nodes[i]                                                     ; # More readable
-                if (role[l_db] == "PRIMARY") {                                            # Primary
-                    dbstatus =           status[l_db,l_node]                            ; 
-                } else  {                                                                 # Standby
-                    dbstatus =   status_details[l_db,l_node]                            ;
-                }
+                dbstatus =           status[l_db,l_node]                                ; 
                 dbtarget =           target[l_db,l_node]                                ;
                 dbdetail =   status_details[l_db,l_node]                                ;
                 set_color_status(l_db, l_node, dbstatus, dbtarget)                      ;
