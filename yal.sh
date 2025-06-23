@@ -7,15 +7,17 @@
 # Use the -h option to show the usage function and the available options
 # Also, detailed explanations about yal.sh are available on http://bit.ly/2lNiLLF
 #
-# The current version of the script is 20191008
+# The current version of the script is 20250623
 #
 # History:
 #
+# 20250623 - Fred DENIS - Rewrote the whole after and before execution and how to get the different commands per server
+#                       - -l user is no more mandatory (indeed alias in ~/.ssh/config already specify the user to log in with)
+#                       - Cosmetic
 # 20191008 - Fred Denis - -a and -b support different parameters values per server: server1:date,server2:uptime
 # 20191002 - Fred Denis - Implemented the "user_to_log:user_to_exec@server" syntax
 # 20190912 - Fred Denis - Initial release
 #
-
 #
 # Default values
 #
@@ -33,8 +35,8 @@ DEFAULT_FILE_TO_COPY=""                                         # A file to copy
        DEFAULT_QUIET="NO"                                       # Show the temporary file copy and remove when we execute a file on a remote server
 DEFAULT_SCRIPT_OPTIONS=""                                       # Default options to append to a script we execute
 
-              HEADER="echo BEGIN on \`hostname -s\` : \`date\`"    # Header to print before execution on  target
-              FOOTER="echo END\ \ \ on \`hostname -s\` : \`date\`" # Footer to print after  execution on a target
+             HEADER="echo BEGIN on \$(hostname -s): \$(date)"    # Header to print before execution on  target
+             FOOTER="echo END\ \ \ on \$(hostname -s): \$(date)" # Footer to print after  execution on a target
 
          CONFIG_FILE=".yal.config"                              # Default config file containing default values overwritting these ones
         SHOW_OPTIONS="no"                                       # Show the options that would be used and exit -- do not do anything else (-o)
@@ -50,79 +52,71 @@ list_param=('AFTER' 'BEFORE' 'SERVER_LIST' 'DEST' 'USER_TO_EXEC' 'FILE_TO_COPY' 
 #
        BLUE_BOLD="1;34m"
             BLUE="34m"
-           COLOR=${BLUE_BOLD}
+           COLOR="${BLUE_BOLD}"
 #
 # Function to get values from the config file, receive a pattern and return the value specified in the config file
 # Form should be : PATTERN=value or PATTERN="list of values"
 #
 get_from_config_file()
 {
-        A=$(grep "$1" ${CONFIG_FILE} | grep -v "^#" | sed s'/^[[:space:]]*//g' | sed s'/#.*$//' | sed s'/^.*=[[:space:]]*//' | sed s'/[[:space:]]*$//' | sed s'/"//g')
-        echo "$A"
+    A=$(grep "$1" "${CONFIG_FILE}" | grep -v "^#" | sed s'/^[[:space:]]*//g' | sed s'/#.*$//' | sed s'/^.*=[[:space:]]*//' | sed s'/[[:space:]]*$//' | sed s'/"//g')
+    echo "$A"
 }
 #
 # Get the values from the config file
 #
-if [[ -f ${CONFIG_FILE} ]]
-then
-        for name in "${list_param[@]}"
-        do
-                declare -x "$name"="$(get_from_config_file "$name")"
-        done
+if [[ -f "${CONFIG_FILE}" ]]; then
+    for name in "${list_param[@]}"; do
+        declare -x "$name"="$(get_from_config_file "$name")"
+    done
 fi
 #
 # Show the version of the script (-V)
 #
 show_version()
 {
-        VERSION=`awk '{if ($0 ~ /^# 20[0-9][0-9][0-1][0-9]/) {print $2; exit}}' $0`
-        printf "\n\t\033[1;36m%s\033[m\n\n" "The current version of "`basename $0`" is "$VERSION"."          ;
+    VERSION=$(awk '{if ($0 ~ /^# 20[0-9][0-9][0-1][0-9]/) {print $2; exit}}' $0)
+    printf "\n\t\033[1;36m%s\033[m\n\n" "The current version of "$(basename $0)" is "$VERSION"."          ;
 }
+fill_command_array() {
 #
-# Function to get a value from a parameter list
+# Fill an array with the server as key and the command as values in the case of syntaxes like this:
+# server1:date;id,server2"uptime
 #
-get_value_from()
-{       # Get a pattern ($1) to search in $2 which is of the form:
-        # server1:pattern;blabla,server2:another_pattern
-        PATTERN="$1"    ;
-           FROM="$2"    ;
+    local command_string="$1"
+    local     array_name="$2"
+    declare -n out_array="$array_name"                               # Nameref to assign to actual array
 
-        if [[ "$2" =~ "," ]]            # More than one server, we search for the one in PATTERN
-        then
-                echo $FROM | awk -F ":" -v PATTERN="$PATTERN"\
-                 ' BEGIN {RS=","}
-                   {
-                        if ($1 == PATTERN)
-                        {       printf $2                       ;
-                                exit                            ;
-                        }
-                        if ($1 == "*")
-                        {       DEFAULT = $2                    ;
-                        }
-                  } END \
-                  {     print DEFAULT                           ;
-                  }
-                 '
-        else                            # Only a generic command we always return it 
-                echo $FROM | sed s'/..*://g'
-        fi
+    shift 2
+    local servers=("$@")
+
+    if [[ "$command_string" == *:* ]]; then                          # Host-specific commands
+        for H in "${servers[@]}"; do
+            cmd=$(echo "$command_string" | tr ',' '\n' | grep "^$H:" | sed "s/^$H://")
+            out_array["$H"]="$cmd"
+        done
+    else  # Same command for all
+        for H in "${servers[@]}"; do
+            out_array["$H"]="$command_string"
+        done
+    fi
 }
 #
 # Use default values if not specified in the config file
 #
-if [[ -z ${AFTER}          ]]     ; then          AFTER="$DEFAULT_AFTER"            ; fi
-if [[ -z ${BEFORE}         ]]     ; then         BEFORE="$DEFAULT_BEFORE"           ; fi
-if [[ -z ${SERVER_LIST}    ]]     ; then    SERVER_LIST=$DEFAULT_SERVER_LIST        ; fi
-if [[ -z ${DEST}           ]]     ; then           DEST=$DEFAULT_DEST               ; fi
-if [[ -z ${USER_TO_EXEC}   ]]     ; then   USER_TO_EXEC=$DEFAULT_USER_TO_EXEC       ; fi
-if [[ -z ${FILE_TO_COPY}   ]]     ; then   FILE_TO_COPY=$DEFAULT_FILE_TO_COPY       ; fi
-if [[ -z ${GROUP_FILE}     ]]     ; then     GROUP_FILE=$DEFAULT_GROUP_FILE         ; fi
-if [[ -z ${USER_TO_LOG}    ]]     ; then    USER_TO_LOG=$DEFAULT_USER_TO_LOG        ; fi
-if [[ -z ${SCRIPT}         ]]     ; then         SCRIPT=$DEFAULT_SCRIPT             ; fi
-if [[ -z ${SSH_OPTIONS}    ]]     ; then    SSH_OPTIONS="$DEFAULT_SSH_OPTIONS"      ; fi
-if [[ -z ${SCP_OPTIONS}    ]]     ; then    SCP_OPTIONS="$DEFAULT_SCP_OPTIONS"      ; fi
-if [[ -z ${QUIET}          ]]     ; then          QUIET="$DEFAULT_QUIET"            ; fi
-if [[ -z ${SCRIPT_OPTIONS} ]]     ; then SCRIPT_OPTIONS="$DEFAULT_SCRIPT_OPTIONS"   ; fi
+if [[ -z "${AFTER}"          ]]     ; then          AFTER="$DEFAULT_AFTER"            ; fi
+if [[ -z "${BEFORE}"         ]]     ; then         BEFORE="$DEFAULT_BEFORE"           ; fi
+if [[ -z "${SERVER_LIST}"    ]]     ; then    SERVER_LIST=$DEFAULT_SERVER_LIST        ; fi
+if [[ -z "${DEST}"           ]]     ; then           DEST=$DEFAULT_DEST               ; fi
+if [[ -z "${USER_TO_EXEC}"   ]]     ; then   USER_TO_EXEC=$DEFAULT_USER_TO_EXEC       ; fi
+if [[ -z "${FILE_TO_COPY}"   ]]     ; then   FILE_TO_COPY=$DEFAULT_FILE_TO_COPY       ; fi
+if [[ -z "${GROUP_FILE}"     ]]     ; then     GROUP_FILE=$DEFAULT_GROUP_FILE         ; fi
+if [[ -z "${USER_TO_LOG}"    ]]     ; then    USER_TO_LOG=$DEFAULT_USER_TO_LOG        ; fi
+if [[ -z "${SCRIPT}"         ]]     ; then         SCRIPT=$DEFAULT_SCRIPT             ; fi
+if [[ -z "${SSH_OPTIONS}"    ]]     ; then    SSH_OPTIONS="$DEFAULT_SSH_OPTIONS"      ; fi
+if [[ -z "${SCP_OPTIONS}"    ]]     ; then    SCP_OPTIONS="$DEFAULT_SCP_OPTIONS"      ; fi
+if [[ -z "${QUIET}"          ]]     ; then          QUIET="$DEFAULT_QUIET"            ; fi
+if [[ -z "${SCRIPT_OPTIONS}" ]]     ; then SCRIPT_OPTIONS="$DEFAULT_SCRIPT_OPTIONS"   ; fi
 #
 # An usage function
 #
@@ -130,7 +124,7 @@ usage()
 {
 printf "\n\033[1;37m%-8s\033[m\n" "NAME"                                        ;
 cat << END
-        `basename $0` - Execute or copy a script and/or commands on many hosts
+	$(basename $0) - Execute or copy a script and/or commands on many hosts
 END
 printf "\n\033[1;37m%-8s\033[m\n" "SYNOPSIS"                                    ;
 cat << END
@@ -138,10 +132,10 @@ cat << END
 END
 printf "\n\033[1;37m%-8s\033[m\n" "DESCRIPTION"                                 ;
 cat << END
-        `basename $0` needs SSH equivalence already set between the user executing it and the target user (option -l)
-        `basename $0` can also sudo to a user to execute a script (option -e)
-        `basename $0` supports a "user_to_log:user_to_exec@server" syntax to connect and sudo as different user per server
-        With no option, `basename $0` use the values defined in the config file and if not, the default values from the top of the script
+	$(basename $0) needs SSH equivalence already set between the user executing it and the target user (option -l)
+	$(basename $0) can also sudo to a user to execute a script (option -e)
+	$(basename $0) supports a "user_to_log:user_to_exec@server" syntax to connect and sudo as different user per server
+	With no option, $(basename $0) use the values defined in the config file and if not, the default values from the top of the script
 
         Options precedence is:
                 1/ Option through the command line
@@ -159,7 +153,7 @@ cat << END
                   The comma separated list (-c), the list of servers in a file (-g) and the SERVER_LIST parameter in the config file
                   also support a "user_to_log:user_to_exec@server" syntax to bypass the user to login (-l) and the user to exec (-e)
                   for specific servers; please find an example below:
-                        $ `basename $0` -c root:oracle@server1,:oragrid@server2,opc@server3,server4 -l oracle -e grid -x asmdu.sh
+			$ $(basename $0) -c root:oracle@server1,:oragrid@server2,opc@server3,server4 -l oracle -e grid -x asmdu.sh
                         this will be resolved as:
                         root:oracle@server1 => ssh root             @server1 then sudo oracle         to execute asmdu.sh
                         :oragrid@server2    => ssh oracle (from -l) @server2 then sudo oragrid        to execute asmdu.sh
@@ -187,12 +181,11 @@ END
 #
 # Print a line of "-"
 #
-print_a_line()
-{
-        printf "\n"                                             ;
-        for i in `seq 1 $1`
-        do      printf "\033[1;37m%1s\033[m" "-"                ;
-        done
+print_a_line() {
+    printf "\n"                                                ;
+    for i in $(seq 1 $1); do
+        printf "\033[1;37m%1s\033[m" "-"                       ;
+    done
 }
 #
 # Options (overwrite the default values)
@@ -220,33 +213,27 @@ while getopts "a:b:c:d:e:f:g:l:ox:hs:S:VqQO:" OPT; do
         esac
 done
 
-if [[ -n ${GROUP_FILE} && -n ${SERVER_LIST} ]]
-then
-        printf "\n\033[1;33m%s\033[m\n\n" "Info: when both a server list (-c) and a group file (-g) are specified, the group file is used."           ;
+if [[ -n "${GROUP_FILE}" && -n "${SERVER_LIST}" ]]; then
+    printf "\n\033[1;33m%s\033[m\n\n" "Info: when both a server list (-c) and a group file (-g) are specified, the group file is used."           ;
 fi
 
-if [[ -n ${GROUP_FILE} ]]               # A group file is specified, we will use the hosts from it
-then
-        if [[ -f ${GROUP_FILE} ]]
-        then
-                SERVER_LIST=`cat ${GROUP_FILE} | awk '{printf("%s,",$1)}' | sed s'/,$//'`
+if [[ -n "${GROUP_FILE}" ]]; then               # A group file is specified, we will use the hosts from it
+    if [[ -f "${GROUP_FILE}" ]]; then
+	    SERVER_LIST=$(cat "${GROUP_FILE}" | awk '{printf("%s,",$1)}' | sed s'/,$//')
         else
-                printf "\n\t\033[1;31m%s\033[m\n\n" "Cannot find ${GROUP_FILE}, cannot continue."           ;
-                exit 669
+            printf "\n\t\033[1;31m%s\033[m\n\n" "Cannot find ${GROUP_FILE}, cannot continue."           ;
+            exit 669
         fi
 fi
 #
 # Show the value of each option with the current setting -- do not do anything, just show and exit
 #
-if [[ "${SHOW_OPTIONS}" = "yes" ]]
-then
+if [[ "${SHOW_OPTIONS}" = "yes" ]]; then
         # Adapt the colum size to the longest value of the variales
         COL2=${#CONFIG_FILE}
-        for X in "${list_param[@]}"
-        do
+        for X in "${list_param[@]}"; do
                 A="${!X}"                                                                       ;
-                if (( ${#A} > $COL2 ))
-                then
+                if (( ${#A} > $COL2 )); then
                         COL2=$(( ${#A}+1 ))                                                     ;
                 fi
         done
@@ -279,27 +266,18 @@ fi
 #
 # Input checks
 #
-if [[ -n ${SCRIPT} && ! -f ${SCRIPT} ]]
-then
+if [[ -n "${SCRIPT}" && ! -f "${SCRIPT}" ]]; then
         printf "\n\t\033[1;31m%s\033[m\n\n" "Cannot find ${SCRIPT}, cannot continue."           ;
         exit 666
 fi
-if [[ -n ${FILE_TO_COPY} && ! -f ${FILE_TO_COPY} ]]
-then
+if [[ -n "${FILE_TO_COPY}" && ! -f "${FILE_TO_COPY}" ]]; then
         printf "\n\t\033[1;31m%s\033[m\n\n" "Cannot find ${FILE_TO_COPY}, cannot continue."      ;
         exit 667
 fi
-if [[ -n ${SCRIPT} ]]
-then
+if [[ -n "${SCRIPT}" ]]; then
         FILE_TO_COPY=${SCRIPT}
 fi
-if [[ -z ${USER_TO_LOG} ]]
-then
-        printf "\n\t\033[1;31m%s\033[m\n\n" "A user to log in is needed (option -l), cannot continue."           ;
-        exit 668
-fi
-if [[ -z ${SERVER_LIST} ]]
-then
+if [[ -z "${SERVER_LIST}" ]]; then
         printf "\n\t\033[1;31m%s\033[m\n\n" "A server to connect to is needed (-c or -g option), cannot continue."           ;
         exit 670
 fi
@@ -307,157 +285,126 @@ fi
 # Getting ready
 #
 TO=${DEST}"/"${FILE_TO_COPY}                       # for better visibility below
-if [[ -n ${SCRIPT} ]]
-then
-        TO=${DEST}"/"${FILE_TO_COPY}$$             # A temporary name for the copied script if we execute the script
+if [[ -n ${SCRIPT} ]]; then
+    TO=${DEST}"/"${FILE_TO_COPY}$(date -u "+%s")$$                 # A temporary name for the copied script if we execute the script
 fi
 servers=(${SERVER_LIST//,/ })                      # Split every server in an array
+# 
+# Each AFTER and BEFORE command in arrrays
+#
+declare -A commands_before
+declare -A commands_after
+fill_command_array "$BEFORE" commands_before "${servers[@]}"
+fill_command_array "$AFTER" commands_after "${servers[@]}"
 #
 # Let's go
 #
-for X in ${servers[@]}
-do
-        #
-        # Management of the "user_to_log:user_to_exec@server" syntax
-        #
-        if [[ ! $X =~ "@" ]] &&  [[ ! $X =~ ":" ]]
-        then
-                X=":@"$X
-        fi
-        if ! [[ $X =~ ":" ]]
-        then
-                X=`echo $X | sed s'/@/:@/'`
-        fi
+for X in ${servers[@]}; do
+    #
+    # Management of the "user_to_log:user_to_exec@server" syntax
+    #
+    if [[ ! $X =~ "@" ]] &&  [[ ! $X =~ ":" ]]; then
+            X=":@"$X
+    fi
+    if ! [[ $X =~ ":" ]]; then
+            X=`echo $X | sed s'/@/:@/'`
+    fi
 
-         LOGIN=`echo $X | awk -F "[:@]" '{print $1}'`
-          EXEC=`echo $X | awk -F "[:@]" '{print $2}'`
-        SERVER=`echo $X | awk -F "[:@]" '{print $3}'`
+    LOGIN=$(echo $X | awk -F "[:@]" '{print $1}')
+     EXEC=$(echo $X | awk -F "[:@]" '{print $2}')
+   SERVER=$(echo $X | awk -F "[:@]" '{print $3}')
 
-        if [[ -z ${LOGIN} ]]; then      LUSER=${USER_TO_LOG}    ; else LUSER=${LOGIN}   ;       fi
-        if [[ -z ${EXEC}  ]]; then      XUSER=${USER_TO_EXEC}   ; else XUSER=${EXEC}    ;       fi
-
-        #
-        # Other options syntax "server:parameters" management
-        #
-        # dev
-        for A in AFTER BEFORE
-        do
-                B="${!A}"                                                                ;
-                if [[ -n $(get_value_from $SERVER "${B}") ]]
-                then
-                        eval X${A}="$(get_value_from $SERVER "${B}")"
+    if [[ -z "${LOGIN}" ]]; then      LUSER="${USER_TO_LOG}"    ; else LUSER="${LOGIN}"   ;       fi
+    if [[ -z "${EXEC}"  ]]; then      XUSER="${USER_TO_EXEC}"   ; else XUSER="${EXEC}"    ;       fi
+    if [[ -n "${LUSER}" ]]; then      SSH_USER="-l ${LUSER}"    ; SCP_USER="${LUSER}"     ;       fi
+    #
+    # Elaspsed time
+    #
+    if [[ "${SHOW_ELAPSED}" = "yes" ]]; then
+        START_TIME="$(date -u +%s)"
+    fi
+    #
+    # Header and Before
+    #
+    if [[ -n "${HEADER}" || -n "${XBEFORE}" ]]; then
+        ssh ${SSH_OPTIONS} ${SSH_USER} ${SERVER} << END_SSH
+            if [[ -n "${HEADER}" ]]; then
+                echo -ne "\e[${COLOR}"                                  ;
+                eval "${HEADER}"                                        ;
+                echo -ne "\e[0m"                                        ;
+            fi
+            if [[ -n "${commands_before[$SERVER]}" ]]; then
+                if [[ -n "${XUSER}" ]]; then
+                    sudo su - ${XUSER} << END_SU
+                        eval "${commands_before[$SERVER]}"                   ;
+END_SU
                 else
-                        eval X${A}="${!B}"
+                    eval "${commands_before[$SERVER]}"                       ;
                 fi
-        done
-
-        #
-        # Elaspsed time
-        #
-        if [[ "${SHOW_ELAPSED}" = "yes" ]]
-        then
-                START_TIME="$(date -u +%s)"
-        fi
-        #
-        # Header and Before
-        #
-        if [[ -n "${HEADER}" || -n "${XBEFORE}" ]]
-        then
-                ssh ${SSH_OPTIONS} ${LUSER}@${SERVER} << END_SSH
-                        if [[ -n "${HEADER}" ]]
-                        then
-                                echo -ne "\e[${COLOR}"                                  ;
-                                eval "${HEADER}"                                        ;
-                                echo -ne "\e[0m"                                        ;
-                        fi
-                        if [[ -n "${XBEFORE}" ]]
-                        then
-                                if [[ -n "${XUSER}" ]]
-                                then
-                                        sudo su - ${XUSER} << END_SU
-                                        eval "${XBEFORE}"                           ;
-END_SU
-                                else
-                                        eval "${XBEFORE}"                            ;
-                                fi
-                        fi
+            fi
 END_SSH
+    fi
+    #
+    # Script copy
+    #
+    if [[ -f "${FILE_TO_COPY}" ]]; then                   # A file to copy
+        scp ${SCP_OPTIONS} ${FILE_TO_COPY} ${SCP_USER}@${SERVER}:${TO}
+        RET=$?
+        if [[ "${QUIET}" == "NO" ]]; then
+            if [ $RET -eq 0 ]; then
+                printf "%s\n" "Script "${FILE_TO_COPY}" successfully copied to "${TO}           ;
+            else
+                printf "%s\n" "Error "$?" when copying "${FILE_TO_COPY}" to "${TO}              ;
+            fi
         fi
-        #
-        # Script copy
-        #
-        if [[ -f "${FILE_TO_COPY}" ]]                   # A file to copy
-        then
-                scp ${SCP_OPTIONS} ${FILE_TO_COPY} ${LUSER}@${SERVER}:${TO}
-                RET=$?
-                if [[ "${QUIET}" == "NO" ]]
-                then
-                        if [ $RET -eq 0 ]
-                        then
-                                printf "%s\n" "Script "${FILE_TO_COPY}" successfully copied to "${TO}           ;
+    fi
+    #
+    # Script execution, After and Footer
+    #
+    if [[ -n "${SCRIPT}" || -n "${XAFTER}" || -n "${FOOTER}" ]]; then
+        ssh ${SSH_OPTIONS} ${SSH_USER} ${SERVER} << END_SSH
+            if [[ -n "${SCRIPT}" ]]; then
+                chmod 777 ${TO}
+                if [[ -n "${XUSER}" ]]; then
+                    sudo su - ${XUSER} << END_SU
+                        . ${TO} ${SCRIPT_OPTIONS}                                   ;
+END_SU
+                else
+                        . ${TO} ${SCRIPT_OPTIONS}                                   ;
+                fi
+                if [[ -f "${TO}" ]]; then
+                    rm -f ${TO}                                                     ;
+                    if [[ "${QUIET}" == "NO" ]]; then
+                        if [ $? -eq 0 ]; then
+                            printf "%s\n" "Script "${TO}" removed successfully"     ;
                         else
-                                printf "%s\n" "Error "$?" when copying "${FILE_TO_COPY}" to "${TO}              ;
+                            printf "%s\n" "Error "$?" when removing "${TO}          ;
                         fi
+                    fi
                 fi
-        fi
-        #
-        # Script execution, After and Footer
-        #
-        if [[ -n "${SCRIPT}" || -n "${XAFTER}" || -n "${FOOTER}" ]]
-        then
-                ssh ${SSH_OPTIONS} ${LUSER}@${SERVER} << END_SSH
-                        if [[ -n "${SCRIPT}" ]]
-                        then
-                                chmod 777 ${TO}
-                                if [[ -n "${XUSER}" ]]
-                                then
-                                        sudo su - ${XUSER} << END_SU
-                                        . ${TO} ${SCRIPT_OPTIONS}                       ;
+            fi
+            if [[ -n "${commands_after[$SERVER]}" ]]; then
+                if [[ -n "${XUSER}" ]]; then
+                    sudo su - ${XUSER} << END_SU
+                        eval "${commands_after[$SERVER]}"                           ;
 END_SU
-                                else
-                                        . ${TO} ${SCRIPT_OPTIONS}                       ;
-                                fi
-                                if [[ -f "${TO}" ]]
-                                then
-                                        rm -f ${TO}                                     ;
-                                        if [[ "${QUIET}" == "NO" ]]
-                                        then
-                                                if [ $? -eq 0 ]
-                                                then
-                                                        printf "%s\n" "Script "${TO}" removed successfully"     ;
-                                                else
-                                                        printf "%s\n" "Error "$?" when removing "${TO}          ;
-                                                fi
-                                        fi
-                                fi
-                        fi
-                        if [[ -n "${XAFTER}" ]]
-                        then
-                                if [[ -n "${XUSER}" ]]
-                                then
-                                        sudo su - ${XUSER} << END_SU
-                                        eval "${XAFTER}"                            ;
-END_SU
-                                else
-                                        eval "${XAFTER}"                            ;
-                                fi
-                        fi
-                        if [[ -n "${FOOTER}" ]]
-                        then
-                                echo -ne "\e[${COLOR}"                                  ;
-                                eval "${FOOTER}"                                        ;
-                                echo -ne "\e[0m"                                        ;
-                        fi
+                 else
+                        eval "${commands_after[$SERVER]}"                           ;
+                 fi
+            fi
+            if [[ -n "${FOOTER}" ]]; then
+                echo -ne "\e[${COLOR}"                                              ;
+                eval "${FOOTER}"                                                    ;
+                echo -ne "\e[0m"                                                    ;
+            fi
 END_SSH
-        fi
-        if [[ "${SHOW_ELAPSED}" = "yes" ]]
-        then
-                END_TIME="$(date -u +%s)"                                               ;
-                 ELAPSED="$(($END_TIME-$START_TIME))"                                   ;
-                printf "\033[${COLOR}%-8s: %s\033[m\n" "ELAPSED" "$ELAPSED seconds"     ;
-        fi
+    fi
+    if [[ "${SHOW_ELAPSED}" = "yes" ]]; then
+            END_TIME="$(date -u +%s)"                                               ;
+             ELAPSED="$(($END_TIME-$START_TIME))"                                   ;
+            printf "\033[${COLOR}%-8s: %s\033[m\n" "ELAPSED" "$ELAPSED seconds"     ;
+    fi
 done
-
 #************************************************************************#
 #                       E N D      O F      S O U R C E                 *#
 #************************************************************************#
