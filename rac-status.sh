@@ -19,10 +19,13 @@
 #
 # More info and git repo: https://bit.ly/2MFkzDw -- https://github.com/freddenis/oracle-scripts
 #
-# The current script version is 20250526
+# The current script version is 20260917
 #
 # History :
 #
+# 20260917 - Fred Denis - Fixed a false red "STATUS and TARGET are different" highlight on databases that are intentionally stopped (STATE=TARGET=OFFLINE). Check 20220121 for why we use USR_ORA_OPEN_MODE
+#                         for databases but that attribute is only the configured open mode for a future start, so comparing it to STATE_DETAILS was raising a false positive.
+#                         Also only keep the most recent status when multiple crsctl blocks exist for the same instance (timestamp-based) -- not sure if this is a CRS bug or a feature.
 # 20250526 - Fred Denis - GI 23.8 (patch 37689703, April 2025) seems to have introduced the fact that NLS_LANG now impacts the output of crsctl which
 #                         was creating a display issue of the status of the cluster for the users not using english as default language.
 #                         Also because my regexp managing this was bad. It is now fixed with a better regexp. Thanks Yoann for reporting this!
@@ -712,6 +715,44 @@ function print_a_line(size) {
     printf("%s", COLOR_END"\n")                                                                     ;
 }
 #
+# Save the DB status info to manage different LAST_RESTART timestamps (DB, SERVER)
+#
+function save_db_status_info(l_index, prev_server) {
+    if (cur_ts > (last_start[l_index,prev_server]+0) || last_start[l_index,prev_server] == "") {
+        last_start[l_index,prev_server] = cur_ts                                                    ;
+        if (cur_restart_str != "") {
+            started[l_index,prev_server] = diff_hours(cur_restart_str)                              ;
+        }
+        if (cur_state != "") {
+            status[DB,prev_server] = cur_state                                                      ;
+            if (length(status[DB,prev_server]) > COL_NODE) {
+                COL_NODE = length(status[DB,prev_server]) + COL_NODE_OFFSET                         ;
+            }
+        }
+        # 20220121 open-mode logic with offline guard (databases only).
+        # When STATE == TARGET == OFFLINE the instance is intentionally stopped;
+        # USR_ORA_OPEN_MODE is only the configured mode for a future start, so
+        # force the comparison target to match STATE_DETAILS and avoid a false red.
+        if (toupper(cur_state) == "OFFLINE" && toupper(cur_target) == "OFFLINE") {
+            if (cur_details != "") {
+                target[DB,prev_server] = cur_details                                                ;  # usually "Shutdown"
+            } else {
+                target[DB,prev_server] = "OFFLINE"                                                  ;
+            }
+        } else if (cur_open_mode != "") {
+            target[DB,prev_server] = cur_open_mode                                                  ;
+        } else if (cur_target != "") {
+            target[DB,prev_server] = cur_target                                                     ;
+        }
+        if (cur_details != "") {
+            status_details[DB,prev_server] = cur_details                                            ;
+            if ((length(status_details[DB,prev_server]) > COL_NODE) && (type != "TECH")) {
+                COL_NODE = length(status_details[DB,prev_server]) + COL_NODE_OFFSET                 ;
+            }
+        }
+    }
+}
+#
 # Set colors depending on the recently restarted date and dbstatus and dbtarget
 #
 function set_color_status(i_db, i_node, i_status, i_target) {
@@ -968,30 +1009,47 @@ function set_color_status(i_db, i_node, i_status, i_target) {
             }
         }    # End if (type == TECH)
     }       # End if ($1 == "ACL")
-
     if ($1 == "LAST_SERVER") {        # crsctl stat res -v output
         NB = 0      ;       # Number of instances we went through
         SERVER = $2     ;
         if (length(SERVER) > COL_NODE) {
             COL_NODE = length(SERVER) + COL_NODE_OFFSET                                              ;
         }
+        # Temporary holders for the current instance block (one LAST_SERVER ... until next LAST_SERVER or BREAK_HERE)
+        # We only commit to the permanent arrays when the block timestamp is newer than what we already have.
+        cur_state = ""; cur_target = ""; cur_open_mode = ""; cur_details = "";
+        cur_ts = 0; cur_restart_str = ""; prev_server = SERVER;
         while (getline) {
-            if ($1 == "LAST_SERVER")        {       SERVER = $2                             ;}
-            if ($1 == "STATE")              {       gsub(" on .*$", "", $2)                 ;
-                if (status[DB,SERVER] == ""){       status[DB,SERVER] = $2                  ; }
-                if (length(status[DB,SERVER]) > COL_NODE) { COL_NODE = length(status[DB,SERVER]) + COL_NODE_OFFSET;}
+            if ($1 == "LAST_SERVER") {
+                # Leaving previous SERVER block -> decide whether to keep its data
+                if (type == "PDB") { l_index = DBPDB } else { l_index = DB }
+                save_db_status_info(l_index, prev_server)
+                # Start a new instance block
+                SERVER = $2                                                                         ;
+                prev_server = SERVER                                                                ;
+                cur_state = ""; cur_target = ""; cur_open_mode = ""; cur_details = "";
+                cur_ts = 0; cur_restart_str = ""                                                    ;
+                if (length(SERVER) > COL_NODE) {
+                    COL_NODE = length(SERVER) + COL_NODE_OFFSET                                     ;
+                }
             }
-	    if ($1 == "TARGET")             {       if (target[DB,SERVER]=="") {target[DB,SERVER]=$2;}}
+            if ($1 == "STATE")              {       gsub(" on .*$", "", $2)                 ;
+                                                    cur_state = $2                          ; }
+            if ($1 == "TARGET")             {       cur_target = $2                         ; }
             # We use USR_ORA_OPEN_MODE instead of STATE and TARGET for the databases
-            if ($1 == "USR_ORA_OPEN_MODE")  {    if (tolower($2) ~ "mount")     {target[DB,SERVER]="Mounted"  ;}
-                                                 if (tolower($2) ~ "read only") {target[DB,SERVER]="Readonly" ;}
-                                                 if (tolower($2) ~ "open")      {target[DB,SERVER]="Open"     ;}
+            if ($1 == "USR_ORA_OPEN_MODE")  {    if (tolower($2) ~ "mount")     {cur_open_mode="Mounted"  ;}
+                                                 if (tolower($2) ~ "read only") {cur_open_mode="Readonly" ;}
+                                                 if (tolower($2) ~ "open")      {cur_open_mode="Open"     ;}
                                             }
             if (($1 == "LAST_RESTART") || ($1 == "LAST_STATE_CHANGE")) {
-                if (type == "PDB") { l_index = DBPDB} else { l_index = DB }
-                if (started[l_index,SERVER] > diff_hours($2" "$3) || started[l_index,SERVER] == "") {started[l_index,SERVER]=diff_hours($2" "$3);}
+                # Keep the highest epoch timestamp seen in this instance block
+                if (($2+0) > cur_ts) {
+                    cur_ts = $2+0                                                                   ;
+                    cur_restart_str = $2" "$3                                                       ;
+                }
             }
-            if ($1 == "STATE_DETAILS")      {       NB++                                    ;  # Number of instances we came through
+            if ($1 == "STATE_DETAILS")
+            {   NB++                        ;  # Number of instances we came through
                 if (DB ~ /acfs/)            {       sub ("mounted on ", "", $2)             ;      
                                                     tempdb=tolower(DB)                      ;
                                                     sub(/^[[:alnum:]_]*\./, "", tempdb)     ;
@@ -1002,18 +1060,20 @@ function set_color_status(i_db, i_node, i_status, i_target) {
                 sub("STATE_DETAILS=", "", $0)           ;
                 sub(",HOME=.*$", "", $0)                ;       # Manage the 12cR2 new feature, check 20170606 for more details
                 sub("),.*$", ")", $0)                   ;       # To make clear multi status like "Mounted (Closed),Readonly,Open Initiated"
-                if (tolower($0) ~ "instance shutdown")    {  status_details[DB,SERVER] = "Shutdown"        ;      } else
-                if (tolower($0) ~ "readonly")             {  status_details[DB,SERVER] = "Readonly"        ;      } else
-                if (tolower($0) ~ "abnormal termination") {  status_details[DB,SERVER] = "Abnorm Term"     ;      } else
-                if (tolower($0) ~ "fast-start failover")  {  status_details[DB,SERVER] = "FastFailover"    ;      } else
-                if (tolower($0) ~ "mount")                {  status_details[DB,SERVER] = "Mounted"         ;      } else
-                if (tolower($0) ~ "running from old")     {  status_details[DB,SERVER] = "Open from old OH";      } else
-                                                          {  if ($0 != "") {status_details[DB,SERVER] = $0};      }
-                if ((length(status_details[DB,SERVER]) > COL_NODE) && (type != "TECH")) {
-                    COL_NODE = length(status_details[DB,SERVER]) + COL_NODE_OFFSET  ;
-                }
+                if (tolower($0) ~ "instance shutdown")    {  cur_details = "Shutdown"        ;      } else
+                if (tolower($0) ~ "readonly")             {  cur_details = "Readonly"        ;      } else
+                if (tolower($0) ~ "abnormal termination") {  cur_details = "Abnorm Term"     ;      } else
+                if (tolower($0) ~ "fast-start failover")  {  cur_details = "FastFailover"    ;      } else
+                if (tolower($0) ~ "mount")                {  cur_details = "Mounted"         ;      } else
+                if (tolower($0) ~ "running from old")     {  cur_details = "Open from old OH";      } else
+                                                          {  if ($0 != "") {cur_details = $0};      }
             } # End of $1 == "STATE_DETAILS"
-            if ($1 == "BREAK_HERE") { break;}
+            if ($1 == "BREAK_HERE") {
+                # Final commit for the last SERVER of this NAME
+                if (type == "PDB") { l_index = DBPDB } else { l_index = DB }
+                save_db_status_info(l_index, prev_server)
+                break;
+            }
         }
     }     # End of if ($1 == LAST_SERVER)
         }       # End of if ($1 ~ /^NAME/)
