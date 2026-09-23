@@ -19,10 +19,11 @@
 #
 # More info and git repo: https://bit.ly/2MFkzDw -- https://github.com/freddenis/oracle-scripts
 #
-# The current script version is 20260917
+# The current script version is 20260922
 #
 # History :
 #
+# 20260922 - Fred Denis - Fixed a bug where an instance shown as disabled would not appear as disabled
 # 20260917 - Fred Denis - Fixed a false red "STATUS and TARGET are different" highlight on databases that are intentionally stopped (STATE=TARGET=OFFLINE). Check 20220121 for why we use USR_ORA_OPEN_MODE
 #                         for databases but that attribute is only the configured open mode for a future start, so comparing it to STATE_DETAILS was raising a false positive.
 #                         Also only keep the most recent status when multiple crsctl blocks exist for the same instance (timestamp-based) -- not sure if this is a CRS bug or a feature.
@@ -845,55 +846,76 @@ function set_color_status(i_db, i_node, i_status, i_target) {
 
     getline; getline                                                                                ;
     if ($1 == "ACL") {                        # crsctl stat res -p output
-        if (type == "DB") {
+	    if (type == "DB") {
             # Get the owner and the group
             match($2, /owner:([[:alnum:]]*):.*/, OWNER)                                             ;
             match($2, /^.*pgrp:([[:alnum:]]*):.*/, GROUP)                                           ;
+            enabled  = ""                                                                           ;
+            instance = ""                                                                           ;
+            # One NAME can have several TYPE=ora.database.type cards (one per instance)
+            # each with its own ENABLED + GEN_USR_ORA_INST_NAME. Keep reading until BREAK_HERE.
             while (getline)
             {
+                if ($1 == "BREAK_HERE") {
+                    break                                                                           ;
+                }
+                if ($1 ~ /^NAME/) {
+                    break                                                                           ; # next resource (no unread; files use BREAK_HERE)
+                }
                 if ($1 == "ORACLE_HOME") {
                     OH = $2                                                                         ;
                     match($2, /[1-9][0-9]\.[0-9]\.?[0-9]?\.?[0-9]?/)                                ; # Grab the version from the OH path
                     VERSION = substr($2,RSTART,RLENGTH)                                             ;
                 }
-                if ($1 == "DATABASE_TYPE") {                                                          # RAC / RACOneNode / Single Instance are expected here
+                if ($1 == "DATABASE_TYPE") {                                                          # RAC / RACOneNode / Single Instance
                     dbtype[DB] = $2                                                                 ;
                 }
-                if ($1 == "ROLE") {                                                                   # Primary / Standby expected here
+                if ($1 == "ROLE") {                                                                   # Primary / Standby
                     role[DB] = $2                                                                   ;
                 }
-                if ($1 == "ENABLED") {                                                                # Instance is enabled (1) or disabled (0)
-                    enabled = $2                                                                    ; # Save it for later
+                if ($1 == "ENABLED") {                                                                # Instance enabled (1) or disabled (0)
+                    enabled = $2                                                                    ;
                 }
+                # Plain GEN_USR_ORA_INST_NAME=inst (start of an instance card)
                 if ($1 == "GEN_USR_ORA_INST_NAME") {
                     instance = $2                                                                   ;
-                    while (getline) {
-                        if (($1 ~ /^GEN_USR_ORA_INST_NAME@SERVERNAME/) && ($2 == instance)) {
-                            sub("GEN_USR_ORA_INST_NAME@SERVERNAME[(]", "", $1)                      ;
-                            sub(")", "", $1)                                                        ;
-                            is_enabled[DB,$1] = enabled                                             ;
-                            break                                                                   ;
-                        }
-                        if ($0 ~ /^$/) {
-                            break                                                                   ;
-                        }
-
-                    }
                 }
-                if ($0 ~ /^$/) {
-                    version[DB] = VERSION                                                           ;
-                         oh[DB] = OH                                                                ;
-
-                    if (!(OH in oh_list)) {
-                        oh_ref++                                                                    ;
-                        oh_list[OH] = oh_ref                                                        ;
-                        o_list[OH] = OWNER[1]                                                       ;
-                        g_list[OH] = GROUP[1]                                                       ;
-                        if (length(OH)       > COL_OH)    {        COL_OH = length(OH)              ; }
-                        if (length(OWNER[1]) > COL_OWNER) {     COL_OWNER = length(OWNER[1])        ; }
-                        if (length(GROUP[1]) > COL_GROUP) {     COL_GROUP = length(GROUP[1])        ; }
+                # GEN_USR_ORA_INST_NAME@SERVERNAME(node)=inst → map enabled to that node
+                if (($1 ~ /^GEN_USR_ORA_INST_NAME@SERVERNAME/) && (instance != "") && ($2 == instance)) {
+                    sub("GEN_USR_ORA_INST_NAME@SERVERNAME[(]", "", $1)                              ;
+                    sub(")", "", $1)                                                                ;
+                    is_enabled[DB,$1] = enabled                                                     ;
+                }
+                # End of one card (blank line or next TYPE=) — commit OH/version once, reset instance
+                if (($0 ~ /^$/) || ($1 == "TYPE")) {
+                    if (version[DB] == "") {
+                        version[DB] = VERSION                                                       ;
+                             oh[DB] = OH                                                            ;
+                        if (!(OH in oh_list)) {
+                            oh_ref++                                                                ;
+                            oh_list[OH] = oh_ref                                                    ;
+                            o_list[OH] = OWNER[1]                                                   ;
+                            g_list[OH] = GROUP[1]                                                   ;
+                            if (length(OH)       > COL_OH)    {        COL_OH = length(OH)          ; }
+                            if (length(OWNER[1]) > COL_OWNER) {     COL_OWNER = length(OWNER[1])    ; }
+                            if (length(GROUP[1]) > COL_GROUP) {     COL_GROUP = length(GROUP[1])    ; }
+                        }
                     }
-                    break                                                                           ;
+                    instance = ""                                                                   ;
+                }
+            }
+            # Commit OH/version if we never saw a blank line / TYPE before BREAK_HERE
+            if (version[DB] == "") {
+                version[DB] = VERSION                                                               ;
+                     oh[DB] = OH                                                                    ;
+                if (!(OH in oh_list)) {
+                    oh_ref++                                                                        ;
+                    oh_list[OH] = oh_ref                                                            ;
+                    o_list[OH] = OWNER[1]                                                           ;
+                    g_list[OH] = GROUP[1]                                                           ;
+                    if (length(OH)       > COL_OH)    {        COL_OH = length(OH)                  ; }
+                    if (length(OWNER[1]) > COL_OWNER) {     COL_OWNER = length(OWNER[1])            ; }
+                    if (length(GROUP[1]) > COL_GROUP) {     COL_GROUP = length(GROUP[1])            ; }
                 }
             }
         }       # End if (type == "DB")
