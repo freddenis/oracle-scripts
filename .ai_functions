@@ -1,0 +1,78 @@
+# Fred DENIS -- 12-Feb-2026
+# Please check https://docs.oracle.com/en-us/iaas/Content/generative-ai/model-endpoint-regions.htm
+# to check which models are available and in which region
+#
+ DEF_COMP_ID="ocid1.compartment.oc1..aaaaaaaabjtqdzezueu2gnbzmjpne4uuzd3utzpbt55leowniyuzkypwdc4q"    # Compartment
+   DEF_MODEL="xai.grok-4-1-fast-reasoning"
+   DEF_MODEL="xai.grok-4.3"
+  DEF_REGION="us-ashburn-1"
+     DIRTEMP="${DIRTEMP:-/tmp}"
+ DEF_PROFILE="SRESQL"
+  DEF_TOKENS=2000
+ DEF_VERBOSE="False"
+#
+# Some functions
+#
+ask_llm ()
+{
+    #
+    # Send a prompt to an OCI gen AI LLM and get the result
+    #
+    local -; set -e; trap 'exec 3>&-; rm -f "${l_json}" "${l_pfile}"' RETURN;
+    local ME="${FUNCNAME[0]}";
+    local l_prompt="${1:-$ENV_PROMPT}";
+    local l_spool="${2:-${ENV_SPOOL:-}}";
+    local l_model="${3:-${ENV_MODEL:-$DEF_MODEL}}";
+    local l_region="${4:-${ENV_REGION:-$DEF_REGION}}";
+    local l_comp="${5:-${ENV_COMP_ID:-$DEF_COMP_ID}}";
+    local l_profile="${6:-${ENV_PROFILE:-$DEF_PROFILE}}";
+    local l_tokens="${7:-${ENV_TOKENS:-$DEF_TOKENS}}";
+    local l_verbose="${8:-${ENV_VERBOSE:-$DEF_VERBOSE}}";
+
+    # Dynamically assign File Descriptor 3 based on whether l_spool is set
+    if [[ -z "${l_spool}" ]]; then
+        exec 3>&1
+    else
+        exec 3>>"${l_spool}"
+    fi
+
+    local l_json=$(mktemp -p "${DIRTEMP}" -t "${UNIQ}_request_XXXXXX.json");
+
+    # FIX: Redirected output to FD 3 instead of explicit file path
+    [[ "${l_verbose}" == "True" ]] && echo "$(date) -- LLM: ${l_model} -- Region: ${l_region}" >&3;
+
+    local l_pfile=$(mktemp -p "${DIRTEMP}" -t "${UNIQ}_prompt_XXXXXX.txt");
+    local l_ret=0;
+    echo "${l_prompt}" > "${l_pfile}";
+
+    jq -n --rawfile prompt "${l_pfile}" --argjson tokens "${l_tokens}" '{
+    "apiFormat": "GENERIC",
+    "messages": [
+        {
+          "role": "USER",
+          "content": [{"type": "TEXT", "text": $prompt}]
+        }
+    ],
+    "maxTokens": $tokens,
+    "temperature": 0
+    }' > "${l_json}";
+
+    SECONDS=0;
+    local l_out=$(oci generative-ai-inference chat-result chat --region "${l_region}" --compartment-id "${l_comp}" --profile ${l_profile} --serving-mode "{\"servingType\": \"ON_DEMAND\", \"modelId\": \"${l_model}\"}" --chat-request "file://${l_json}" 2>&1);
+
+    if echo "${l_out}" | grep --color=auto -qE "ServiceError|RequestException"; then
+        # FIX: Redirected output to FD 3
+        echo "$(date) -- LLM: ${l_model} -- Region: ${l_region} -- Comp: ${l_comp} -- API Keys: ${l_profile} -- Tokens: ${l_tokens}" >&3;
+        sed -n '/{/,$p' <<< "${l_out}" | jq -r '"Error" + (if .code? then " " + .code else "" end) + ": " + .message' >&3;
+        l_ret=33;
+    else
+        # FIX: Redirected output to FD 3
+        echo "${l_out}" | jq -r '.data["chat-response"].choices[0].message.content[0].text' >&3;
+        l_ret=0;
+    fi;
+
+    # FIX: Redirected output to FD 3
+    [[ "${l_verbose}" == "True" ]] && echo "$(date) -- Result in $SECONDS seconds." >&3;
+
+    return $l_ret
+}
