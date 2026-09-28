@@ -2,8 +2,7 @@
 # Please check https://docs.oracle.com/en-us/iaas/Content/generative-ai/model-endpoint-regions.htm
 # to check which models are available and in which region
 #
- DEF_COMP_ID="ocid1.compartment.oc1..aaaaaaaabjtqdzezueu2gnbzmjpne4uuzd3utzpbt55leowniyuzkypwdc4q"    # Compartment
-   DEF_MODEL="xai.grok-4-1-fast-reasoning"
+ DEF_COMP_ID="xxxx"    # Compartment
    DEF_MODEL="xai.grok-4.3"
   DEF_REGION="us-ashburn-1"
      DIRTEMP="${DIRTEMP:-/tmp}"
