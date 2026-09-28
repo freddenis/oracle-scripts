@@ -37,7 +37,6 @@ ask_llm ()
 
     local l_json=$(mktemp -p "${DIRTEMP}" -t "${UNIQ}_request_XXXXXX.json");
 
-    # FIX: Redirected output to FD 3 instead of explicit file path
     [[ "${l_verbose}" == "True" ]] && echo "$(date) -- LLM: ${l_model} -- Region: ${l_region}" >&3;
 
     local l_pfile=$(mktemp -p "${DIRTEMP}" -t "${UNIQ}_prompt_XXXXXX.txt");
@@ -60,17 +59,14 @@ ask_llm ()
     local l_out=$(oci generative-ai-inference chat-result chat --region "${l_region}" --compartment-id "${l_comp}" --profile ${l_profile} --serving-mode "{\"servingType\": \"ON_DEMAND\", \"modelId\": \"${l_model}\"}" --chat-request "file://${l_json}" 2>&1);
 
     if echo "${l_out}" | grep --color=auto -qE "ServiceError|RequestException"; then
-        # FIX: Redirected output to FD 3
         echo "$(date) -- LLM: ${l_model} -- Region: ${l_region} -- Comp: ${l_comp} -- API Keys: ${l_profile} -- Tokens: ${l_tokens}" >&3;
         sed -n '/{/,$p' <<< "${l_out}" | jq -r '"Error" + (if .code? then " " + .code else "" end) + ": " + .message' >&3;
         l_ret=33;
     else
-        # FIX: Redirected output to FD 3
         echo "${l_out}" | jq -r '.data["chat-response"].choices[0].message.content[0].text' >&3;
         l_ret=0;
     fi;
 
-    # FIX: Redirected output to FD 3
     [[ "${l_verbose}" == "True" ]] && echo "$(date) -- Result in $SECONDS seconds." >&3;
 
     return $l_ret
